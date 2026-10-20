@@ -31,7 +31,7 @@ Use UTF-8 **with BOM** when saving `sort_raw.ps1` locally for Windows PowerShell
 - Analyze local JPEG previews without uploading photos to external services.
 - Exclude all-white/black technical frames and exposure-bracketing duplicates.
 - Identify diverse poses and compositions around selected frame numbers; keep required five.
-- Target 16–22 RAW per student **only when valid candidates exist**, with review for ambiguous matches.
+- Treat 16–22 RAW per student as a **typical range, not a hard cap**. Keep fewer if there are fewer distinct useful frames, or more (including 25–30+) when additional poses/compositions are genuinely different. Always retain the five selected frames, and review ambiguous matches.
 - Produce audit report and allow interactive approval before copying.
 
 All real photos and personal data remain local.
