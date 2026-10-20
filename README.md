@@ -5,9 +5,9 @@ Local RAW sorting for school photo delivery. **Version 1.0** (PowerShell).
 ## Features
 
 - Reads `Name,V,P1,P2,D1,D2` from UTF-8 CSV.
-- Finds Sony `ANTxxxxx.ARW` files by the frame numbers chosen in the worksheet.
+- Finds Sony RAW files using a photographer-specific three-letter Latin surname prefix, such as `ANTxxxxx.ARW` for Antonov. `ANT` is an example, **not a universal prefix**; another photographer may use `IVN`, `PET`, etc. The script currently recognizes `ANT` only; configurable prefix support is planned.
 - Always includes five required RAW files and adds nearby frames (±8 frame numbers), up to 18 total per student by default.
-- Renames **only copied selected files**: `Фамилия Имя_ANTxxxxx.ARW`, `ЛР_Фамилия Имя_ANTxxxxx.ARW`, `ЛС_Фамилия Имя_ANTxxxxx.ARW`, `Друг1_ANTxxxxx.ARW`, `Друг2_ANTxxxxx.ARW`.
+- Renames **only copied selected files**: `Фамилия Имя_<PREFIX>xxxxx.ARW`, `ЛР_Фамилия Имя_<PREFIX>xxxxx.ARW`, `ЛС_Фамилия Имя_<PREFIX>xxxxx.ARW`, `Друг1_<PREFIX>xxxxx.ARW`, `Друг2_<PREFIX>xxxxx.ARW`. Here `<PREFIX>` means the photographer's three-letter surname code (e.g. `ANT`).
 - Other copied RAW files keep original filenames; source files are never modified.
 - Checks missing required frames, output folders and free space before confirmation.
 
