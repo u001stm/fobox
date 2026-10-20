@@ -35,3 +35,15 @@ Use UTF-8 **with BOM** when saving `sort_raw.ps1` locally for Windows PowerShell
 - Produce audit report and allow interactive approval before copying.
 
 All real photos and personal data remain local.
+
+## Camera-independent architecture (FOBOX 2.x roadmap)
+
+FOBOX is intended for **multiple photographers and camera manufacturers**, not just Sony or Antonov. `ANT` and `.ARW` are examples only.
+
+- RAW formats to support via suitable decoders: ARW, CR2, CR3, NEF, NRW, RAF, RW2, ORF, DNG, PEF, 3FR and others where supported.
+- Filenames may use arbitrary camera-generated patterns (e.g. `ANT01750.ARW`, `DSC_1750.NEF`, `IMG_1750.CR3`, `DSCF1750.RAF`). Do not infer a photographer's identity from the prefix.
+- Resolve worksheet selections against unique file identifiers, not just frame numbers; detect and ask to resolve collisions.
+- Use sidecar JPEGs or RAW-embedded previews for analysis when supported; export the **original RAW format** without conversion.
+- Keep the original filename as part of the copied filename; never rename source files.
+
+**Implementation status:** v1 and current experimental `v2/sort_v2.py` still support only `ANT`-style three-letter-prefix ARW/JPG pairs (v2 can autodetect the three letters). Universal camera support described here is a requirement for future development, **not a feature already implemented**.
