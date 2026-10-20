@@ -24,3 +24,13 @@ Copy `students_example.csv` to `students.csv` and replace the sample rows with y
 ## Privacy and limitations
 
 Do not commit student names or images to this public GitHub repository. This version may miss useful images or include wrong people. It does **not** implement full body-pose estimation. Test on three students first.
+
+## FOBOX 2.1 — mixed-reference protection
+
+Run `sort_v2_1.py` instead of `sort_v2.py`:
+
+```powershell
+.\.venv\Scripts\python.exe sort_v2_1.py --contact-sheets
+```
+
+The new version compares all three mandatory portrait reference faces pairwise. If any portrait has zero/multiple detected faces or any pair falls below `--reference-min-score 0.50`, that student is **blocked** and listed in `fobox_v2_blocked.json`. No additional frames are selected for blocked students, and `--copy` is disabled globally until all reference conflicts are corrected. Portrait anchors belonging to other students are excluded from extra candidates. Review `fobox_v2_plan.json` and contact sheets before export. This is a conservative heuristic: a block may be a false positive and a passed reference set does not prove identity.
