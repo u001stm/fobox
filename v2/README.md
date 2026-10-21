@@ -52,3 +52,14 @@ The existing `sort_v2_1.py` does **not yet implement** this split interactive re
 - **Teachers:** group images into a series per teacher, as for students, but propose **at most 3–5 RAW images**, ideally one best image per distinct pose. Avoid bracketing duplicates and near-identical expressions. No student-specific mandatory V/P1/P2/D1/D2 fields for teachers. Show all proposals on one review screen with checkboxes; allow manual override.
 - **Background:** one separate photograph **without a person**, selected explicitly by the operator using a file picker. Do not infer or automatically select a background from portrait images. Preserve the original file/format in the order's background folder.
 - These categories remain distinct from students, group photos, reportage, building and documents in the final order folder structure.
+
+
+### Teacher RAW naming convention (user-supplied example)
+
+Teacher RAW copies use full surname, given name, patronymic, and teaching role, for example:
+
+- `Алексеева Елена Геннадьевна классный руководитель.ARW`
+- `Баландин Анатолий Павлович учитель русского языка.ARW`
+- `Панаева Наталия Васильевна учитель математики.ARW`
+
+For multiple selected RAWs of one teacher, use a numeric suffix before the original extension, e.g. `... классный руководитель_02.ARW`, `..._03.ARW`. Retain the camera's original RAW extension (not necessarily ARW). **Do not rename original source files**; if an existing correctly named teacher RAW is included, preserve its name. This naming support is a planned feature, not present in the current script.
