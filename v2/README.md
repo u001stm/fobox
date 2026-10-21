@@ -62,4 +62,4 @@ Teacher RAW copies use full surname, given name, patronymic, and teaching role, 
 - `Баландин Анатолий Павлович учитель русского языка.ARW`
 - `Панаева Наталия Васильевна учитель математики.ARW`
 
-For multiple selected RAWs of one teacher, use a numeric suffix before the original extension, e.g. `... классный руководитель_02.ARW`, `..._03.ARW`. Retain the camera's original RAW extension (not necessarily ARW). **Do not rename original source files**; if an existing correctly named teacher RAW is included, preserve its name. This naming support is a planned feature, not present in the current script.
+Teacher export filenames must NOT contain automatic `_02`, `_03`, or other numeric suffixes. Preserve the original teacher filename if already correctly named. Retain the original RAW extension (not necessarily ARW). **Do not rename source files.** If multiple selected files would have the same destination filename, report a naming conflict and request a distinct filename instead of overwriting or adding a suffix automatically. This naming support is planned and not present in the current script.
