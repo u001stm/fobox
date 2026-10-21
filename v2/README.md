@@ -34,3 +34,14 @@ Run `sort_v2_1.py` instead of `sort_v2.py`:
 ```
 
 The new version compares all three mandatory portrait reference faces pairwise. If any portrait has zero/multiple detected faces or any pair falls below `--reference-min-score 0.50`, that student is **blocked** and listed in `fobox_v2_blocked.json`. No additional frames are selected for blocked students, and `--copy` is disabled globally until all reference conflicts are corrected. Portrait anchors belonging to other students are excluded from extra candidates. Review `fobox_v2_plan.json` and contact sheets before export. This is a conservative heuristic: a block may be a false positive and a passed reference set does not prove identity.
+
+
+## Review UX requirements — portrait series vs friends (planned, not implemented)
+
+- Every review sheet is headed by **student surname and given name** from the worksheet, not a generic student number. A sequence counter may appear only as secondary metadata.
+- **Portrait/vignette review:** show mandatory V, P1, P2 anchors, selected portrait images, and a contextual strip of nearby frames **before and after each detected series**. Include adjacent other people to make the series boundary clear. Context frames are **not automatically selected for RAW export**.
+- **Friends review:** show D1 and D2 and their nearby group-photo frames in a separate section. Multi-person photos are expected; do not require exactly one detected face or use portrait-only rejection rules.
+- Permit quick keep/remove decisions, preserve five worksheet-mandatory selections, and require human confirmation before export. If a mandatory frame seems wrong, flag it for worksheet correction rather than silently deleting it.
+- Distinguish visually between **selected**, **context only**, **mandatory**, and **uncertain** frames.
+
+The existing `sort_v2_1.py` does **not yet implement** this split interactive review interface. This section records the specification for the next version.
