@@ -1,3 +1,7 @@
+## FOBOX 3.0 Preview
+
+New local single-window review and order assembly prototype: [v3/README.md](v3/README.md). **Not yet AI-enabled**; manual review is required. The previous v1/v2 versions remain available for comparison.
+
 # FOBOX — RAW SORTER
 
 Local RAW sorting for school photo delivery. **Version 1.0** (PowerShell).
