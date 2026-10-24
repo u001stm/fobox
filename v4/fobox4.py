@@ -38,6 +38,24 @@ def pick_path(kind):
         root.destroy()
 
 
+def open_folder(engine, sid):
+    """Show the last export of this session in Explorer/Finder (only that folder can be opened)."""
+    import os
+    import subprocess
+    import sys
+    st = engine.session(sid)['session']
+    path = json.loads(st['meta'] or '{}').get('last_export')
+    if not path or not Path(path).is_dir():
+        raise ValueError('Папка экспорта не найдена')
+    if sys.platform.startswith('win'):
+        os.startfile(path)  # noqa: S606 - local desktop app
+    elif sys.platform == 'darwin':
+        subprocess.Popen(['open', path])
+    else:
+        subprocess.Popen(['xdg-open', path])
+    return {'ok': True, 'path': path}
+
+
 def make_handler(engine):
     class Handler(BaseHTTPRequestHandler):
         def send(self, status, body, mime='application/json; charset=utf-8', cache=False):
@@ -84,6 +102,9 @@ def make_handler(engine):
                 p = urlparse(self.path).path
                 if p == '/api/import':
                     out = engine.start_import(b)
+                elif p == '/api/review-beacon':   # last unsaved change when the tab closes
+                    b['approved'] = False
+                    out = engine.review(b['session'], b)
                 elif p == '/api/review':
                     out = engine.review(b['session'], b)
                 elif p == '/api/role':
@@ -91,7 +112,12 @@ def make_handler(engine):
                 elif p == '/api/meta':
                     out = engine.set_meta(b['session'], b)
                 elif p == '/api/export':
-                    out = engine.export(b['session'], b.get('output'), dry_run=bool(b.get('dry_run')))
+                    if b.get('dry_run'):
+                        out = engine.export(b['session'], b.get('output'), dry_run=True)
+                    else:
+                        out = engine.start_export(b['session'], b.get('output'))
+                elif p == '/api/open':
+                    out = open_folder(engine, b['session'])
                 elif p == '/api/settings':
                     engine.save_settings(b.get('settings', {}))
                     if 'profile' in b:

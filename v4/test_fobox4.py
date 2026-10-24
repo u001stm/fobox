@@ -260,6 +260,22 @@ class EngineTest(unittest.TestCase):
         w, h = Image.open(io.BytesIO(data)).size
         self.assertGreater(h, w)                 # 300x200 landscape preview shown upright as portrait
 
+    def test_export_job_writes_order_report(self):
+        import time
+        sid = self.school()
+        self.approve_all(sid)
+        jid = self.e.start_export(sid, self.tmp / 'out')['job']
+        for _ in range(100):
+            if self.e.jobs[jid]['finished']:
+                break
+            time.sleep(0.05)
+        job = self.e.jobs[jid]
+        self.assertIsNone(job['error'])
+        self.assertEqual(job['done'], job['total'])
+        rep = Path(job['result']['report']).read_text(encoding='utf-8-sig').splitlines()
+        self.assertEqual(rep[0].split(';')[:3], ['Тип', 'Кто', 'Роль'])
+        self.assertTrue(any(';Иванов Иван;Личный разворот;' in r for r in rep))
+
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'
         f.write_bytes('ФИО;В;П1;П2;Д1;Д2\r\nИванов Иван;110;111;112;125;126\r\n'.encode('cp1251'))

@@ -95,6 +95,70 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--card2)}
 kbd{background:var(--card2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11px}
 @media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.g2,.g3{grid-template-columns:1fr}.rv{grid-template-columns:1fr;height:auto}.rv-side{max-height:40vh}.grid{min-height:60vh}}
 @media(max-width:560px){.page{padding:18px 14px}.kpis{grid-template-columns:1fr}.two{grid-template-columns:1fr}}
+
+/* ---- review v2 ---- */
+.rv-head .ttl{font-weight:650;font-size:15px;letter-spacing:-.01em}
+.srch{position:relative;margin-top:12px}.srch input{width:100%;padding-right:62px}.srch kbd{position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none}
+.grp{border-radius:10px;margin-bottom:2px}.grp.act{background:var(--card2)}
+.gh{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:default}.gh[onclick]{cursor:pointer}
+.gh .gt{flex:1;font-weight:550;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gh .gn{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.st{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-size:10px;flex-shrink:0;color:#fff}
+.st.part{border-color:var(--warn)}.st.ok{background:var(--ok);border-color:var(--ok)}
+.iss{width:16px;height:16px;border-radius:50%;background:var(--bad);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;cursor:help}
+.sr{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;padding:6px 10px 6px 34px;border-radius:8px;cursor:pointer;color:var(--muted);text-align:left;font-size:13px}
+.sr .mut{margin-left:auto;font-variant-numeric:tabular-nums}.sr:hover{color:var(--text)}.sr.on{color:var(--text);background:var(--accent-soft)}
+.sr .dot{margin:0}
+.sidefoot{padding:10px;border-top:1px solid var(--line);display:grid;gap:6px}
+.bar .h1{font-size:18px;font-weight:650;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .h1 span{color:var(--muted);font-weight:400;font-size:14px;margin-left:6px}
+.tabs button b{font-weight:500;color:var(--muted);margin-left:2px;font-variant-numeric:tabular-nums}.tabs button.on b{color:var(--text)}
+.seg2{display:flex;background:var(--card2);border-radius:8px;padding:3px}.seg2 button{border:0;background:none;color:var(--muted);padding:5px 9px;border-radius:6px;cursor:pointer;font-size:12px}.seg2 button.on{background:var(--card);color:var(--text)}
+.notes:empty{display:none}.notes .warn{margin:10px 18px 0}
+.warn.info{background:var(--card2);color:var(--muted)}.warn.acc{background:var(--accent-soft);color:var(--text);display:flex;align-items:center;gap:10px;flex-wrap:wrap}.warn.okb{background:#37c08a1f;color:var(--ok);margin:0}
+.path{word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:12px;opacity:.85}
+.btn.sm{padding:4px 10px;font-size:12.5px}.btn.danger{color:var(--bad);border-color:#ef5d6b55}
+kbd{font-family:ui-monospace,Consolas,monospace;color:var(--muted)}kbd.inv{background:#ffffff26;border-color:#ffffff33;color:#fff}
+.tile{transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease}.tile:hover{transform:translateY(-1px)}
+.tile.fc{box-shadow:0 0 0 2px var(--blue)}.tile.on{box-shadow:0 0 0 1px var(--accent)}.tile.on.fc{box-shadow:0 0 0 2px var(--blue),0 0 0 4px var(--accent)}
+.tile .im{background-color:var(--card2);transition:opacity .25s ease}.tile .im[data-src]:not(.ld){animation:pulse 1.2s ease-in-out infinite}
+.tile .cap .role{color:var(--gold);font-weight:600}
+@keyframes pulse{50%{opacity:.55}}
+.skel{background:var(--card2);border-radius:10px;animation:pulse 1.2s ease-in-out infinite}
+.hint{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.hint kbd{margin-left:6px}
+.lnk{background:none;border:0;color:var(--blue);cursor:pointer;font-size:12px;padding:0 0 0 6px}
+.savest{font-size:12px;color:var(--muted);min-width:90px;text-align:right}.savest.ok{color:var(--ok)}.savest.bad{color:var(--bad)}
+.menu button{display:flex;justify-content:space-between;gap:14px;align-items:center}
+/* viewer */
+.vw{position:fixed;inset:0;z-index:60;background:#07090d;display:grid;grid-template-rows:auto 1fr auto;color:#eef1f7}
+.vtop{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #1d2330;flex-wrap:wrap}
+.vw .btn{background:#1a2030;border-color:#2a3242;color:#eef1f7}.vw .btn.pri{background:var(--accent);border-color:var(--accent)}.vw .mut{color:#8d97a8}
+.vstage{min-height:0;display:flex;gap:6px;padding:10px;overflow:hidden}.vstage.zoom{overflow:auto;cursor:zoom-out;display:block}
+.vf{margin:0;flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;cursor:zoom-in;position:relative;border-radius:8px}
+.vf img{max-width:100%;max-height:calc(100vh - 230px);object-fit:contain;border-radius:4px;box-shadow:0 10px 40px #000}
+.vstage.two .vf{border:2px solid transparent;padding:6px}.vstage.two .vf.on{border-color:var(--accent)}.vstage.two .vf+.vf{cursor:pointer}
+.vstage.zoom .vf{display:block}.vstage.zoom .vf img{max-width:none;max-height:none}.vstage.zoom figcaption{display:none}
+.vf figcaption{font-size:12.5px;color:#aab3c3;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+.rb{background:#ffcc4d22;color:var(--gold);padding:1px 8px;border-radius:20px;font-weight:600}.sb{background:var(--accent);color:#fff;padding:1px 8px;border-radius:20px}
+.vnav{position:fixed;top:50%;transform:translateY(-50%);width:44px;height:64px;border:0;border-radius:10px;background:#ffffff12;color:#fff;font-size:30px;cursor:pointer}.vnav:hover{background:#ffffff26}.vnav.l{left:12px}.vnav.r{right:12px}
+.vbar{border-top:1px solid #1d2330;padding:10px 16px;display:grid;gap:10px}
+.strip{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px}.strip img{height:54px;border-radius:4px;opacity:.5;cursor:pointer;border:2px solid transparent;flex-shrink:0}
+.strip img.on{opacity:.85;border-color:var(--accent)}.strip img.cur{opacity:1;border-color:#fff}
+/* palette, help */
+.modal.top{align-items:start;padding-top:12vh}
+.pal{width:min(620px,100%);background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px #000a}
+.pal input{width:100%;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:16px 18px;font-size:16px;background:var(--card)}
+#pall{max-height:50vh;overflow:auto;padding:6px}.pi{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border-radius:8px;cursor:pointer}.pi.on{background:var(--accent-soft)}
+.pk{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:1px 6px;align-self:center}
+.palf{display:flex;gap:16px;padding:8px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.dlg.wide{width:min(860px,100%)}.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}.kh{font-weight:600;margin-bottom:8px}
+.kr{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}.kr>span:last-child{color:var(--muted);text-align:right}
+/* export preflight */
+.pf{border:1px solid var(--line);border-radius:10px;margin-bottom:14px;overflow:hidden}.pf.okk{border-color:#37c08a66}
+.pfh{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;font-weight:600;background:var(--card2);flex-wrap:wrap}.pf.okk .pfh{color:var(--ok)}
+.pfl{max-height:200px;overflow:auto}.pfi{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:8px 12px;font-size:13px;cursor:pointer}
+.pfi:hover{background:var(--card2)}.pfi .lv{width:8px;height:8px;border-radius:50%;flex-shrink:0}.pfi.lv-bad .lv{background:var(--bad)}.pfi.lv-warn .lv{background:var(--warn)}.pfi.lv-info .lv{background:var(--blue)}
+.pfi .go{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+@media(max-width:1000px){.keys{grid-template-columns:1fr}.hint{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -201,81 +265,183 @@ function importDlg(){S.imode=S.imode||'general';const school=S.imode==='school';
  <div id="i_prog"></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn ghost" onclick="closeL()">Отмена</button><button class="btn pri" id="i_go" onclick="doImport()">Импортировать</button></div></div></div>`;
  const keep=S.ivals||{};Object.entries(keep).forEach(([k,v])=>{const e=$('#'+k);if(e)e.value=v});document.querySelectorAll('.dlg input').forEach(i=>i.oninput=()=>{(S.ivals=S.ivals||{})[i.id]=i.value})}
 async function pick(id,kind){try{const r=await api('/api/pick',{kind});if(r.path){$('#'+id).value=r.path;(S.ivals=S.ivals||{})[id]=r.path}}catch(e){toast(e.message,1)}}
-const closeL=()=>$('#layer').innerHTML='';
+const closeL=()=>{$('#layer').innerHTML='';S.pal=null};
 async function doImport(){const v=id=>($('#'+id)?.value||'').trim();const body={source:v('i_src'),title:v('i_title'),location:v('i_loc')};
  if(S.imode==='school')Object.assign(body,{students:v('i_students'),teachers:v('i_teachers'),order:v('i_order'),school:v('i_school'),date:v('i_date'),class_name:v('i_class')});
  if(!body.source)return toast('Укажите папку',1);if(S.imode==='school'&&!body.students)return toast('Укажите ведомость учеников',1);
  $('#i_go').disabled=true;try{const r=await api('/api/import',body);await watchJob(r.session,'#i_prog');S.ivals={};closeL();S.sid=r.session;localStorage.setItem('fobox.sid',r.session);S.sess=null;S.sec=0;await load();go('shoot')}catch(e){$('#i_prog').innerHTML=`<div class="warn err" style="margin:0">${esc(e.message)}</div>`;$('#i_go').disabled=false}}
 async function watchJob(id,el){for(;;){const j=await api('/api/job?id='+id);const pc=j.total?Math.round(j.done/j.total*100):5;if($(el))$(el).innerHTML=`<div class="mut">${esc(j.stage||'')} ${j.total?`${j.done} / ${j.total}`:''}</div><div class="prog"><span style="width:${pc}%"></span></div>`;if(j.error)throw Error(j.error);if(j.finished)return;await new Promise(r=>setTimeout(r,400))}}
-// ---------- review
-async function openSess(id){S.sid=id;localStorage.setItem('fobox.sid',id);S.sess=null;S.sec=0;go('shoot')}
+// ---------- review: state, autosave, undo
+const ROLEKEYS={'1':'V','2':'P1','3':'P2','4':'D1','5':'D2'};
+async function openSess(id){await flush();S.sid=id;localStorage.setItem('fobox.sid',id);S.sess=null;S.sec=0;S.undo=[];go('shoot')}
 async function renderShoot(){const m=$('#main');if(!S.sid){m.innerHTML='<div class="page">'+head('Текущая съёмка','')+onboarding()+'</div>';return}
- if(!S.sess||S.sess.session.id!==S.sid){m.innerHTML='<div class="page mut">Загрузка…</div>';try{S.sess=await api('/api/session?id='+S.sid);S.fmap=Object.fromEntries(S.sess.files.map(f=>[f.path,f]));loadSec()}catch(e){S.sid='';localStorage.removeItem('fobox.sid');m.innerHTML='<div class="page">'+empty(esc(e.message))+'</div>';return}}
+ if(!S.sess||S.sess.session.id!==S.sid){m.innerHTML='<div class="page"><div class="skel" style="height:40px;width:40%"></div><div class="skel" style="height:420px;margin-top:16px"></div></div>';try{await reloadSess()}catch(e){S.sid='';localStorage.removeItem('fobox.sid');m.innerHTML='<div class="page">'+empty(esc(e.message))+'</div>';return}}
  drawShoot()}
-function loadSec(){const s=S.sess.sections[S.sec];S.sel=new Set(S.sess.selected[s.id]||[]);S.dirty=false}
-function secState(s){if(S.sess.approved[s.id])return'ok';return (S.sess.selected[s.id]||[]).length?'part':''}
-function kitList(d,s){/* whole set of the child: this section + the person's other sections (friends/portraits) */
- const out=[...s.files.filter(p=>S.sel.has(p)).map(p=>({f:S.fmap[p],o:null}))];const seen=new Set(out.map(x=>x.f.path));
+async function reloadSess(keepId){const id=keepId||S.sess?.sections[S.sec]?.id;S.sess=await api('/api/session?id='+S.sid);S.fmap=Object.fromEntries(S.sess.files.map(f=>[f.path,f]));
+ const i=id?S.sess.sections.findIndex(x=>x.id===id):-1;S.sec=i>=0?i:Math.min(S.sec||0,S.sess.sections.length-1);S.undo=S.undo||[];loadSec()}
+function loadSec(){const s=S.sess.sections[S.sec];if(!s)return;S.sel=new Set(S.sess.selected[s.id]||[]);S.fi=0}
+const curSec=()=>S.sess.sections[S.sec];
+function setSaveState(t,cls){const e=$('#savest');if(e){e.textContent=t;e.className='savest '+(cls||'')}}
+function scheduleSave(){const s=curSec();S.sess.selected[s.id]=[...S.sel];if(S.sess.approved[s.id]){S.sess.approved[s.id]=false;refreshSide()}
+ S.pending={id:s.id,sel:[...S.sel]};setSaveState('Сохранение…');clearTimeout(S.saveT);S.saveT=setTimeout(flush,500)}
+async function flush(){clearTimeout(S.saveT);const p=S.pending;if(!p)return;S.pending=null;
+ try{await api('/api/review',{session:S.sid,section:p.id,selected:p.sel,approved:false});setSaveState('Сохранено','ok')}catch(e){setSaveState('Не сохранено','bad');toast(e.message,1)}}
+function pushUndo(){const s=curSec();(S.undo=S.undo||[]).push({id:s.id,sel:[...S.sel]});if(S.undo.length>200)S.undo.shift()}
+async function undo(){const u=(S.undo||[]).pop();if(!u)return toast('Нечего отменять');await flush();const i=S.sess.sections.findIndex(x=>x.id===u.id);if(i<0)return;
+ if(i!==S.sec){S.sec=i}S.sel=new Set(u.sel);scheduleSave();drawShoot();toast('Отменено')}
+function secIssues(x){const d=S.sess,out=[];if(x.person){const pre=x.title+', ';const c=d.conflicts.filter(t=>t.startsWith(pre));if(c.length)out.push(...c)}
+ Object.entries(x.mandatory).forEach(([p,k])=>{const f=S.fmap[p];if(f&&f.flags)out.push(`${ALAB[k]||k}: ${f.flags.split(',').map(y=>d.flag_names[y]).join(', ')}`)});return out}
+function kitList(d,s){const out=[...s.files.filter(p=>S.sel.has(p)).map(p=>({f:S.fmap[p],o:null}))];const seen=new Set(out.map(x=>x.f.path));
  if(s.person)d.sections.forEach((x,i)=>{if(x.person===s.person&&x.id!==s.id)(d.selected[x.id]||[]).forEach(p=>{if(!seen.has(p)&&S.fmap[p]){seen.add(p);out.push({f:S.fmap[p],o:i})}})});return out}
-function drawShoot(){const d=S.sess,ss=d.session,s=d.sections[S.sec];const done=d.sections.filter(x=>d.approved[x.id]).length;const school=ss.mode==='school';
- const files=s.files.map(p=>S.fmap[p]).filter(Boolean);const flagged=files.filter(f=>f.flags);
- const kit=kitList(d,s);
- const list=S.tab==='kit'?kit.map(x=>x.f):S.tab==='bad'?flagged:files;const otherOf=Object.fromEntries(kit.filter(x=>x.o!==null).map(x=>[x.f.path,x.o]));
- const missing=(s.roles||[]).filter(k=>!Object.values(s.mandatory).includes(k));
- const must=s.mandatory,sug=new Set(d.suggested[s.id]||[]);
- $('#main').innerHTML=`<div class="rv"><div class="rv-side"><div class="rv-head"><div style="font-weight:600">${esc(ss.title)}</div><div class="mut">${school?`Заказ ${esc(ss.order_no||'—')} · ${esc(ss.class_name||'')} · `:''}${fmt(d.files.length)} кадров</div>
- <div class="meter" style="margin:10px 0 4px"><span style="width:${done/d.sections.length*100}%"></span></div><div class="mut">Подтверждено ${done} из ${d.sections.length}</div>
- <div class="row" style="margin-top:10px"><select style="flex:1" onchange="openSess(this.value)">${S.stats.sessions.map(x=>`<option value="${x.id}" ${x.id===S.sid?'selected':''}>${esc(x.title)}</option>`).join('')}</select></div></div>
- <div class="secs">${d.sections.map((x,i)=>`<button class="sec ${i===S.sec?'on':''}" onclick="pickSec(${i})"><div class="t"><span style="display:flex"><span class="dot ${secState(x)}"></span>${esc(x.title)}</span><span class="mut">${(d.selected[x.id]||[]).length}</span></div><div class="s" style="padding-left:15px">${esc(x.subtitle)}</div></button>`).join('')}</div>
- <div style="padding:10px;border-top:1px solid var(--line);display:grid;gap:6px"><button class="btn pri" onclick="exportDlg()">Экспорт заказа…</button><button class="btn" onclick="reanalyze()">Перепроверить качество</button></div></div>
- <div class="rv-main"><div class="bar"><div><div style="font-size:18px;font-weight:600">${esc(s.title)} <span class="mut" style="font-size:14px;font-weight:400">${esc(s.subtitle)}</span></div><div class="mut">${S.sel.size} выбрано из ${files.length}${Object.keys(must).length?' · ★ обязательные из ведомости':''}${s.limit?` · максимум ${s.limit}`:''}</div></div>
- <div class="row"><div class="tabs">${[['kit',s.person&&s.kind!=='teacher'?'Комплект ученика':'Комплект',kit.length],['all','Все кадры',files.length],['bad','На проверку',flagged.length]].map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';drawShoot()">${t} ${n}</button>`).join('')}</div>
- <select title="Размер плиток" onchange="document.documentElement.style.setProperty('--tile',this.value)"><option value="150px">S</option><option value="190px" selected>M</option><option value="260px">L</option></select></div></div>
- ${d.conflicts.length?`<div class="warn">Ведомость: ${esc(d.conflicts.slice(0,4).join('; '))}${d.conflicts.length>4?'…':''}. Экспорт заблокирован: исправьте ведомость и импортируйте заново, или назначьте нужную роль кадру через «⋯».</div>`:''}
- ${missing.length?`<div class="warn" style="background:var(--card2);color:var(--muted)">Не назначено: ${missing.map(k=>ALAB[k]).join(', ')}. Наведите на нужный кадр и нажмите «⋯» → «Сделать …». Если кадра нет — оставьте пустым.</div>`:''}
- ${s.overridden?`<div class="warn" style="background:var(--accent-soft);color:var(--text)">Роли в этой секции исправлены вручную. <button class="btn" style="padding:3px 10px;margin-left:8px" onclick="setRole(null,null,true)">Вернуть как в ведомости</button></div>`:''}
- ${d.absent&&d.absent.length?`<div class="warn" style="background:var(--card2);color:var(--muted)">Без номеров в ведомости (пропущены, экспорт не мешают): ${esc(d.absent.join(', '))}</div>`:''}
- ${!d.pillow?'<div class="warn">Проверка качества выключена — установите Pillow: <kbd>py -m pip install pillow</kbd></div>':''}
- ${files.filter(f=>must[f.path]&&f.flags).map(f=>`<div class="warn">Обязательный кадр ${esc(f.name)} (${ALAB[must[f.path]]||must[f.path]}) помечен как «${esc(f.flags.split(',').map(x=>d.flag_names[x]).join(', '))}». Проверьте ведомость.</div>`).join('')}
- <div class="grid" id="grid">${list.length?list.map(f=>tile(f,must,sug,otherOf[f.path])).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div>
- <div class="foot"><div class="mut">Клик — выбрать · двойной клик — крупно · <kbd>←</kbd><kbd>→</kbd> секции · <kbd>Enter</kbd> подтвердить</div><div class="row">${S.dirty?'<span class="mut">Есть несохранённые изменения</span>':''}<button class="btn" onclick="save(false)">Сохранить</button><button class="btn pri" onclick="save(true)">${d.approved[s.id]&&!S.dirty?'Подтверждено ✓':'Подтвердить и дальше'}</button></div></div></div></div>`}
-function tile(f,must,sug,other){const sec=S.sess.sections[S.sec];
+function view(){const d=S.sess,s=curSec();const files=s.files.map(p=>S.fmap[p]).filter(Boolean);const flagged=files.filter(f=>f.flags);const kit=kitList(d,s);
+ const list=S.tab==='kit'?kit.map(x=>x.f):S.tab==='bad'?flagged:files;return{files,flagged,kit,list,otherOf:Object.fromEntries(kit.filter(x=>x.o!==null).map(x=>[x.f.path,x.o]))}}
+// ---------- sidebar grouped by child
+function sideHTML(){const d=S.sess;const q=(S.q||'').trim().toLowerCase();const groups=[];const idx={};
+ d.sections.forEach((x,i)=>{const k=x.person||x.id;if(!(k in idx)){idx[k]=groups.length;groups.push({title:x.title,kind:x.kind,rows:[]})}groups[idx[k]].rows.push([x,i])});
+ const vis=groups.filter(g=>!q||g.title.toLowerCase().includes(q));
+ return vis.map(g=>{const done=g.rows.every(([x])=>d.approved[x.id]);const iss=g.rows.reduce((a,[x])=>a+secIssues(x).length,0);const active=g.rows.some(([,i])=>i===S.sec);
+  const n=g.rows.reduce((a,[x])=>a+(d.selected[x.id]||[]).length,0);
+  const one=g.rows.length===1&&!g.rows[0][0].person;
+  return `<div class="grp ${active?'act':''}"><div class="gh" ${one?`onclick="pickSec(${g.rows[0][1]})"`:''}><span class="st ${done?'ok':g.rows.some(([x])=>(d.selected[x.id]||[]).length)?'part':''}">${done?'✓':''}</span><span class="gt">${esc(g.title)}</span>${iss?`<span class="iss" title="${esc(g.rows.flatMap(([x])=>secIssues(x)).join('\n'))}">!</span>`:''}<span class="gn">${n}</span></div>
+  ${one?'':g.rows.map(([x,i])=>`<button class="sr ${i===S.sec?'on':''}" onclick="pickSec(${i})"><span class="dot ${d.approved[x.id]?'ok':(d.selected[x.id]||[]).length?'part':''}"></span>${esc(x.subtitle)}<span class="mut">${(d.selected[x.id]||[]).length}</span></button>`).join('')}</div>`}).join('')||'<div class="mut" style="padding:12px">Никого не найдено</div>'}
+function refreshSide(){const e=$('#secs');if(e){const t=e.scrollTop;e.innerHTML=sideHTML();e.scrollTop=t}const d=S.sess,done=d.sections.filter(x=>d.approved[x.id]).length;
+ const m=$('#prog');if(m)m.innerHTML=`<div class="meter"><span style="width:${done/d.sections.length*100}%"></span></div><div class="mut" style="margin-top:6px">Подтверждено ${done} из ${d.sections.length}</div>`}
+// ---------- main layout
+function drawShoot(){const d=S.sess,ss=d.session,s=curSec();if(!s){$('#main').innerHTML='<div class="page">'+empty('В съёмке нет секций для отбора')+'</div>';return}
+ const school=ss.mode==='school';const V=view();const must=s.mandatory,sug=new Set(d.suggested[s.id]||[]);
+ const missing=s.overridden?(s.roles||[]).filter(k=>!Object.values(must).includes(k)):[];const iss=secIssues(s);
+ const gridTop=$('#grid')?.scrollTop||0,sameSec=S.lastDrawn===s.id+S.tab;S.lastDrawn=s.id+S.tab;
+ $('#main').innerHTML=`<div class="rv"><div class="rv-side"><div class="rv-head"><div class="ttl">${esc(ss.title)}</div><div class="mut">${school?`Заказ ${esc(ss.order_no||'—')} · ${esc(ss.class_name||'')} · `:''}${fmt(d.files.length)} кадров</div>
+ <div id="prog" style="margin-top:12px"></div>
+ <div class="srch"><input id="secq" placeholder="${school?'Найти ребёнка':'Найти серию'}" value="${esc(S.q||'')}" oninput="S.q=this.value;refreshSide()"><kbd title="Быстрый поиск">Ctrl K</kbd></div></div>
+ <div class="secs" id="secs"></div>
+ <div class="sidefoot"><button class="btn pri" onclick="exportDlg()">Экспорт заказа…</button><div class="row" style="gap:6px"><button class="btn" style="flex:1" onclick="reanalyze()">Перепроверить</button><select style="flex:1" onchange="openSess(this.value)" title="Другая съёмка">${S.stats.sessions.map(x=>`<option value="${x.id}" ${x.id===S.sid?'selected':''}>${esc(x.title)}</option>`).join('')}</select></div></div></div>
+ <div class="rv-main"><div class="bar"><div style="min-width:0"><div class="h1">${esc(s.title)} <span>${esc(s.subtitle)}</span></div><div class="mut" id="cnt"></div></div>
+ <div class="row"><div class="tabs">${[['kit',s.person&&s.kind!=='teacher'?'Комплект ученика':'Комплект',V.kit.length],['all','Все кадры',V.files.length],['bad','На проверку',V.flagged.length]].map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';S.fi=0;drawShoot()">${t} <b>${n}</b></button>`).join('')}</div>
+ <div class="seg2" title="Размер превью">${[['150px','S'],['200px','M'],['280px','L']].map(([v,t])=>`<button class="${(S.tsize||'200px')===v?'on':''}" onclick="S.tsize='${v}';document.documentElement.style.setProperty('--tile','${v}');drawShoot()">${t}</button>`).join('')}</div></div></div>
+ <div class="notes">
+ ${iss.length?`<div class="warn">${iss.map(esc).join('<br>')}<div class="mut" style="margin-top:4px">Если на кадре другой человек — «⋯» → «Не тот человек», затем назначьте роль правильному кадру.</div></div>`:''}
+ ${missing.length?`<div class="warn info">Не назначено: ${missing.map(k=>ALAB[k]).join(', ')}. Выберите кадр и нажмите ${missing.map(k=>`<kbd>${Object.keys(ROLEKEYS).find(x=>ROLEKEYS[x]===k)||''}</kbd>`).join(' ')} или «⋯». Если кадра нет — оставьте пустым.</div>`:''}
+ ${s.overridden?`<div class="warn acc">Роли исправлены вручную. <button class="btn sm" onclick="setRole(null,null,true)">Вернуть как в ведомости</button></div>`:''}
+ ${S.sec===0&&d.absent&&d.absent.length?`<div class="warn info">Без номеров в ведомости (пропущены): ${esc(d.absent.join(', '))}</div>`:''}
+ ${!d.pillow?'<div class="warn">Проверка качества выключена — установите Pillow: <kbd>py -m pip install pillow</kbd></div>':''}</div>
+ <div class="grid" id="grid">${V.list.length?V.list.map((f,i)=>tile(f,must,sug,V.otherOf[f.path],i)).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div>
+ <div class="foot"><div class="hint"><kbd>←↑→↓</kbd> кадры <kbd>Пробел</kbd> выбрать <kbd>Enter</kbd> крупно <kbd>1–5</kbd> роль <kbd>Ctrl Z</kbd> отменить <button class="lnk" onclick="helpDlg()">все клавиши <kbd>?</kbd></button></div>
+ <div class="row"><span class="savest" id="savest"></span><button class="btn pri" onclick="approve()">${d.approved[s.id]?'Подтверждено ✓ · дальше':'Подтвердить и дальше'} <kbd class="inv">Ctrl ↵</kbd></button></div></div></div></div>`;
+ refreshSide();updCount();const g=$('#grid');if(sameSec)g.scrollTop=gridTop;
+ const sa=$('#secs .sr.on, #secs .grp.act');if(sa&&!sameSec)sa.scrollIntoView({block:'nearest'});
+ g.querySelectorAll('.im[data-src]').forEach(el=>{const im=new Image();im.onload=()=>{el.style.backgroundImage=`url('${el.dataset.src}')`;el.classList.add('ld')};im.src=el.dataset.src})}
+function updCount(){const s=curSec(),e=$('#cnt');if(e)e.textContent=`${S.sel.size} выбрано из ${s.files.length}`+(Object.keys(s.mandatory).length?' · ★ кадры из ведомости':'')+(s.limit?` · максимум ${s.limit}`:'')}
+function prevURL(p,sz){return `/api/preview?s=${S.sid}&p=${encodeURIComponent(p)}&size=${sz}`}
+function tile(f,must,sug,other,i){const sec=curSec();
  if(other!==undefined){const o=S.sess.sections[other];const om=o.mandatory[f.path];
-  return `<div class="tile on" tabindex="0" title="Открыть секцию «${esc(o.subtitle)}»" onclick="pickSec(${other})" data-p="${esc(f.path)}" ondblclick="event.stopPropagation();lightbox(this.dataset.p)"><div class="im" style="${f.has_preview?`background-image:url('/api/preview?s=${S.sid}&p=${encodeURIComponent(f.path)}&size=480')`:''}"></div>${om?'<span class="star">★</span>':''}<span class="other">${esc(o.subtitle)}</span><span class="chk"></span><div class="cap"><b>${esc(f.name)}</b><span>${om?ALAB[om]||om:f.capture_at.slice(11,19)}</span></div></div>`}
+  return `<div class="tile on" tabindex="-1" data-i="${i}" data-p="${esc(f.path)}" title="Из секции «${esc(o.subtitle)}» — клик откроет её" onclick="pickSec(${other})"><div class="im" data-src="${prevURL(f.path,480)}"></div>${om?'<span class="star">★</span>':''}<span class="other">${esc(o.subtitle)}</span><span class="chk"></span><div class="cap"><b>${esc(f.name)}</b><span>${om?ALAB[om]||om:f.capture_at.slice(11,19)}</span></div></div>`}
  const on=S.sel.has(f.path),m=must[f.path];const fl=f.flags?f.flags.split(',').map(x=>S.sess.flag_names[x]).join(', '):'';
- return `<div class="tile ${on?'on':'ctx'}" tabindex="0" data-p="${esc(f.path)}" onclick="tog(this)" ondblclick="lightbox(this.dataset.p)">${(sec.roles||[]).length?`<button class="more ${m?'show':''}" title="Роль кадра / не тот человек" onclick="event.stopPropagation();roleMenu(this)">⋯</button>`:''}<div class="im" style="${f.has_preview?`background-image:url('/api/preview?s=${S.sid}&p=${encodeURIComponent(f.path)}&size=480')`:''}">${f.has_preview?'':'Нет превью'}</div>
- ${m?`<span class="star" title="Обязательный: ${ALAB[m]||m}">★</span>`:''}${sug.has(f.path)?'<span class="sug" title="Предложено автоотбором">авто</span>':''}${fl?`<span class="flag">${esc(fl)}</span>`:''}<span class="chk"></span>
- <div class="cap"><b>${esc(f.name)}</b><span>${m?ALAB[m]||m:f.capture_at.slice(11,19)}</span></div></div>`}
-function tog(el){const p=el.dataset.p,s=S.sess.sections[S.sec];if(!s.files.includes(p))return;if(s.mandatory[p]){toast('Это кадр из ведомости. Если на нём другой человек — нажмите «⋯» → «Не тот человек»');return}
- if(S.sel.has(p))S.sel.delete(p);else{if(s.limit&&S.sel.size>=s.limit)return toast('Максимум '+s.limit+' кадров');S.sel.add(p)}
- S.dirty=true;el.classList.toggle('on',S.sel.has(p));el.classList.toggle('ctx',!S.sel.has(p));if(S.tab==='kit')drawShoot();else{const b=$('.bar .mut');if(b)b.firstChild.textContent=S.sel.size+' выбрано из '+s.files.length}}
-function roleMenu(btn){const el=btn.closest('.tile'),p=el.dataset.p,s=S.sess.sections[S.sec],cur=s.mandatory[p];closeMenu();
- const m=document.createElement('div');m.className='menu';m.id='rmenu';
- m.innerHTML=`<div class="h">${esc(S.fmap[p].name)}</div>`+s.roles.filter(k=>k!==cur).map(k=>`<button data-r="${k}">Сделать: ${ALAB[k]}${Object.values(s.mandatory).includes(k)?' <span class="mut">(заменить)</span>':''}</button>`).join('')+(cur?`<button class="bad" data-r="">Не тот человек — снять ${ALAB[cur]}</button>`:'');
+ return `<div class="tile ${on?'on':'ctx'} ${i===S.fi?'fc':''}" tabindex="-1" data-i="${i}" data-p="${esc(f.path)}" onclick="S.fi=${i};tog(this)" ondblclick="openViewer(${i})">${(sec.roles||[]).length?`<button class="more ${m?'show':''}" title="Роль кадра / не тот человек" onclick="event.stopPropagation();roleMenu(this)">⋯</button>`:''}<div class="im" ${f.has_preview?`data-src="${prevURL(f.path,480)}"`:''}>${f.has_preview?'':'Нет превью'}</div>
+ ${m?`<span class="star" title="Из ведомости: ${ALAB[m]||m}">★</span>`:''}${sug.has(f.path)&&!m?'<span class="sug" title="Предложено автоотбором">авто</span>':''}${fl?`<span class="flag">${esc(fl)}</span>`:''}<span class="chk"></span>
+ <div class="cap"><b>${esc(f.name)}</b><span class="${m?'role':''}">${m?ALAB[m]||m:f.capture_at.slice(11,19)}</span></div></div>`}
+function togPath(p){const s=curSec();if(!s.files.includes(p))return false;if(s.mandatory[p]){toast('Кадр из ведомости. Если на нём другой человек — «⋯» → «Не тот человек»');return false}
+ if(!S.sel.has(p)&&s.limit&&S.sel.size>=s.limit){toast('Максимум '+s.limit+' кадров');return false}
+ pushUndo();if(S.sel.has(p))S.sel.delete(p);else S.sel.add(p);scheduleSave();return true}
+function tog(el){if(!togPath(el.dataset.p))return;if(S.tab==='kit')return drawShoot();el.classList.toggle('on',S.sel.has(el.dataset.p));el.classList.toggle('ctx',!S.sel.has(el.dataset.p));updCount();refreshSide()}
+function focusTile(i){const ts=[...document.querySelectorAll('#grid .tile')];if(!ts.length)return;i=Math.max(0,Math.min(ts.length-1,i));S.fi=i;ts.forEach(t=>t.classList.remove('fc'));ts[i].classList.add('fc');ts[i].scrollIntoView({block:'nearest'})}
+function gridCols(){const ts=[...document.querySelectorAll('#grid .tile')];if(!ts.length)return 1;const y=ts[0].offsetTop;return Math.max(1,ts.filter(t=>t.offsetTop===y).length)}
+async function pickSec(i){await flush();if(i<0||i>=S.sess.sections.length)return;S.sec=i;loadSec();drawShoot();$('#grid').scrollTop=0}
+async function approve(){await flush();const s=curSec();try{await api('/api/review',{session:S.sid,section:s.id,selected:[...S.sel],approved:true});S.sess.selected[s.id]=[...S.sel];S.sess.approved[s.id]=true;
+ const d=S.sess;const nx=d.sections.findIndex((x,i)=>i>S.sec&&!d.approved[x.id]);const any=nx<0?d.sections.findIndex(x=>!d.approved[x.id]):nx;
+ if(any>=0){toast('Подтверждено: '+s.title+' · '+s.subtitle);S.sec=any;loadSec();S.tab=S.tab==='bad'?'all':S.tab}else toast('Все секции подтверждены — можно экспортировать');drawShoot();api('/api/stats').then(x=>S.stats=x)}catch(e){toast(e.message,1)}}
+// ---------- role menu
+function roleMenu(btn){const el=btn.closest('.tile');roleMenuAt(el.dataset.p,btn.getBoundingClientRect())}
+function roleMenuAt(p,r){const s=curSec(),cur=s.mandatory[p];closeMenu();const m=document.createElement('div');m.className='menu';m.id='rmenu';
+ m.innerHTML=`<div class="h">${esc(S.fmap[p].name)}</div>`+s.roles.filter(k=>k!==cur).map(k=>`<button data-r="${k}"><span>Сделать: ${ALAB[k]}${Object.values(s.mandatory).includes(k)?' <span class="mut">(заменить)</span>':''}</span><kbd>${Object.keys(ROLEKEYS).find(x=>ROLEKEYS[x]===k)||''}</kbd></button>`).join('')+(cur?`<button class="bad" data-r=""><span>Не тот человек — снять ${ALAB[cur]}</span><kbd>Del</kbd></button>`:'');
  m.querySelectorAll('button').forEach(b=>b.onclick=()=>{closeMenu();setRole(p,b.dataset.r||null)});document.body.append(m);
- const r=btn.getBoundingClientRect();m.style.left=Math.min(r.left,innerWidth-m.offsetWidth-10)+'px';m.style.top=Math.min(r.bottom+4,innerHeight-m.offsetHeight-10)+'px';
+ m.style.left=Math.max(8,Math.min(r.left,innerWidth-m.offsetWidth-10))+'px';m.style.top=Math.max(8,Math.min(r.bottom+4,innerHeight-m.offsetHeight-10))+'px';
  setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
 function closeMenu(){const m=$('#rmenu');if(m)m.remove()}
-async function setRole(path,role,reset){const s=S.sess.sections[S.sec];try{if(S.dirty)await api('/api/review',{session:S.sid,section:s.id,selected:[...S.sel],approved:false});
- await api('/api/role',{session:S.sid,section:s.id,path,role,reset:!!reset});const id=s.id;S.sess=await api('/api/session?id='+S.sid);S.fmap=Object.fromEntries(S.sess.files.map(f=>[f.path,f]));
- S.sec=Math.max(0,S.sess.sections.findIndex(x=>x.id===id));loadSec();drawShoot();toast(reset?'Роли как в ведомости':role?'Назначено: '+ALAB[role]:'Снято. Назначьте правильный кадр через «⋯» или оставьте пустым')}catch(e){toast(e.message,1)}}
-function pickSec(i){if(S.dirty&&!confirm('Есть несохранённые изменения. Перейти без сохранения?'))return;S.sec=i;loadSec();drawShoot();$('#grid').scrollTop=0}
-async function save(approved){const s=S.sess.sections[S.sec];try{await api('/api/review',{session:S.sid,section:s.id,selected:[...S.sel],approved});S.sess.selected[s.id]=[...S.sel];S.sess.approved[s.id]=approved;S.dirty=false;
- if(approved){toast('Подтверждено: '+s.title);const nx=S.sess.sections.findIndex((x,i)=>i>S.sec&&!S.sess.approved[x.id]);const any=nx<0?S.sess.sections.findIndex(x=>!S.sess.approved[x.id]):nx;if(any>=0){S.sec=any;loadSec()}else toast('Все секции подтверждены — можно экспортировать')}else toast('Сохранено');drawShoot();S.stats=await api('/api/stats')}catch(e){toast(e.message,1)}}
-function lightbox(p){const f=S.fmap[p];if(!f.has_preview)return;$('#layer').innerHTML=`<div class="lb" onclick="closeL()"><img src="/api/preview?s=${S.sid}&p=${encodeURIComponent(p)}&size=1800"><div>${esc(f.name)} · ${f.capture_at}${f.flags?' · '+esc(f.flags.split(',').map(x=>S.sess.flag_names[x]).join(', ')):''} · серия ${f.series}</div></div>`}
-async function reanalyze(){$('#layer').innerHTML=`<div class="modal"><div class="dlg"><h2>Проверка качества</h2><div id="ra"></div></div></div>`;try{await api('/api/reanalyze',{session:S.sid});await watchJob(S.sid,'#ra');closeL();S.sess=null;await load()}catch(e){closeL();toast(e.message,1)}}
-function exportDlg(){const ss=S.sess.session,meta=JSON.parse(ss.meta||'{}');const school=ss.mode==='school';
- $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Экспорт</h2><p class="mut">Подтверждённые кадры копируются в новую папку. Исходники не трогаются, существующие файлы не перезаписываются.</p>
- <div class="f"><label>Папка для экспорта</label><div class="row"><input id="e_out" value="${esc(meta.output||'')}" placeholder="F:\\FOBOX_EXPORT"><button class="btn" onclick="pick('e_out','dir')">Обзор…</button></div></div>
- ${school?`<div class="f"><label>Фон (один файл, необязательно)</label><div class="row"><input id="e_bg" value="${esc(meta.background||'')}" placeholder="Полный путь к файлу фона"><button class="btn" onclick="pick('e_bg','file')">Обзор…</button></div></div>`:''}
- <div id="e_info"></div><div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn ghost" onclick="closeL()">Закрыть</button><button class="btn" onclick="exp(true)">Проверить</button><button class="btn pri" onclick="exp(false)">Копировать</button></div></div></div>`}
-async function exp(dry){const out=$('#e_out').value.trim(),info=$('#e_info');try{const meta={session:S.sid,output:out};if($('#e_bg'))meta.background=$('#e_bg').value.trim();await api('/api/meta',meta);
- if(!dry&&!confirm('Скопировать выбранные файлы?'))return;const r=await api('/api/export',{session:S.sid,output:out,dry_run:dry});
- info.innerHTML=`<div class="warn" style="margin:0;background:#37c08a1f;color:var(--ok)">${dry?'Готово к экспорту':'Скопировано'}: ${r.files} файлов, ${(r.bytes/1048576).toFixed(1)} МБ${dry?` · свободно ${(r.free/1073741824).toFixed(1)} ГБ`:''}<br><span style="word-break:break-all">${esc(r.root)}</span></div>`;if(!dry){S.sess=null;S.stats=await api('/api/stats')}}catch(e){info.innerHTML=`<div class="warn err" style="margin:0">${esc(e.message)}</div>`}}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')return closeL();if(S.page!=='shoot'||!S.sess||$('#layer').innerHTML||/INPUT|SELECT/.test(e.target.tagName))return;
- if(e.key==='ArrowRight'&&e.altKey===false&&!e.target.classList.contains('tile')){pickSec(Math.min(S.sec+1,S.sess.sections.length-1))}
- else if(e.key==='ArrowLeft'&&!e.target.classList.contains('tile')){pickSec(Math.max(S.sec-1,0))}
- else if(e.key==='Enter'){e.preventDefault();save(true)}else if(e.key===' '&&e.target.classList.contains('tile')){e.preventDefault();tog(e.target)}});
+async function setRole(path,role,reset){const s=curSec();if(!reset&&role&&!(s.roles||[]).includes(role))return toast(`В секции «${s.subtitle}» нет роли ${ALAB[role]}`);
+ if(!reset&&!role&&!s.mandatory[path])return toast('Это не кадр из ведомости — просто снимите выбор');
+ try{await flush();await api('/api/role',{session:S.sid,section:s.id,path,role,reset:!!reset});await reloadSess(s.id);if(S.viewer)renderViewer();else drawShoot();
+ toast(reset?'Роли как в ведомости':role?'Назначено: '+ALAB[role]:'Снято. Назначьте правильный кадр или оставьте пустым')}catch(e){toast(e.message,1)}}
+// ---------- viewer (loupe / compare)
+function openViewer(i){const V=view();if(!V.list.length)return;S.viewer={list:V.list.map(f=>f.path),i:Math.max(0,Math.min(i,V.list.length-1)),zoom:false,cmp:false};renderViewer()}
+function closeViewer(){S.viewer=null;closeL();drawShoot();focusTile(S.fi)}
+function renderViewer(){const v=S.viewer;if(!v)return;const s=curSec();v.i=Math.min(v.i,v.list.length-1);const p=v.list[v.i],f=S.fmap[p];if(!f)return closeViewer();
+ const m=s.mandatory[p],on=S.sel.has(p),inSec=s.files.includes(p);const fl=f.flags?f.flags.split(',').map(x=>S.sess.flag_names[x]).join(', '):'';
+ const q=v.cmp&&v.list[v.i+1]?[p,v.list[v.i+1]]:[p];
+ $('#layer').innerHTML=`<div class="vw"><div class="vtop"><div class="vt"><b>${esc(s.title)}</b> <span class="mut">${esc(s.subtitle)}</span></div>
+ <div class="row" style="gap:6px">${q.length>1?'<span class="pill">Сравнение</span>':''}<span class="mut">${v.i+1} / ${v.list.length}</span><button class="btn sm" onclick="vCmp()">Сравнить <kbd>C</kbd></button><button class="btn sm" onclick="vZoom()">${v.zoom?'Вписать':'100%'} <kbd>Z</kbd></button><button class="btn sm" onclick="closeViewer()">Закрыть <kbd>Esc</kbd></button></div></div>
+ <div class="vstage ${v.zoom?'zoom':''} ${q.length>1?'two':''}">${q.map((x,j)=>{const fx=S.fmap[x],mx=s.mandatory[x];return `<figure class="vf ${S.sel.has(x)?'on':''}" onclick="${j?'vGo(1)':'vZoom(event)'}"><img src="${prevURL(x,v.zoom?2048:1800)}" alt="" draggable="false"><figcaption>${mx?`<span class="rb">★ ${ALAB[mx]}</span>`:''}${S.sel.has(x)?'<span class="sb">✓ В комплекте</span>':''} ${esc(fx.name)} · ${fx.capture_at.slice(11)}${fx.flags?` · <span style="color:var(--bad)">${esc(fx.flags.split(',').map(y=>S.sess.flag_names[y]).join(', '))}</span>`:''}</figcaption></figure>`}).join('')}</div>
+ <button class="vnav l" onclick="vGo(-1)" aria-label="Предыдущий">‹</button><button class="vnav r" onclick="vGo(1)" aria-label="Следующий">›</button>
+ <div class="vbar"><div class="row" style="gap:8px">${inSec?`<button class="btn ${on?'pri':''}" onclick="vTog()">${on?'✓ В комплекте':'Выбрать'} <kbd class="${on?'inv':''}">Пробел</kbd></button>`:'<span class="mut">Кадр из другой секции</span>'}
+ ${inSec?(s.roles||[]).map(k=>`<button class="btn sm ${m===k?'pri':''}" onclick="setRole('${esc(p).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${k}')">${ALAB[k]} <kbd class="${m===k?'inv':''}">${Object.keys(ROLEKEYS).find(x=>ROLEKEYS[x]===k)||''}</kbd></button>`).join(''):''}
+ ${m?`<button class="btn sm danger" onclick="vNotThis()">Не тот человек <kbd>Del</kbd></button>`:''}</div>
+ <div class="strip" id="strip">${v.list.map((x,j)=>`<img class="${j===v.i?'cur':''} ${S.sel.has(x)?'on':''}" src="${prevURL(x,320)}" loading="lazy" onclick="S.viewer.i=${j};renderViewer()" alt="">`).join('')}</div></div></div>`;
+ const c=$('#strip .cur');if(c)c.scrollIntoView({inline:'center',block:'nearest'});
+ [v.list[v.i+1],v.list[v.i+2],v.list[v.i-1]].filter(Boolean).forEach(x=>{const im=new Image();im.src=prevURL(x,1800)})}
+function vGo(d){const v=S.viewer;v.i=Math.max(0,Math.min(v.list.length-1,v.i+d));S.fi=v.i;renderViewer()}
+function vTog(){const v=S.viewer;if(togPath(v.list[v.i])){refreshSide();renderViewer()}}
+function vZoom(e){S.viewer.zoom=!S.viewer.zoom;renderViewer();if(S.viewer.zoom&&e){const st=$('.vstage'),fig=st.querySelector('img');if(fig){fig.onload=()=>{const r=st.getBoundingClientRect();st.scrollLeft=(e.clientX-r.left)/r.width*fig.width-r.width/2;st.scrollTop=(e.clientY-r.top)/r.height*fig.height-r.height/2}}}}
+function vCmp(){S.viewer.cmp=!S.viewer.cmp;S.viewer.zoom=false;renderViewer()}
+function vNotThis(){const p=S.viewer.list[S.viewer.i];setRole(p,null)}
+// ---------- command palette, help
+function palette(){S.pal={q:'',i:0};closeMenu();$('#layer').innerHTML=`<div class="modal top" onclick="if(event.target===this)closeL()"><div class="pal"><input id="palq" placeholder="Ребёнок, серия или команда…" autocomplete="off"><div id="pall"></div><div class="palf"><span><kbd>↑↓</kbd> выбрать</span><span><kbd>Enter</kbd> открыть</span><span><kbd>Esc</kbd> закрыть</span></div></div></div>`;
+ const i=$('#palq');i.oninput=()=>{S.pal.q=i.value;S.pal.i=0;palDraw()};i.focus();palDraw()}
+function palItems(){const q=S.pal.q.trim().toLowerCase();const it=[];
+ if(S.sess&&S.page==='shoot')S.sess.sections.forEach((x,i)=>it.push({t:x.title,s:x.subtitle+(S.sess.approved[x.id]?' · ✓':''),k:'Секция',run:()=>{closeL();pickSec(i)}}));
+ [['Экспорт заказа…','Проверка и копирование',()=>{closeL();if(S.page!=='shoot')go('shoot');setTimeout(exportDlg,50)}],['Новая съёмка','Импорт папки',()=>importDlg()],['Перепроверить качество','С текущими порогами',()=>{closeL();reanalyze()}],['Отменить последнее действие','Ctrl+Z',()=>{closeL();undo()}],['Горячие клавиши','?',()=>helpDlg()]].forEach(([t,s,run])=>it.push({t,s,k:'Команда',run}));
+ PAGES.forEach(([k,t])=>it.push({t,s:'Перейти',k:'Экран',run:()=>{closeL();go(k)}}));
+ return q?it.filter(x=>(x.t+' '+x.s).toLowerCase().includes(q)):it}
+function palDraw(){const it=palItems();S.pal.items=it;S.pal.i=Math.min(S.pal.i,Math.max(0,it.length-1));$('#pall').innerHTML=it.slice(0,60).map((x,i)=>`<div class="pi ${i===S.pal.i?'on':''}" onmousemove="if(S.pal.i!==${i}){S.pal.i=${i};palDraw()}" onclick="S.pal.items[${i}].run()"><span><b>${esc(x.t)}</b> <span class="mut">${esc(x.s)}</span></span><span class="pk">${x.k}</span></div>`).join('')||'<div class="mut" style="padding:14px">Ничего не найдено</div>';const c=$('#pall .on');if(c)c.scrollIntoView({block:'nearest'})}
+function helpDlg(){const rows=[['Сетка',[['← ↑ → ↓','перейти между кадрами'],['Пробел или P','выбрать / снять'],['Enter','открыть крупно'],['1 2 3','Виньетка, ЛР, ЛС'],['4 5','Друг 1, Друг 2'],['Delete','«не тот человек» для кадра со ★'],['Ctrl + Enter','подтвердить секцию и дальше'],['[  ]','предыдущая / следующая секция'],['Ctrl + Z','отменить']]],['Крупный просмотр',[['← →','листать'],['Пробел','выбрать / снять'],['1–5, Delete','роли, как в сетке'],['Z или клик','увеличение 100%'],['C','сравнить с соседним'],['Esc','закрыть']]],['Везде',[['Ctrl + K или /','поиск ребёнка и команд'],['?','эта подсказка']]]];
+ $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg wide"><h2 style="font-size:18px">Горячие клавиши</h2><div class="keys">${rows.map(([h,r])=>`<div><div class="kh">${h}</div>${r.map(([k,t])=>`<div class="kr"><span>${k.split(' ').map(x=>x==='+'||x==='или'||x===','?`<span class="mut">${x}</span>`:`<kbd>${x}</kbd>`).join(' ')}</span><span>${t}</span></div>`).join('')}</div>`).join('')}</div><div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeL()">Понятно</button></div></div></div>`}
+// ---------- quality, export with preflight
+async function reanalyze(){await flush();$('#layer').innerHTML=`<div class="modal"><div class="dlg"><h2>Проверка качества</h2><div id="ra"></div></div></div>`;try{await api('/api/reanalyze',{session:S.sid});await watchJob(S.sid,'#ra');closeL();S.sess=null;await load()}catch(e){closeL();toast(e.message,1)}}
+function preflight(){const d=S.sess;const un=d.sections.map((x,i)=>[x,i]).filter(([x])=>!d.approved[x.id]);const items=[];
+ d.conflicts.forEach(t=>{const i=d.sections.findIndex(x=>x.person&&t.startsWith(x.title+', '));items.push({lvl:'bad',t,i})});
+ un.forEach(([x,i])=>items.push({lvl:'warn',t:`Не подтверждено: ${x.title} — ${x.subtitle}`,i}));
+ d.sections.forEach((x,i)=>Object.entries(x.mandatory).forEach(([p,k])=>{const f=S.fmap[p];if(f&&f.flags)items.push({lvl:'info',t:`${x.title}: ${ALAB[k]} помечен «${f.flags.split(',').map(y=>d.flag_names[y]).join(', ')}» — проверьте`,i})}));
+ return items}
+async function exportDlg(){await flush();const ss=S.sess.session,meta=JSON.parse(ss.meta||'{}');const school=ss.mode==='school';const pf=preflight();const blocking=pf.filter(x=>x.lvl!=='info');
+ const tot=S.sess.sections.reduce((a,x)=>a+(S.sess.selected[x.id]||[]).length,0);
+ $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Экспорт заказа</h2>
+ <div class="pf ${blocking.length?'':'okk'}"><div class="pfh">${blocking.length?`Осталось исправить: ${blocking.length}`:'Всё готово к экспорту'}<span class="mut">${tot} кадров выбрано · ${S.sess.sections.length} секций</span></div>
+ ${pf.length?`<div class="pfl">${pf.slice(0,40).map(x=>`<button class="pfi lv-${x.lvl}" ${x.i>=0?`onclick="closeL();pickSec(${x.i})"`:''}><span class="lv"></span>${esc(x.t)}${x.i>=0?'<span class="go">Открыть →</span>':''}</button>`).join('')}${pf.length>40?`<div class="mut" style="padding:6px 10px">и ещё ${pf.length-40}</div>`:''}</div>`:''}</div>
+ <div class="f"><label for="e_out">Папка для экспорта</label><div class="row"><input id="e_out" value="${esc(meta.output||'')}" placeholder="F:\\FOBOX_EXPORT"><button class="btn" onclick="pick('e_out','dir')">Обзор…</button></div></div>
+ ${school?`<div class="f"><label for="e_bg">Фон (один файл, необязательно)</label><div class="row"><input id="e_bg" value="${esc(meta.background||'')}" placeholder="Полный путь к файлу фона"><button class="btn" onclick="pick('e_bg','file')">Обзор…</button></div></div>`:''}
+ <p class="mut" style="margin:0">Копии кладутся в новую папку заказа вместе с отчётом <kbd>_FOBOX_отчёт.csv</kbd>. Исходники не меняются, перезапись запрещена.</p>
+ <div id="e_info" style="margin-top:12px"></div><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" onclick="closeL()">Закрыть</button><button class="btn" onclick="exp(true)">Проверить место</button><button class="btn pri" id="e_go" onclick="exp(false)" ${blocking.length?'disabled title="Сначала исправьте список выше"':''}>Копировать</button></div></div></div>`}
+async function exp(dry){const out=$('#e_out').value.trim(),info=$('#e_info');try{const meta={session:S.sid,output:out};if($('#e_bg'))meta.background=$('#e_bg').value.trim();await api('/api/meta',meta);S.sess.session.meta=JSON.stringify({...JSON.parse(S.sess.session.meta||'{}'),output:out});
+ if(dry){const r=await api('/api/export',{session:S.sid,output:out,dry_run:true});info.innerHTML=`<div class="warn okb">Готово: ${r.files} файлов, ${(r.bytes/1048576).toFixed(1)} МБ · свободно ${(r.free/1073741824).toFixed(1)} ГБ<br><span class="path">${esc(r.root)}</span></div>`;return}
+ $('#e_go').disabled=true;const r=await api('/api/export',{session:S.sid,output:out});const t0=Date.now();
+ for(;;){const j=await api('/api/job?id='+encodeURIComponent(r.job));const pc=j.total?j.done/j.total*100:2;const el=(Date.now()-t0)/1000;const eta=j.done&&j.total?Math.round(el/j.done*(j.total-j.done)):null;
+  info.innerHTML=`<div class="mut">${esc(j.stage||'')} ${j.total?`${j.done} из ${j.total}`:''}${j.bytes_total?` · ${(j.bytes_done/1048576).toFixed(0)} из ${(j.bytes_total/1048576).toFixed(0)} МБ`:''}${eta!=null&&j.done<j.total?` · осталось ~${eta<60?eta+' с':Math.ceil(eta/60)+' мин'}`:''}</div><div class="prog"><span style="width:${pc}%"></span></div>`;
+  if(j.error)throw Error(j.error);if(j.finished){const x=j.result;info.innerHTML=`<div class="warn okb"><b>Готово: скопировано ${x.files} файлов, ${(x.bytes/1048576).toFixed(1)} МБ.</b><br><span class="path">${esc(x.root)}</span><div class="row" style="margin-top:10px"><button class="btn pri sm" onclick="openOut()">Открыть папку</button><span class="mut">Отчёт: _FOBOX_отчёт.csv</span></div></div>`;S.sess.session.status='exported';api('/api/stats').then(s=>S.stats=s);return}
+  await new Promise(r=>setTimeout(r,300))}}catch(e){info.innerHTML=`<div class="warn err" style="margin:0">${esc(e.message)}</div>`;const g=$('#e_go');if(g)g.disabled=false}}
+async function openOut(){try{await api('/api/open',{session:S.sid})}catch(e){toast(e.message,1)}}
+// ---------- keyboard
+document.addEventListener('keydown',e=>{const k=e.key,mod=e.ctrlKey||e.metaKey;const typing=/INPUT|SELECT|TEXTAREA/.test(e.target.tagName);
+ if(S.pal&&$('#palq')){if(k==='ArrowDown'||k==='ArrowUp'){e.preventDefault();S.pal.i=Math.max(0,Math.min(S.pal.items.length-1,S.pal.i+(k==='ArrowDown'?1:-1)));palDraw()}else if(k==='Enter'){e.preventDefault();const it=S.pal.items[S.pal.i];if(it)it.run()}else if(k==='Escape'){closeL();S.pal=null}return}
+ if(mod&&(k==='k'||k==='K'||k==='л'||k==='Л')){e.preventDefault();palette();return}
+ if(k==='Escape'){if($('#rmenu'))return closeMenu();if(S.viewer)return closeViewer();return closeL()}
+ if(S.viewer){const v=S.viewer;if(k==='ArrowRight'){e.preventDefault();vGo(1)}else if(k==='ArrowLeft'){e.preventDefault();vGo(-1)}else if(k===' '||k==='p'||k==='з'){e.preventDefault();vTog()}
+  else if(k==='z'||k==='я'){vZoom()}else if(k==='c'||k==='с'){vCmp()}else if(ROLEKEYS[k]){setRole(v.list[v.i],ROLEKEYS[k])}else if(k==='Delete'||k==='Backspace'){vNotThis()}else if(k==='Enter'){closeViewer()}return}
+ if(typing){if(k==='Escape')e.target.blur();return}
+ if($('#layer').innerHTML)return;
+ if(!typing&&(k==='/')){e.preventDefault();palette();return}
+ if(k==='?'){helpDlg();return}
+ if(S.page!=='shoot'||!S.sess)return;
+ if(mod&&(k==='z'||k==='я')){e.preventDefault();undo();return}
+ if(mod&&k==='Enter'){e.preventDefault();approve();return}
+ const cols=gridCols();const mv={ArrowRight:1,ArrowLeft:-1,ArrowDown:cols,ArrowUp:-cols}[k];
+ if(mv!==undefined){e.preventDefault();focusTile((S.fi||0)+mv);return}
+ const t=document.querySelector(`#grid .tile[data-i="${S.fi||0}"]`);
+ if(k===' '||k==='p'||k==='з'){e.preventDefault();if(t)t.click();return}
+ if(k==='Enter'){e.preventDefault();openViewer(S.fi||0);return}
+ if(ROLEKEYS[k]&&t){setRole(t.dataset.p,ROLEKEYS[k]);return}
+ if((k==='Delete'||k==='Backspace')&&t){setRole(t.dataset.p,null);return}
+ if(k===']'||k==='PageDown'||k==='ъ'){e.preventDefault();pickSec(S.sec+1);return}
+ if(k==='['||k==='PageUp'||k==='х'){e.preventDefault();pickSec(S.sec-1);return}});
+window.addEventListener('beforeunload',()=>{if(S.pending)navigator.sendBeacon&&navigator.sendBeacon('/api/review-beacon',JSON.stringify({session:S.sid,section:S.pending.id,selected:S.pending.sel}))});
 load().catch(e=>{$('#main').innerHTML='<div class="page">'+empty('Сервер недоступен: '+esc(e.message))+'</div>'});
 </script>
 </body>

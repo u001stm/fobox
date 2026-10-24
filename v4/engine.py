@@ -262,6 +262,7 @@ EXTRA_COLS = {
     'T': ['фотоучителя', 'учитель', 'фотоучитель', 'teacher', 'кадручителя'],
     'Role': ['role', 'должность', 'роль', 'предмет'],
 }
+ROLE_NAMES = {'V': 'Виньетка', 'P1': 'Личный разворот', 'P2': 'Личная страница', 'D1': 'Друг 1', 'D2': 'Друг 2', 'T': 'Фото учителя'}
 ANCHOR_LABELS = {'V': 'Виньетка', 'P1': 'ЛР', 'P2': 'ЛС', 'D1': 'Друг 1', 'D2': 'Друг 2', 'T': 'Фото учителя'}
 TEACHER_COLS = {
     'Name': ['name', 'фио', 'учитель', 'педагог', 'имя'],
@@ -993,6 +994,8 @@ class Engine:
                 if bg and not Path(bg).is_file():
                     raise ValueError('Файл фона не найден')
                 meta['background'] = bg
+            if 'last_export' in body:
+                meta['last_export'] = str(body['last_export'])
             if 'output' in body:
                 meta['output'] = str(body['output']).strip().strip('"')
             c.execute('UPDATE sessions SET meta=? WHERE id=?', (json.dumps(meta, ensure_ascii=False), sid))
@@ -1016,17 +1019,17 @@ class Engine:
         files = {f['path']: f for f in st['files']}
         ops, names = [], set()
 
-        def add(p, rel):
+        def add(p, rel, who='', what='', role=''):
             if str(rel).casefold() in names:
                 raise ValueError('Конфликт имён: ' + str(rel))
             names.add(str(rel).casefold())
-            ops.append((p, rel))
+            ops.append((p, rel, who, what, role))
         if s['mode'] == 'school':
             root = Path(*[safe_name(x or '—') for x in (s['order_no'], s['school'], s['shoot_date'], s['class_name'])])
             prefix = {'V': '{n}_', 'P1': 'ЛР_{n}_', 'P2': 'ЛС_{n}_', 'D1': 'Друг1_', 'D2': 'Друг2_', 'T': ''}
             # portraits and friends of one student are merged: a frame inside both windows is copied once
             by_person, subs = defaultdict(set), {}
-            mand = {}
+            mand, roles = {}, {}
             for sec in st['sections']:
                 key = (sec['person'], sec['kind'] == 'teacher', sec['title'])
                 subs[key] = sec['subtitle']
@@ -1034,6 +1037,7 @@ class Engine:
                     by_person[key].add(p)
                 for p, k in sec['mandatory'].items():
                     mand[(sec['person'], p)] = prefix[k].format(n=sec['title'])
+                    roles[(sec['person'], p)] = ROLE_NAMES.get(k, k)
             for (person, is_teacher, name), paths in by_person.items():
                 sub = subs[(person, is_teacher, name)]
                 for p in sorted(paths):
@@ -1042,25 +1046,26 @@ class Engine:
                         rel = root / CATS[5] / (nm if len(paths) > 1 else safe_name(name if sub == 'Учитель' else f'{name} {sub}') + Path(nm).suffix)
                     else:
                         rel = root / CATS[4] / name / (mand.get((person, p), '') + nm)
-                    add(p, rel)
+                    add(p, rel, name, 'Учитель' if is_teacher else 'Ученик', roles.get((person, p), ''))
             bg = json.loads(s['meta'] or '{}').get('background')
             if bg:
-                add(bg, root / CATS[6] / Path(bg).name)
+                add(bg, root / CATS[6] / Path(bg).name, '', 'Фон')
         else:
             root = Path(safe_name(s['title']))
             for sec in st['sections']:
                 for p in [x for x in st['selected'].get(sec['id'], []) if x in sec['files'] or x in sec['mandatory']]:
-                    add(p, root / safe_name(sec['title']) / files[p]['name'])
+                    add(p, root / safe_name(sec['title']) / files[p]['name'], sec['title'], 'Серия')
         if not ops:
             raise ValueError('Не выбрано ни одного кадра')
         if (out / root).exists() and any((out / root).iterdir()):
             raise ValueError('Папка заказа уже существует и не пуста: ' + str(out / root))
-        need = sum(Path(p).stat().st_size for p, _ in ops)
+        need = sum(Path(op[0]).stat().st_size for op in ops)
         free = shutil.disk_usage(out if out.exists() else out.parent if out.parent.exists() else Path.home()).free
         return {'root': str(out / root), 'files': len(ops), 'bytes': need, 'free': free, 'ops': ops, 'out': out,
                 'categories': s['mode'] == 'school', 'rootrel': root}
 
-    def export(self, sid, output, dry_run=False):
+    def export(self, sid, output, dry_run=False, job=None):
+        job = job if job is not None else {}
         plan = self.plan_export(sid, output)
         if plan['bytes'] > plan['free']:
             raise ValueError('Недостаточно места на диске')
@@ -1068,19 +1073,50 @@ class Engine:
             return {k: plan[k] for k in ('root', 'files', 'bytes', 'free')}
         with self.conn() as c:
             self.event(c, sid, 'export', 'start')
-        for p, rel in plan['ops']:
+        root = plan['out'] / plan['rootrel']
+        job.update(stage='Копирование', total=len(plan['ops']), done=0, bytes_total=plan['bytes'], bytes_done=0)
+        report = []
+        for p, rel, who, what, role in plan['ops']:
             d = plan['out'] / rel
             d.parent.mkdir(parents=True, exist_ok=True)
             if d.exists():
                 raise ValueError('Файл уже существует, перезапись запрещена: ' + str(d))
             shutil.copy2(p, d)
+            size = d.stat().st_size
+            if size != Path(p).stat().st_size:
+                raise ValueError('Копия не совпадает по размеру с исходником: ' + str(d))
+            report.append([what, who, role, str(rel.relative_to(plan['rootrel'])), str(p), size])
+            job['done'] += 1
+            job['bytes_done'] += size
         if plan['categories']:
             for cat in CATS:
-                (plan['out'] / plan['rootrel'] / cat).mkdir(parents=True, exist_ok=True)
+                (root / cat).mkdir(parents=True, exist_ok=True)
+        # order manifest: opens in Russian Excel as a table (UTF-8 BOM, ';')
+        with open(root / '_FOBOX_отчёт.csv', 'w', encoding='utf-8-sig', newline='') as f:
+            w = csv.writer(f, delimiter=';')
+            w.writerow(['Тип', 'Кто', 'Роль', 'Файл в заказе', 'Исходный файл', 'Размер, байт'])
+            w.writerows(sorted(report, key=lambda r: (r[0], r[1], r[3])))
         with self.conn() as c:
             self.event(c, sid, 'export', 'end')
             c.execute("UPDATE sessions SET status='exported' WHERE id=?", (sid,))
-        return {'root': plan['root'], 'files': plan['files'], 'bytes': plan['bytes']}
+        self.set_meta(sid, {'last_export': str(root)})
+        job['stage'] = 'Готово'
+        return {'root': plan['root'], 'files': plan['files'], 'bytes': plan['bytes'], 'report': str(root / '_FOBOX_отчёт.csv')}
+
+    def start_export(self, sid, output):
+        self.plan_export(sid, output)  # validate synchronously so the dialog shows errors at once
+        jid = sid + ':export'
+        job = {'session': sid, 'stage': 'Подготовка', 'done': 0, 'total': 0, 'error': None, 'finished': False}
+        self.jobs[jid] = job
+
+        def run():
+            try:
+                job['result'] = self.export(sid, output, job=job)
+            except Exception as e:
+                job['error'] = str(e)
+            job['finished'] = True
+        threading.Thread(target=run, daemon=True).start()
+        return {'job': jid}
 
     def delete_session(self, sid):
         """Removes the session from the catalog only. Source files are not touched."""
