@@ -162,6 +162,37 @@ class EngineTest(unittest.TestCase):
         self.assertEqual([n for n in nb if n < 130], [119])               # Вера: the misread 119 alone, nothing around it
         self.assertIn('проверьте номер', b['unsure'].get('P1', ''))
 
+    def test_kit_assembled_automatically_15_to_22_different_frames(self):
+        """Child series of 25 frames in varied poses between pauses; neighbours before and after."""
+        from PIL import ImageDraw
+        d = self.tmp / 'card4'
+        d.mkdir()
+        t = datetime(2026, 10, 16, 12, 0, 0)
+        for n in range(100, 150):
+            t += timedelta(seconds=90 if n in (110, 135) else 4)
+            im = Image.new('RGB', (300, 450), (40 + (n // 10) * 30 % 200, 60, 90))
+            dr = ImageDraw.Draw(im)
+            k = n % 25                                   # pose: position, size and arm angle all change
+            dr.ellipse([60 + k * 7, 40 + (k % 5) * 12, 140 + k * 7, 120 + (k % 5) * 12], fill=(230, 200, 180))
+            dr.rectangle([40 + k * 6, 130, 160 + k * 6, 400 - (k % 4) * 30], fill=(30 + k * 8, 40, 60))
+            dr.line([0, (k * 37) % 450, 300, 450 - (k * 53) % 450], fill=(255, 255, 255), width=6)
+            ex = Image.Exif()
+            ex.get_ifd(0x8769)[0x9003] = t.strftime('%Y:%m:%d %H:%M:%S')
+            buf = io.BytesIO()
+            im.save(buf, 'JPEG', exif=ex)
+            (d / f'ANT0{n}.JPG').write_bytes(buf.getvalue())
+            (d / f'ANT0{n}.ARW').write_bytes(b'RAW' + bytes([n % 256]))
+        f = self.tmp / 'v.csv'
+        f.write_text('ФИО;В;ЛР;ЛС;Д1;Д2\nСоседка Ада;102;104;106;;\nГорбо Михаил;118;124;128;;\nСосед Боря;140;142;144;;\n', encoding='utf-8')
+        sid = self.e.import_folder(d, {'students': str(f)})
+        st = self.e.session(sid)
+        g = next(x for x in st['sections'] if x['title'] == 'Горбо Михаил')
+        sel = st['selected'][g['id']]
+        nums = sorted(int(Path(p).stem[3:]) for p in sel)
+        self.assertTrue(15 <= len(sel) <= 22, nums)
+        self.assertTrue(all(110 <= n <= 134 for n in nums), nums)    # only Горбо's own block
+        self.assertTrue(set(g['mandatory']) <= set(sel))
+
     def test_worksheet_frames_always_in_kit_after_reimport(self):
         sid = self.school()
         st = self.e.session(sid)
