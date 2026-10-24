@@ -120,15 +120,57 @@ class EngineTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.e.export(sid, self.tmp / 'out2')
 
-    def test_frame_in_portraits_and_friends_copied_once(self):
+    def test_child_series_stops_at_pause_and_other_people(self):
+        """Like the real card: teacher 100-104, pause, child A 105-115, pause, woman 116-119, child B 120+."""
+        d = self.tmp / 'card2'
+        d.mkdir()
+        t = datetime(2026, 10, 16, 12, 43, 0)
+        for n in range(100, 130):
+            t += timedelta(seconds=80 if n in (105, 116, 120) else 3)
+            (d / f'ANT0{n}.JPG').write_bytes(jpeg((60 + n % 9 * 15, 90, 140), t))
+            (d / f'ANT0{n}.ARW').write_bytes(b'RAW' + bytes([n % 256]))
+        f = self.tmp / 'v.csv'
+        f.write_text('ФИО;В;ЛР;ЛС;Д1;Д2\nГорбо Михаил;108;110;112;;\nДругой Мальчик;122;123;124;;\n', encoding='utf-8')
+        sid = self.e.import_folder(d, {'students': str(f), 'date': '16.10.2026'})
+        st = self.e.session(sid)
+        g = st['sections'][0]
+        nums = sorted(int(Path(p).stem[3:]) for p in g['files'])
+        self.assertEqual((nums[0], nums[-1]), (105, 115))       # own series only: no teacher, woman or other boy
+        self.assertTrue(set(g['mandatory']) <= set(st['selected'][g['id']]))
+        self.assertEqual(st['session']['shoot_date'], '2026-10-16')
+        self.approve_all(sid)
+        root = Path(self.e.export(sid, self.tmp / 'out')['root'])
+        self.assertEqual(root.parent.name, '16.10.2026')
+
+    def test_misread_number_inside_another_childs_series(self):
+        """Like Тимошина ЛР 536 inside Муцольгова 527–537: no frames of the other child are pulled in."""
+        d = self.tmp / 'card3'
+        d.mkdir()
+        t = datetime(2026, 10, 16, 12, 0, 0)
+        for n in range(100, 160):
+            t += timedelta(seconds=80 if n in (110, 130) else 3)
+            (d / f'ANT0{n}.JPG').write_bytes(jpeg((60 + n % 7 * 20, 90, 140), t))
+            (d / f'ANT0{n}.ARW').write_bytes(b'RAW' + bytes([n % 256]))
+        f = self.tmp / 'v.csv'
+        f.write_text('ФИО;В;ЛР;ЛС;Д1;Д2\nПервая Анна;112;117;122;;\nВторая Вера;140;119;150;;\n', encoding='utf-8')
+        sid = self.e.import_folder(d, {'students': str(f)})
+        st = self.e.session(sid)
+        a, b = st['sections'][0], st['sections'][1]
+        na = sorted(int(Path(p).stem[3:]) for p in a['files'])
+        nb = sorted(int(Path(p).stem[3:]) for p in b['files'])
+        self.assertTrue(all(110 <= n <= 129 for n in na))                 # Анна: her own block only
+        self.assertEqual([n for n in nb if n < 130], [119])               # Вера: the misread 119 alone, nothing around it
+        self.assertIn('проверьте номер', b['unsure'].get('P1', ''))
+
+    def test_worksheet_frames_always_in_kit_after_reimport(self):
         sid = self.school()
         st = self.e.session(sid)
-        p, f = st['sections'][0], st['sections'][1]
-        shared = next(x for x in p['files'] if x in f['files'] and x not in p['mandatory'] and x not in f['mandatory'])
-        for s in (p, f):
-            self.e.review(sid, {'section': s['id'], 'selected': list(s['mandatory']) + [shared], 'approved': True})
-        r = self.e.export(sid, self.tmp / 'out')
-        self.assertEqual(r['files'], 6)
+        s = st['sections'][0]
+        with self.e.conn() as c:                                 # simulate a stale selection from an older import
+            c.execute('DELETE FROM selections WHERE session_id=? AND section_id=?', (sid, s['id']))
+            c.execute('INSERT INTO selections VALUES(?,?,?)', (sid, s['id'], '/old/path/X.JPG'))
+        st = self.e.session(sid)
+        self.assertEqual(sorted(st['selected'][s['id']]), sorted(s['mandatory']))
 
     def test_excel_worksheet_with_russian_headers(self):
         try:

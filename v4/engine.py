@@ -45,6 +45,7 @@ DEFAULT_SETTINGS = {
     'theme': 'dark',
     'workspace': 'Моя студия',
     'teacher_gap_sec': '30',       # teacher series ends at a longer pause between frames
+    'person_gap_sec': '45',        # a child's series ends at a longer pause between frames
     'date_format': 'dd.mm.yyyy',   # how dates are shown in the interface
     'compare_to': 'prev',          # overview comparison: previous period or same period last year
 }
@@ -106,6 +107,21 @@ def now():
 def frame_number(stem):
     m = re.search(r'(\d+)$', stem)
     return int(m.group(1)) if m else None
+
+
+def iso_date(v):
+    """'16.10.2026', '16/10/2026', '2026-10-16' -> '2026-10-16'; anything else unchanged."""
+    v = str(v or '').strip()
+    m = re.fullmatch(r'(\d{1,2})[./-](\d{1,2})[./-](\d{4})', v)
+    if m:
+        return f'{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}'
+    m = re.fullmatch(r'(\d{4})[./-](\d{1,2})[./-](\d{1,2})', v)
+    return f'{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}' if m else v
+
+
+def ru_date(v):
+    m = re.fullmatch(r'(\d{4})-(\d{2})-(\d{2})', str(v or ''))
+    return f'{m.group(3)}.{m.group(2)}.{m.group(1)}' if m else str(v or '')
 
 
 def safe_name(s):
@@ -581,6 +597,9 @@ class Engine:
                 c.execute('INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)', (k, v))
             c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),))
             c.execute("INSERT OR IGNORE INTO profiles(id,name,studio) VALUES('me','','')")
+            for r in c.execute('SELECT id, shoot_date FROM sessions').fetchall():   # older catalogs: 16.10.2026 -> ISO
+                if r['shoot_date'] and iso_date(r['shoot_date']) != r['shoot_date']:
+                    c.execute('UPDATE sessions SET shoot_date=? WHERE id=?', (iso_date(r['shoot_date']), r['id']))
 
     def settings(self):
         with self.conn() as c:
@@ -597,7 +616,7 @@ class Engine:
                     raise ValueError('Неизвестная настройка: ' + k)
                 if k == 'accent' and not re.fullmatch(r'#[0-9A-Fa-f]{6}', str(v)):
                     raise ValueError('Цвет в формате #RRGGBB')
-                if k in ('series_gap_sec', 'teacher_gap_sec', 'radius', 'target_per_student', 'dup_distance'):
+                if k in ('series_gap_sec', 'teacher_gap_sec', 'person_gap_sec', 'radius', 'target_per_student', 'dup_distance'):
                     if not str(v).isdigit() or int(v) <= 0:
                         raise ValueError('Положительное целое число: ' + k)
                 c.execute('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)', (k, str(v)))
@@ -729,7 +748,7 @@ class Engine:
             self._assign_series(c, sid)
             span = c.execute('SELECT MIN(capture_at) a, MAX(capture_at) b FROM files WHERE session_id=?', (sid,)).fetchone()
             c.execute('UPDATE sessions SET first_capture=?, last_capture=?, shoot_date=? WHERE id=?',
-                      (span['a'], span['b'], (opts.get('date') or (span['a'] or '')[:10]), sid))
+                      (span['a'], span['b'], iso_date(opts.get('date')) or (span['a'] or '')[:10], sid))
             if mode == 'school':
                 self._load_people(c, sid, opts.get('students'), opts.get('teachers'))
             self.event(c, sid, 'import', 'end')
@@ -942,9 +961,11 @@ class Engine:
         return must
 
     def _teacher_series(self, frames, own, anchors_all, gap=None, max_side=10):
-        """Frames of one teacher's series: shot in a row around the worksheet photo, stopping at a pause
+        return self._series(frames, own, anchors_all, self.setting('teacher_gap_sec', int) if gap is None else gap, max_side)
+
+    def _series(self, frames, own, anchors_all, gap, max_side):
+        """Frames of one person's series: shot in a row around their worksheet frames, stopping at a pause
         longer than `gap` seconds or at a frame that belongs to someone else in the worksheet."""
-        gap = self.setting('teacher_gap_sec', int) if gap is None else gap
         seq = sorted(frames, key=lambda f: (f['capture_at'], f['name']))
         idx = {f['path']: i for i, f in enumerate(seq)}
         t = lambda f: datetime.strptime(f['capture_at'], '%Y-%m-%d %H:%M:%S')
@@ -966,7 +987,7 @@ class Engine:
                     keep.add(i)
         if len(keep) < 3 and gap and max_side > 3:
             # too short to choose poses from: show ±3 neighbours, still never crossing someone else's frame
-            return self._teacher_series(frames, own, anchors_all, gap=0, max_side=3) if any(p in idx for p in own) else []
+            return self._series(frames, own, anchors_all, 0, 3) if any(p in idx for p in own) else []
         return [seq[i] for i in sorted(keep)]
 
     def sections(self, sid):
@@ -984,10 +1005,62 @@ class Engine:
         out, conflicts = [], []
         if people:
             frames = [f for f in files if f['frame'] is not None]
-            anchors_all = set()
+            anchors_all, anchors_person = set(), set()   # every worksheet frame / portraits and teachers only
             for p in people:
                 a = json.loads(p['anchors'] or '{}')
                 anchors_all |= set(self._anchors(files, a, ['V', 'P1', 'P2', 'D1', 'D2', 'T'], [], p['name']))
+                anchors_person |= set(self._anchors(files, a, ['V', 'P1', 'P2', 'T'], [], p['name']))
+            pgap = self.setting('person_gap_sec', int)
+            # portrait span of every person (first..last of V/P1/P2): a worksheet number of one child that
+            # sits inside another child's span is almost always a misread number — never grow a series there
+            fnum = {f['path']: f['frame'] for f in files}
+            spans = {}
+            for p in people:
+                a = json.loads(p['anchors'] or '{}')
+                nums = sorted(fnum[x] for x in self._anchors(files, a, ['V', 'P1', 'P2'], [], p['name']) if fnum.get(x) is not None)
+                if len(nums) >= 2 and nums[-1] - nums[0] <= 40:
+                    spans[p['student_id']] = (nums[0], nums[-1], p['name'], nums[len(nums) // 2])
+            def intruder(pid, path):
+                # suspicious: inside another child's span and closer to that child's middle number than to own
+                n = fnum.get(path)
+                if n is None:
+                    return None
+                mine = spans.get(pid)
+                for oid, (lo, hi, oname, mid) in spans.items():
+                    if oid != pid and lo < n < hi and (not mine or abs(n - mid) < abs(n - mine[3])):
+                        return f'{oname} ({lo}–{hi})'
+                return None
+            # pass 1: portrait series of every child; a frame claimed by two children goes to the one
+            # whose worksheet number is nearest — so a series never contains another child's frames
+            pseries, pown = {}, {}
+            for p in people:
+                if p['role'] != 'student':
+                    continue
+                a = json.loads(p['anchors'] or '{}')
+                cols = ['V', 'P1', 'P2']
+                o = {k: v for k, v in ov[p['student_id']].items() if k in cols}
+                own = set(self._anchors(files, a, cols, [], p['name'], o)) | set(self._anchors(files, a, cols, [], p['name']))
+                grow = {x for x in own if not intruder(p['student_id'], x)}
+                pseries[p['student_id']] = {f['path'] for f in (self._series(frames, grow, anchors_all, pgap, 25) if grow else [])}
+                pown[p['student_id']] = [fnum[x] for x in own if fnum.get(x) is not None]
+            claim = defaultdict(list)
+            for pid, ps in pseries.items():
+                for x in ps:
+                    claim[x].append(pid)
+            for x, pids in claim.items():
+                if len(pids) > 1 and fnum.get(x) is not None:
+                    best = min(pids, key=lambda q: min((abs(fnum[x] - n) for n in pown[q]), default=10 ** 9))
+                    for q in pids:
+                        if q != best:
+                            pseries[q].discard(x)
+            # never more than 4 frames past the outermost worksheet frame: without a pause between people
+            # a long tail would reach the next person
+            for pid, ps in pseries.items():
+                ns = [n for n in pown[pid] if n is not None]
+                if ns:
+                    lo, hi = min(ns) - 4, max(ns) + 4
+                    pseries[pid] = {x for x in ps if fnum.get(x) is None or lo <= fnum[x] <= hi}
+            taken = {x: pid for pid, ps in pseries.items() for x in ps}
             for p in people:
                 a = json.loads(p['anchors'] or '{}')
                 if p['role'] == 'student':
@@ -996,15 +1069,33 @@ class Engine:
                         must = self._anchors(files, a, cols, conflicts, p['name'], o)
                         # the window stays around the worksheet numbers even if a frame was reassigned
                         sheet = self._anchors(files, a, cols, [], p['name'])
-                        nums = [f['frame'] for f in files if (f['path'] in must or f['path'] in sheet) and f['frame'] is not None]
-                        near = [f for f in frames if nums and min(abs(f['frame'] - n) for n in nums) <= radius]
+                        # the child's own series: frames in a row around the worksheet numbers, up to a pause
+                        # or to someone else's worksheet frame (group photos: only portraits stop the series)
+                        own = set(must) | set(sheet)
+                        odd = {x: intruder(p['student_id'], x) for x in own}
+                        grow = {x for x in own if not odd[x]}
+                        if suffix == 'p':
+                            near = [f for f in frames if f['path'] in pseries.get(p['student_id'], set())]
+                        else:
+                            near = self._series(frames, grow, anchors_person, pgap, 8) if grow else []
+                            # group photos never take frames from another child's portrait series
+                            near = [f for f in near if taken.get(f['path'], p['student_id']) == p['student_id']]
+                        have = {f['path'] for f in near}
+                        near += [f for f in frames if f['path'] in own and f['path'] not in have]   # suspicious frame alone
+                        near.sort(key=lambda f: (f['capture_at'], f['name']))
+                        warn = {}
+                        for x, who in odd.items():
+                            if who:
+                                k = must.get(x) or sheet.get(x)
+                                warn[k] = f'номер стоит среди кадров: {who} — проверьте номер'
                         if not must and not o:
                             continue  # empty cells are fine: no friends photo, child absent, etc.
                         out.append({'id': p['student_id'] + suffix, 'title': p['name'], 'subtitle': label,
                                     'kind': 'portrait' if suffix == 'p' else 'friends', 'person': p['student_id'],
                                     'files': [f['path'] for f in near], 'mandatory': must, 'limit': None,
                                     'roles': cols, 'overridden': bool(o),
-                                    'unsure': {k: v for k, v in (a.get('unsure') or {}).items() if k in cols or (k == 'Name' and suffix == 'p')}})
+                                    'unsure': {**{k: v for k, v in (a.get('unsure') or {}).items() if k in cols or (k == 'Name' and suffix == 'p')},
+                                               **{k: (((a.get('unsure') or {}).get(k) + '; ') if (a.get('unsure') or {}).get(k) else '') + v for k, v in warn.items()}}})
                 elif a.get('T'):
                     # teacher given by photo number(s): those frames are mandatory, neighbours shown for choice
                     o = {k: v for k, v in ov[p['student_id']].items() if k == 'T'}
@@ -1068,6 +1159,12 @@ class Engine:
                     quota = max(1, round(len(s['files']) * 0.35))
                 chosen = [info[p] for p in s['mandatory'] if p in info]
                 pool = [info[p] for p in s['files'] if p in info and p not in s['mandatory'] and not info[p]['flags']]
+                if s['kind'] in ('portrait', 'friends', 'teacher') and s['mandatory']:
+                    # automatic picks stay between the worksheet frames (±2): edges of a series may be someone else
+                    ns = [info[p]['frame'] for p in s['mandatory'] if p in info and info[p]['frame'] is not None]
+                    if ns:
+                        pad = 3 if s['kind'] == 'teacher' else 2
+                        pool = [f for f in pool if f['frame'] is not None and min(ns) - pad <= f['frame'] <= max(ns) + pad]
                 pool.sort(key=lambda f: -(f['sharpness'] or 0))
                 picks = []
                 if s['kind'] == 'teacher':
@@ -1088,6 +1185,8 @@ class Engine:
                         picks.append(f)
                 for f in picks:
                     c.execute('INSERT OR IGNORE INTO ai_suggestions VALUES(?,?,?,?)', (sid, s['id'], f['path'], 'diverse+sharp'))
+                for p in s['mandatory']:   # worksheet frames are always in the kit
+                    c.execute('INSERT OR IGNORE INTO selections VALUES(?,?,?)', (sid, s['id'], p))
                 # pre-fill selection only for sections the person has not touched yet
                 if s['id'] not in has_sel and s['id'] not in approved:
                     for p in list(s['mandatory']) + [f['path'] for f in picks]:
@@ -1110,6 +1209,10 @@ class Engine:
             for r in c.execute('SELECT section_id,file_path FROM ai_suggestions WHERE session_id=?', (sid,)):
                 sugg[r['section_id']].append(r['file_path'])
         secs, conflicts = self.sections(sid)
+        # worksheet frames are always part of the kit; stale picks from an earlier import are dropped
+        for x in secs:
+            have = [p for p in sel.get(x['id'], []) if p in x['files'] or p in x['mandatory']]
+            sel[x['id']] = have + [p for p in x['mandatory'] if p not in have]
         with self.conn() as c:
             people = c.execute("SELECT student_id, name FROM students WHERE session_id=? ORDER BY rowid", (sid,)).fetchall()
         present = {x['person'] for x in secs}
@@ -1239,7 +1342,7 @@ class Engine:
             names.add(str(rel).casefold())
             ops.append((p, rel, who, what, role))
         if s['mode'] == 'school':
-            root = Path(*[safe_name(x or '—') for x in (s['order_no'], s['school'], s['shoot_date'], s['class_name'])])
+            root = Path(*[safe_name(x or '—') for x in (s['order_no'], s['school'], ru_date(s['shoot_date']), s['class_name'])])
             prefix = {'V': '{n}_', 'P1': 'ЛР_{n}_', 'P2': 'ЛС_{n}_', 'D1': 'Друг1_', 'D2': 'Друг2_', 'T': ''}
             # portraits and friends of one student are merged: a frame inside both windows is copied once
             by_person, subs = defaultdict(set), {}
