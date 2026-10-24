@@ -394,6 +394,18 @@ class EngineTest(unittest.TestCase):
         self.assertIn('Яковлева Ангелина Федоровна учитель физкультуры.ARW', names)
         self.assertIn('Курашова Вероника Анатольевна классный руководитель.ARW', names)
 
+    def test_teacher_gets_3_to_5_different_poses_from_own_series(self):
+        f = self.tmp / 'v.csv'
+        f.write_text('Тип;ФИО;Виньетка;ЛР;ЛС;Друг1;Друг2;Фото учителя\nученики;Иванов Иван;110;111;112;114;115;\n'
+                     'учителя;Петрова Анна Сергеевна;;;;;;128\n', encoding='utf-8')
+        sid = self.e.import_folder(self.src, {'students': str(f)})
+        st = self.e.session(sid)
+        t = next(x for x in st['sections'] if x['kind'] == 'teacher')
+        self.assertTrue(all(p not in t['files'] for x in st['sections'] if x is not t for p in x['mandatory']))
+        sel = st['selected'][t['id']]
+        self.assertTrue(1 <= len(sel) <= 5)
+        self.assertIn(next(iter(t['mandatory'])), sel)
+
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'
         f.write_bytes('ФИО;В;П1;П2;Д1;Д2\r\nИванов Иван;110;111;112;125;126\r\n'.encode('cp1251'))

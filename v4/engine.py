@@ -44,6 +44,7 @@ DEFAULT_SETTINGS = {
     'accent': '#7738FF',
     'theme': 'dark',
     'workspace': 'Моя студия',
+    'teacher_gap_sec': '30',       # teacher series ends at a longer pause between frames
     'date_format': 'dd.mm.yyyy',   # how dates are shown in the interface
     'compare_to': 'prev',          # overview comparison: previous period or same period last year
 }
@@ -596,7 +597,7 @@ class Engine:
                     raise ValueError('Неизвестная настройка: ' + k)
                 if k == 'accent' and not re.fullmatch(r'#[0-9A-Fa-f]{6}', str(v)):
                     raise ValueError('Цвет в формате #RRGGBB')
-                if k in ('series_gap_sec', 'radius', 'target_per_student', 'dup_distance'):
+                if k in ('series_gap_sec', 'teacher_gap_sec', 'radius', 'target_per_student', 'dup_distance'):
                     if not str(v).isdigit() or int(v) <= 0:
                         raise ValueError('Положительное целое число: ' + k)
                 c.execute('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)', (k, str(v)))
@@ -940,6 +941,34 @@ class Engine:
                     must.setdefault(f['path'], k)
         return must
 
+    def _teacher_series(self, frames, own, anchors_all, gap=None, max_side=10):
+        """Frames of one teacher's series: shot in a row around the worksheet photo, stopping at a pause
+        longer than `gap` seconds or at a frame that belongs to someone else in the worksheet."""
+        gap = self.setting('teacher_gap_sec', int) if gap is None else gap
+        seq = sorted(frames, key=lambda f: (f['capture_at'], f['name']))
+        idx = {f['path']: i for i, f in enumerate(seq)}
+        t = lambda f: datetime.strptime(f['capture_at'], '%Y-%m-%d %H:%M:%S')
+        keep = set()
+        for p in own:
+            if p not in idx:
+                continue
+            i0 = idx[p]
+            keep.add(i0)
+            for step in (-1, 1):
+                i = i0
+                while 0 <= i + step < len(seq) and abs(i + step - i0) <= max_side:
+                    nxt = seq[i + step]
+                    if nxt['path'] in anchors_all and nxt['path'] not in own:
+                        break
+                    if gap and abs((t(nxt) - t(seq[i])).total_seconds()) > gap:
+                        break
+                    i += step
+                    keep.add(i)
+        if len(keep) < 3 and gap and max_side > 3:
+            # too short to choose poses from: show ±3 neighbours, still never crossing someone else's frame
+            return self._teacher_series(frames, own, anchors_all, gap=0, max_side=3) if any(p in idx for p in own) else []
+        return [seq[i] for i in sorted(keep)]
+
     def sections(self, sid):
         """Review sections. School mode: per student portraits/friends + teachers. General: per series."""
         with self.conn() as c:
@@ -955,6 +984,10 @@ class Engine:
         out, conflicts = [], []
         if people:
             frames = [f for f in files if f['frame'] is not None]
+            anchors_all = set()
+            for p in people:
+                a = json.loads(p['anchors'] or '{}')
+                anchors_all |= set(self._anchors(files, a, ['V', 'P1', 'P2', 'D1', 'D2', 'T'], [], p['name']))
             for p in people:
                 a = json.loads(p['anchors'] or '{}')
                 if p['role'] == 'student':
@@ -977,8 +1010,7 @@ class Engine:
                     o = {k: v for k, v in ov[p['student_id']].items() if k == 'T'}
                     must = self._anchors(files, a, ['T'], conflicts, p['name'], o)
                     sheet = self._anchors(files, a, ['T'], [], p['name'])
-                    nums = [f['frame'] for f in files if (f['path'] in must or f['path'] in sheet) and f['frame'] is not None]
-                    near = [f for f in frames if nums and min(abs(f['frame'] - n) for n in nums) <= max(3, radius // 2)]
+                    near = self._teacher_series(frames, set(must) | set(sheet), anchors_all)
                     if not must and not o:
                         continue
                     out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель',
@@ -1031,14 +1063,25 @@ class Engine:
                 elif s['kind'] == 'friends':
                     quota = max(0, target - 5) - max(0, target - 5) * 2 // 3
                 elif s['kind'] == 'teacher':
-                    quota = 3
+                    quota = max(0, 5 - len(s['mandatory']))  # 3–5 frames in total, if the series has that many poses
                 else:
                     quota = max(1, round(len(s['files']) * 0.35))
                 chosen = [info[p] for p in s['mandatory'] if p in info]
                 pool = [info[p] for p in s['files'] if p in info and p not in s['mandatory'] and not info[p]['flags']]
                 pool.sort(key=lambda f: -(f['sharpness'] or 0))
                 picks = []
-                for f in pool:
+                if s['kind'] == 'teacher':
+                    # different poses: each next frame is the one least like everything already chosen
+                    pose_d = dup_d + 7
+                    while len(picks) < quota and pool:
+                        ref = chosen + picks
+                        score = lambda f: min((hamming(f['dhash'], x['dhash']) for x in ref), default=64)
+                        best = max(pool, key=lambda f: (score(f), f['sharpness'] or 0))
+                        if ref and score(best) <= pose_d:
+                            break  # only near-identical frames left: fewer, but different poses
+                        picks.append(best)
+                        pool.remove(best)
+                for f in pool if s['kind'] != 'teacher' else []:
                     if len(picks) >= quota:
                         break
                     if all(hamming(f['dhash'], x['dhash']) > dup_d + 3 for x in chosen + picks):
