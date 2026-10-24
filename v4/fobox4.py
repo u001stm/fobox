@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlparse
 from engine import Engine
 
 UI = Path(__file__).with_name('ui.html')
-APP_VERSION = '4.0a2.7'  # bump together with UI_VERSION in ui.html
+APP_VERSION = '4.0a2.8'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
@@ -108,6 +108,8 @@ def make_handler(engine):
                     out = engine.review(b['session'], b)
                 elif p == '/api/review':
                     out = engine.review(b['session'], b)
+                elif p == '/api/rebuild':
+                    out = engine.rebuild(b['session'], b.get('sections'))
                 elif p == '/api/role':
                     out = engine.set_role(b['session'], b)
                 elif p == '/api/meta':

@@ -1141,41 +1141,49 @@ class Engine:
 
     # -------------------------------------------------------- automatic suggestions
     @staticmethod
-    def _pick_diverse(pool, chosen, quota, threshold, span=None):
-        """Pick up to `quota` frames that differ from everything already chosen (farthest-point),
-        preferring frames between the worksheet numbers (`span`) and sharper ones."""
+    def _pick_diverse(pool, chosen, quota, hard=2, stop=None, span=None):
+        """Farthest-point picking: each next frame is the one least like everything already chosen.
+        Near-identical frames (dHash distance <= hard: bursts, bracketing) are never taken.
+        With `stop`, picking ends when only frames that close to the chosen ones are left (teachers)."""
         picks, pool = [], list(pool)
         inside = lambda f: bool(span and f['frame'] is not None and span[0] <= f['frame'] <= span[1])
         while len(picks) < quota and pool:
             ref = chosen + picks
             dist = lambda f: min((hamming(f['dhash'], x['dhash']) for x in ref), default=64)
-            best = max(pool, key=lambda f: (min(dist(f), 24) > threshold, inside(f), min(dist(f), 24), f['sharpness'] or 0))
-            if ref and dist(best) <= threshold:
+            pool = [f for f in pool if not ref or dist(f) > hard]
+            if not pool:
+                break
+            best = max(pool, key=lambda f: (min(dist(f), 20), inside(f), f['sharpness'] or 0))
+            if stop is not None and ref and dist(best) <= stop:
                 break
             picks.append(best)
             pool.remove(best)
         return picks
 
     def suggest(self, sid):
-        """Assemble kits automatically. A child gets 15–20 frames in total: the worksheet frames first,
-        then sharp frames without defects that differ from each other (portraits and group photos).
+        """Assemble kits automatically. A child gets 15–20 frames in total, the 5 worksheet frames included:
+        up to 2 extra vignettes (most like the worksheet vignette), extra portraits and extra group photos —
+        sharp, without defects, as different from each other as the series allows.
         A teacher gets 3–5 different poses. Sections the photographer already edited are left alone."""
         secs, _ = self.sections(sid)
         st = self.settings()
-        target, kmin, kmax = int(st['target_per_student']), int(st['kit_min']), int(st['kit_max'])
-        target = max(kmin, min(kmax, target))
+        kmin, kmax = int(st['kit_min']), int(st['kit_max'])
+        target = max(kmin, min(kmax, int(st['target_per_student'])))
         dup_d = int(st['dup_distance'])
         with self.conn() as c:
             info = {f['path']: f for f in self._files(c, sid)}
             c.execute('DELETE FROM ai_suggestions WHERE session_id=?', (sid,))
             approved = {r['section_id'] for r in c.execute('SELECT section_id FROM approvals WHERE session_id=? AND approved=1', (sid,))}
             edited = {r['section_id'] for r in c.execute("SELECT DISTINCT section_id FROM selection_events WHERE session_id=? AND actor='user'", (sid,))}
-            picks_by = {}
-
+            picks_by, reason = {}, {}
             seq = sorted(info.values(), key=lambda f: (f['capture_at'], f['name']))
             pos = {f['path']: i for i, f in enumerate(seq)}
             tsec = lambda f: datetime.strptime(f['capture_at'], '%Y-%m-%d %H:%M:%S')
             pgap = int(st['person_gap_sec'])
+
+            def span_of(s):
+                ns = [info[p]['frame'] for p in s['mandatory'] if p in info and info[p]['frame'] is not None]
+                return (min(ns) - 2, max(ns) + 2) if ns else None
 
             def safe_side(s, side):
                 """True when the series ends with a real pause on this side, so its edge is still this person."""
@@ -1189,17 +1197,15 @@ class Engine:
                 return abs((tsec(seq[j]) - tsec(seq[i])).total_seconds()) > pgap
 
             def pool_of(s):
-                pool = [info[p] for p in s['files'] if p in info and p not in s['mandatory'] and not info[p]['flags']]
+                # 'Дубль' only means "looks like a neighbour": such frames stay candidates, the picker skips copies
+                bad = lambda f: any(x and x != 'dup' for x in (f['flags'] or '').split(','))
+                pool = [info[p] for p in s['files'] if p in info and p not in s['mandatory'] and not bad(info[p])]
                 sp = span_of(s)
                 if sp and s['kind'] in ('portrait', 'friends'):
                     left, right = safe_side(s, -1), safe_side(s, 1)
                     pool = [f for f in pool if f['frame'] is None or sp[0] <= f['frame'] <= sp[1]
                             or (f['frame'] < sp[0] and left) or (f['frame'] > sp[1] and right)]
                 return pool
-
-            def span_of(s):
-                ns = [info[p]['frame'] for p in s['mandatory'] if p in info and info[p]['frame'] is not None]
-                return (min(ns) - 2, max(ns) + 2) if ns else None
             by_person = defaultdict(list)
             for s in secs:
                 by_person[s['person'] or s['id']].append(s)
@@ -1207,38 +1213,49 @@ class Engine:
                 kinds = {s['kind']: s for s in group}
                 if 'portrait' in kinds or 'friends' in kinds:
                     P, F = kinds.get('portrait'), kinds.get('friends')
-                    m = sum(len(s['mandatory']) for s in group)
-                    budget = max(0, target - m)
-                    fpool = pool_of(F) if F else []
-                    ppool = pool_of(P) if P else []
+                    pm = [info[p] for p in (P['mandatory'] if P else {}) if p in info]
+                    fm = [info[p] for p in (F['mandatory'] if F else {}) if p in info]
+                    m = len(pm) + len(fm)
+                    ppool, fpool = (pool_of(P) if P else []), (pool_of(F) if F else [])
+                    # extra vignettes: closest to the worksheet vignette, but not a copy of it (3 vignettes at most)
+                    vign = []
+                    v = next((info[p] for p, k in (P['mandatory'] if P else {}).items() if k == 'V' and p in info), None)
+                    if v and v['dhash']:
+                        near = sorted((f for f in ppool if f['dhash'] and hamming(f['dhash'], v['dhash']) > 2),
+                                      key=lambda f: (hamming(f['dhash'], v['dhash']), -(f['sharpness'] or 0)))
+                        for f in near:
+                            if len(vign) >= min(2, max(0, target - m)):
+                                break
+                            if all(hamming(f['dhash'], x['dhash']) > 2 for x in vign):
+                                vign.append(f)
+                    ppool = [f for f in ppool if f not in vign]
+                    budget = max(0, target - m - len(vign))
                     fq = min(len(fpool), round(budget * 0.3)) if F else 0
-                    pq = budget - fq
-                    pp = self._pick_diverse(ppool, [info[p] for p in P['mandatory'] if p in info], pq, dup_d + 3, span_of(P)) if P else []
-                    fp = self._pick_diverse(fpool, [info[p] for p in F['mandatory'] if p in info], fq + max(0, pq - len(pp)), dup_d + 3, span_of(F)) if F else []
-                    # still short of the minimum: allow frames that are merely not near-identical
-                    short = kmin - (m + len(pp) + len(fp))
-                    if short > 0 and P:
-                        more = self._pick_diverse([f for f in ppool if f not in pp], [info[p] for p in P['mandatory'] if p in info] + pp, short, dup_d, span_of(P))
-                        pp += more
-                        short -= len(more)
-                    if short > 0 and F:
-                        fp += self._pick_diverse([f for f in fpool if f not in fp], [info[p] for p in F['mandatory'] if p in info] + fp, short, dup_d, span_of(F))
+                    pp = self._pick_diverse(ppool, pm + vign, budget - fq, span=span_of(P)) if P else []
+                    fp = self._pick_diverse(fpool, fm, budget - len(pp), span=span_of(F)) if F else []
+                    if P and len(pp) + len(fp) < budget:   # friends ran short: more portraits
+                        pp += self._pick_diverse([f for f in ppool if f not in pp], pm + vign + pp, budget - len(pp) - len(fp), span=span_of(P))
+                    room = max(0, kmax - m)
+                    vign, pp, fp = vign[:room], pp[:max(0, room - len(vign))], fp[:max(0, room - len(vign) - len(pp))]
                     if P:
-                        picks_by[P['id']] = pp[:max(0, kmax - m)]
+                        picks_by[P['id']] = vign + pp
+                        reason.update({(P['id'], f['path']): 'vignette' for f in vign})
+                        reason.update({(P['id'], f['path']): 'portrait' for f in pp})
                     if F:
-                        picks_by[F['id']] = fp[:max(0, kmax - m - len(picks_by.get(P['id'], []) if P else 0))]
+                        picks_by[F['id']] = fp
+                        reason.update({(F['id'], f['path']): 'friends' for f in fp})
                 for s in group:
                     if s['id'] in picks_by:
                         continue
                     chosen = [info[p] for p in s['mandatory'] if p in info]
                     if s['kind'] == 'teacher':
-                        picks_by[s['id']] = self._pick_diverse(pool_of(s), chosen, max(0, 5 - len(chosen)), dup_d + 7, None)
+                        picks_by[s['id']] = self._pick_diverse(pool_of(s), chosen, max(0, 5 - len(chosen)), stop=dup_d + 7)
                     else:
-                        picks_by[s['id']] = self._pick_diverse(pool_of(s), chosen, max(1, round(len(s['files']) * 0.35)), dup_d + 3, None)
+                        picks_by[s['id']] = self._pick_diverse(pool_of(s), chosen, max(1, round(len(s['files']) * 0.35)), stop=dup_d + 3)
             for s in secs:
                 picks = picks_by.get(s['id'], [])
                 for f in picks:
-                    c.execute('INSERT OR IGNORE INTO ai_suggestions VALUES(?,?,?,?)', (sid, s['id'], f['path'], 'diverse+sharp'))
+                    c.execute('INSERT OR IGNORE INTO ai_suggestions VALUES(?,?,?,?)', (sid, s['id'], f['path'], reason.get((s['id'], f['path']), 'extra')))
                 for p in s['mandatory']:   # worksheet frames are always in the kit
                     c.execute('INSERT OR IGNORE INTO selections VALUES(?,?,?)', (sid, s['id'], p))
                 if s['id'] in edited or s['id'] in approved:
@@ -1260,9 +1277,10 @@ class Engine:
             for r in c.execute('SELECT section_id,file_path FROM selections WHERE session_id=?', (sid,)):
                 sel[r['section_id']].append(r['file_path'])
             appr = {r['section_id']: bool(r['approved']) for r in c.execute('SELECT section_id,approved FROM approvals WHERE session_id=?', (sid,))}
-            sugg = defaultdict(list)
-            for r in c.execute('SELECT section_id,file_path FROM ai_suggestions WHERE session_id=?', (sid,)):
+            sugg, reasons = defaultdict(list), defaultdict(dict)
+            for r in c.execute('SELECT section_id,file_path,reason FROM ai_suggestions WHERE session_id=?', (sid,)):
                 sugg[r['section_id']].append(r['file_path'])
+                reasons[r['section_id']][r['file_path']] = r['reason']
         secs, conflicts = self.sections(sid)
         # worksheet frames are always part of the kit; stale picks from an earlier import are dropped
         for x in secs:
@@ -1275,7 +1293,7 @@ class Engine:
         slim = [{k: f[k] for k in ('path', 'name', 'capture_at', 'kind', 'frame', 'series', 'flags', 'sharpness', 'brightness', 'analyzed')}
                 | {'has_preview': bool(f['preview'])} for f in files]
         return {'session': dict(s), 'files': slim, 'sections': secs, 'conflicts': conflicts,
-                'selected': sel, 'approved': appr, 'absent': absent, 'suggested': sugg, 'pillow': Image is not None,
+                'selected': sel, 'approved': appr, 'absent': absent, 'reasons': reasons, 'suggested': sugg, 'pillow': Image is not None,
                 'flag_names': FLAG_NAMES}
 
     def review(self, sid, body):
@@ -1307,6 +1325,22 @@ class Engine:
                 done = c.execute('SELECT COUNT(*) FROM approvals WHERE session_id=? AND approved=1', (sid,)).fetchone()[0]
                 if done >= total:
                     c.execute("UPDATE sessions SET status='reviewed' WHERE id=? AND status!='exported'", (sid,))
+        return {'ok': True}
+
+    def rebuild(self, sid, section_ids):
+        """Assemble these kits again from scratch: forget manual picks and confirmations of these sections
+        (worksheet roles fixed in the app are kept), then run the automatic assembly."""
+        secs, _ = self.sections(sid)
+        ids = [x['id'] for x in secs if x['id'] in set(section_ids or [])]
+        if not ids:
+            raise ValueError('Нечего пересобирать')
+        with self.conn() as c:
+            for i in ids:
+                c.execute("DELETE FROM selection_events WHERE session_id=? AND section_id=? AND actor='user'", (sid, i))
+                c.execute('DELETE FROM approvals WHERE session_id=? AND section_id=?', (sid, i))
+                c.execute('DELETE FROM selections WHERE session_id=? AND section_id=?', (sid, i))
+            self.event(c, sid, 'review', 'rebuild:' + ','.join(ids))
+        self.suggest(sid)
         return {'ok': True}
 
     def set_role(self, sid, body):

@@ -228,7 +228,7 @@ const MONTHS=['январь','февраль','март','апрель','май'
 const MON=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
 const ALAB={V:'Виньетка',P1:'ЛР',P2:'ЛС',D1:'Друг 1',D2:'Друг 2',T:'Учитель'};
 const STATUS={imported:'Импортирована',analyzed:'В отборе',reviewed:'Отобрана',exported:'Готово'};
-let S={page:'overview',sub:null,stats:null,cfg:null,sid:'',sess:null,sec:0,tab:'all',sel:new Set(),period:'month',anchor:new Date(),cmp:'prev',atab:'perf',undo:[]};
+let S={page:'overview',sub:null,stats:null,cfg:null,sid:'',sess:null,sec:0,tab:'kit',sel:new Set(),period:'month',anchor:new Date(),cmp:'prev',atab:'perf',undo:[]};
 try{S.sid=localStorage.getItem('fobox.sid')||''}catch(e){}
 async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({error:'Ошибка сервера'}));if(!r.ok)throw Error(j.error||'Ошибка');return j}
 function toast(t,bad){const d=document.createElement('div');d.className='toast';if(bad)d.style.borderColor='var(--bad)';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),bad?6000:2600)}
@@ -242,7 +242,7 @@ function side(){const p=S.cfg?.profile||{};
  <nav><button class="nb new" title="Новая съёмка" onclick="importDlg()">${ico('plus')}<span>Новая съёмка</span></button>${PAGES.map(([k,t,i])=>`<button class="nb ${S.page===k?'on':''}" title="${t}" onclick="go('${k}')">${ico(i)}<span>${t}</span></button>`).join('')}</nav>
  <div class="sp"></div><button class="nb me" title="Профиль фотографа" onclick="go('settings','Профиль')"><span class="av" ${avatarStyle(p)}>${esc(initials(p.name))}</span><span>${esc(p.name||'Профиль фотографа')}</span></button>`}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-const UI_VERSION='4.0a2.7';
+const UI_VERSION='4.0a2.8';
 async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;document.documentElement.style.setProperty('--accent',s.accent);document.documentElement.style.setProperty('--c1',s.accent);document.documentElement.style.setProperty('--accent-soft',s.accent+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
 function render(){document.querySelector('.coach')?.remove();const m=$('#main');if(S.page==='shoot')return renderShoot();const f={overview,analytics,history,settings}[S.page]||overview;m.innerHTML='<div class="page">'+f()+'</div>';if(S.page==='settings')bindSettings();hydrate()}
@@ -476,30 +476,37 @@ function refreshSide(){const e=$('#secs');if(e){const t=e.scrollTop;e.innerHTML=
  const d=S.sess,done=S.people.filter(pDone).length;const m=$('#prog');if(m)m.innerHTML=`<div class="meter"><span style="width:${done/Math.max(1,S.people.length)*100}%"></span></div><div class="mut" style="margin-top:6px">Готово ${done} из ${S.people.length}</div>`}
 // ---------- main
 function prevURL(p,sz){return `/api/preview?s=${S.sid}&p=${encodeURIComponent(p)}&size=${sz}`}
-function personView(){const d=S.sess,P=curP();const groups=P.secs.map(si=>{const x=d.sections[si];const files=x.files.map(p=>S.fmap[p]).filter(Boolean);const sel=S.sels[x.id];
-  const RO={V:0,P1:1,P2:2,D1:3,D2:4,T:0};
-  const kit=files.filter(f=>sel.has(f.path)).concat(Object.keys(x.mandatory).filter(p=>!x.files.includes(p)&&S.fmap[p]).map(p=>S.fmap[p]));
-  kit.sort((a,b)=>{const ma=x.mandatory[a.path],mb=x.mandatory[b.path];return (ma?RO[ma]:9)-(mb?RO[mb]:9)||a.capture_at.localeCompare(b.capture_at)});   // worksheet frames first, in role order
-  const list=S.tab==='kit'?kit:S.tab==='bad'?files.filter(f=>f.flags&&!x.mandatory[f.path]):files;return{si,x,files,list}});
- const flat=[];groups.forEach(g=>g.list.forEach(f=>flat.push({f,si:g.si})));S.flat=flat;return groups}
+function personView(){const d=S.sess,P=curP();const RO={V:0,P1:1,P2:2,D1:3,D2:4,T:0};const groups=[];
+ const secs=P.secs.map(si=>({si,x:d.sections[si]}));const F=(p)=>S.fmap[p];
+ if(S.tab==='kit'){const why=(x,p)=>(d.reasons[x.id]||{})[p];
+  const ws=[];secs.forEach(({si,x})=>Object.keys(x.mandatory).forEach(p=>{if(F(p))ws.push({f:F(p),si,o:RO[x.mandatory[p]]})}));ws.sort((a,b)=>a.o-b.o);
+  const ext=(filter)=>{const out=[];secs.forEach(({si,x})=>[...S.sels[x.id]].forEach(p=>{if(!x.mandatory[p]&&F(p)&&filter(x,p))out.push({f:F(p),si})}));return out.sort((a,b)=>a.f.capture_at.localeCompare(b.f.capture_at))};
+  groups.push({title:'Из ведомости',meta:`${ws.length}`,items:ws});
+  if(P.kind==='teacher')groups.push({title:'Другие позы',meta:'',items:ext(()=>true)});
+  else{groups.push({title:'Дополнительная виньетка',meta:'не больше 3 виньеток вместе с основной',items:ext((x,p)=>x.kind==='portrait'&&why(x,p)==='vignette')});
+   groups.push({title:'Дополнительные портреты',meta:'',items:ext((x,p)=>x.kind==='portrait'&&why(x,p)!=='vignette')});
+   groups.push({title:'Дополнительные фото с друзьями',meta:'',items:ext((x,p)=>x.kind==='friends')})}
+ }else secs.forEach(({si,x})=>{const files=x.files.map(F).filter(Boolean);const list=S.tab==='bad'?files.filter(f=>f.flags&&!x.mandatory[f.path]):files;
+  groups.push({title:GLAB[x.kind]||esc(x.subtitle),si,meta:`${S.sels[x.id].size} выбрано из ${files.length}${x.limit?` · максимум ${x.limit}`:''}${files.length?` · ${files[0].name} – ${files[files.length-1].name}`:''}`,items:list.map(f=>({f,si}))})});
+ S.flat=groups.flatMap(g=>g.items);return groups}
 function drawShoot(){const d=S.sess,ss=d.session,P=curP();if(!P){$('#main').innerHTML='<div class="page">'+empty('В съёмке нет людей или серий для отбора')+'</div>';return}
  const school=ss.mode==='school';const groups=personView();const iss=personIssues(P);const any=P.secs.some(i=>d.sections[i].overridden);
  const gridTop=$('#grid')?.scrollTop||0,same=S.lastDrawn===P.key+S.tab;S.lastDrawn=P.key+S.tab;
- const tot=k=>groups.reduce((a,g)=>a+(k==='all'?g.files.length:k==='kit'?S.sels[g.x.id].size:g.files.filter(f=>f.flags&&!g.x.mandatory[f.path]).length),0);
+ const tot=k=>P.secs.reduce((a,si)=>{const x=d.sections[si];const files=x.files.map(p=>S.fmap[p]).filter(Boolean);return a+(k==='all'?files.length:k==='kit'?S.sels[x.id].size:files.filter(f=>f.flags&&!x.mandatory[f.path]).length)},0);
  $('#main').innerHTML=`<div class="rv"><div class="rv-side"><div class="rv-head"><div class="ttl">${esc(ss.title)}</div><div class="mut">${school?`Заказ ${esc(ss.order_no||'—')} · `:''}${fmt(d.files.length)} кадров</div>
  <div id="prog" style="margin-top:12px"></div><div class="srch"><input id="secq" placeholder="${school?'Найти ребёнка':'Найти серию'}" value="${esc(S.q||'')}" oninput="S.q=this.value;refreshSide()"><kbd>Ctrl K</kbd></div></div>
  <div class="secs" id="secs"></div>
  <div class="sidefoot"><button class="btn pri" onclick="exportDlg()">Экспорт заказа…</button><div class="row" style="gap:6px"><button class="btn" style="flex:1" onclick="reanalyze()">Перепроверить</button><select style="flex:1;width:0" onchange="openSess(this.value)" title="Другая съёмка">${S.stats.sessions.map(x=>`<option value="${x.id}" ${x.id===S.sid?'selected':''}>${esc(x.title)}</option>`).join('')}</select></div></div></div>
  <div class="rv-main"><div class="crumbs"><a onclick="go('history')">Съёмки</a><span>/</span><b>${fdate(ss.shoot_date)} · ${esc(ss.title)}</b><span style="margin-left:auto" class="row"><button class="lnk" onclick="helpDlg()">Клавиши <kbd>?</kbd></button><button class="lnk" onclick="palette()">Поиск <kbd>Ctrl K</kbd></button></span></div>
  <div class="bar"><div style="min-width:0"><div class="h1">${esc(P.title)}${P.kind==='teacher'?` <span>${esc(d.sections[P.secs[0]].subtitle)}</span>`:''}</div><div class="mut">${S.pi+1} из ${S.people.length} · <kbd>[</kbd> <kbd>]</kbd> — предыдущий / следующий</div></div>
- <div class="row"><div class="tabs">${[['all','Все кадры',tot('all')],['kit',P.kind==='series'?'Отобранные':'Комплект',tot('kit')],['bad','На проверку',tot('bad')]].map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';S.fi=0;drawShoot()">${t} <b>${n}</b></button>`).join('')}</div>
+ <div class="row"><div class="tabs">${[['kit',P.kind==='series'?'Отобранные':'Комплект',tot('kit')],['all','Вся серия',tot('all')],['bad','На проверку',tot('bad')]].map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';S.fi=0;drawShoot()">${t} <b>${n}</b></button>`).join('')}</div>
  <div class="seg2" title="Размер превью">${[['150px','S'],['200px','M'],['280px','L']].map(([v,t])=>`<button class="${(S.tsize||'200px')===v?'on':''}" onclick="S.tsize='${v}';document.documentElement.style.setProperty('--tile','${v}');drawShoot()">${t}</button>`).join('')}</div></div></div>
 
  <div class="notes">${iss.length?`<div class="warn">${iss.map(esc).join('<br>')}</div>`:''}${any?`<div class="warn acc"><span>Роли исправлены вручную.</span><button class="btn sm" onclick="setRole(null,null,true)">Вернуть как в ведомости</button></div>`:''}${S.pi===0&&d.absent&&d.absent.length?`<div class="warn info">Без номеров в ведомости (пропущены): ${esc(d.absent.join(', '))}</div>`:''}${!d.pillow?'<div class="warn">Проверка качества выключена — установите Pillow: <kbd>py -m pip install pillow</kbd></div>':''}</div>
- <div class="grid2" id="grid">${groups.map(g=>`<section class="grp2"><div class="gh2"><b>${GLAB[g.x.kind]||esc(g.x.subtitle)}</b><span class="mut">${S.sels[g.x.id].size} выбрано из ${g.files.length}${g.x.limit?` · максимум ${g.x.limit}`:''}${g.files.length?` · ${g.files[0].name} – ${g.files[g.files.length-1].name}`:''}</span></div>
-  <div class="grid">${g.list.length?g.list.map(f=>tile(f,g.si)).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div></section>`).join('')}</div>
+ <div class="grid2" id="grid">${groups.map(g=>(S.tab==='kit'&&!g.items.length&&g.title!=='Из ведомости')?'':`<section class="grp2"><div class="gh2"><b>${g.title}</b><span class="mut">${S.tab==='kit'?`${g.items.length}${g.meta&&g.title!=='Из ведомости'?' · '+g.meta:''}`:g.meta}</span></div>
+  <div class="grid">${g.items.length?g.items.map(it=>tile(it.f,it.si)).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div></section>`).join('')}</div>
  <div class="foot"><div class="kitsum"><div class="ki">${ico('kit')}</div><div><b id="kitn"></b><div class="mut" id="kitd"></div></div></div>
- <div class="row"><span class="savest" id="savest"></span><button class="btn ghost" onclick="resetSel()" title="Оставить только кадры из ведомости">Сбросить выбор</button><button class="btn pri" id="apbtn" onclick="approve()">${pDone(P)?'Готово ✓ · дальше':P.kind==='series'?'Подтвердить серию':P.kind==='teacher'?'Подтвердить учителя':'Подтвердить ребёнка'} <kbd class="inv">Ctrl ↵</kbd></button></div></div></div></div>`;
+ <div class="row"><span class="savest" id="savest"></span><button class="btn ghost" onclick="rebuildKit()" title="Собрать комплект заново автоматически">Собрать заново</button><button class="btn ghost" onclick="resetSel()" title="Оставить только кадры из ведомости">Сбросить выбор</button><button class="btn pri" id="apbtn" onclick="approve()">${pDone(P)?'Готово ✓ · дальше':P.kind==='series'?'Подтвердить серию':P.kind==='teacher'?'Подтвердить учителя':'Подтвердить ребёнка'} <kbd class="inv">Ctrl ↵</kbd></button></div></div></div></div>`;
  refreshSide();updCount();setTimeout(coach,600);const g=$('#grid');if(same)g.scrollTop=gridTop;
  const on=$('#secs .pr.on');if(on&&!same)on.scrollIntoView({block:'nearest'});
  hydrateSrc()}
@@ -513,7 +520,7 @@ function kitStrip(P){const d=S.sess;const slots=[];P.secs.forEach(si=>{const x=d
 function jumpTo(p){S.tab='all';const i=S.flat?S.flat.findIndex(x=>x.f.path===p):-1;drawShoot();const fl=S.flat.findIndex(x=>x.f.path===p);if(fl>=0)focusTile(fl)}
 function updCount(){const P=curP();if(!P)return;const d=S.sess;let n=0,m=0;P.secs.forEach(si=>{const x=d.sections[si];S.sels[x.id].forEach(p=>{n++;if(x.mandatory[p])m++})});
  const kn=$('#kitn'),kd=$('#kitd');if(kn)kn.textContent=`${n} фото в комплекте`;if(kd)kd.textContent=(m?`${m} из ведомости · `:'')+`${n-m} дополнительных`+(P.kind==='portrait'?` · обычно ${S.cfg.settings.kit_min}–${S.cfg.settings.kit_max}`:P.kind==='teacher'?' · всего 3–5':'');
- document.querySelectorAll('.gh2 .mut').forEach((el,i)=>{const x=d.sections[P.secs[i]];if(x)el.textContent=el.textContent.replace(/^\d+ выбрано/,`${S.sels[x.id].size} выбрано`)})}
+ if(S.tab!=='kit')document.querySelectorAll('.gh2 .mut').forEach((el,i)=>{const x=d.sections[P.secs[i]];if(x)el.textContent=el.textContent.replace(/^\d+ выбрано/,`${S.sels[x.id].size} выбрано`)})}
 function tile(f,si){const x=S.sess.sections[si];const fi=S.flat.findIndex(y=>y.f.path===f.path&&y.si===si);const on=S.sels[x.id].has(f.path),m=x.mandatory[f.path];const uns=m&&(x.unsure||{})[m]!==undefined;
  const sug=(S.sess.suggested[x.id]||[]).includes(f.path);const fl=f.flags?f.flags.split(',').filter(y=>!(m&&y==='dup')).map(y=>S.sess.flag_names[y]).join(', '):'';
  return `<div class="tile ${on?'on':'ctx'} ${fi===S.fi?'fc':''}" tabindex="-1" data-i="${fi}" data-s="${si}" data-p="${esc(f.path)}" onclick="S.fi=${fi};tog(this)" ondblclick="openViewer(${fi})">${(x.roles||[]).length?`<button class="more ${m?'show':''}" title="Роль кадра / не тот человек" onclick="event.stopPropagation();roleMenu(this)">⋯</button>`:''}<div class="im" ${f.has_preview?`data-src="${prevURL(f.path,480)}"`:''}>${f.has_preview?'':'Нет превью'}</div>
@@ -531,11 +538,12 @@ function moveFocus(k){const ts=[...document.querySelectorAll('#grid .tile')];if(
  const cand=ts.map(t=>[t,t.getBoundingClientRect()]).filter(([,q])=>dir>0?q.top>r.top+5:q.top<r.top-5);if(!cand.length)return;
  const rowY=dir>0?Math.min(...cand.map(([,q])=>q.top)):Math.max(...cand.map(([,q])=>q.top));const row=cand.filter(([,q])=>Math.abs(q.top-rowY)<5);
  const best=row.reduce((a,b)=>Math.abs(b[1].left+b[1].width/2-cx)<Math.abs(a[1].left+a[1].width/2-cx)?b:a);focusTile(+best[0].dataset.i)}
-async function pickPerson(pi){await flush();if(pi<0||pi>=S.people.length)return;S.pi=pi;loadPerson();drawShoot();$('#grid').scrollTop=0}
+async function pickPerson(pi){await flush();if(pi<0||pi>=S.people.length)return;S.pi=pi;S.tab='kit';loadPerson();drawShoot();$('#grid').scrollTop=0}
 function pickSec(i){const pi=S.people.findIndex(P=>P.secs.includes(i));if(pi>=0)return pickPerson(pi)}
 async function approve(){await flush();const P=curP();try{for(const si of P.secs){const x=S.sess.sections[si];await api('/api/review',{session:S.sid,section:x.id,selected:[...S.sels[x.id]],approved:true});S.sess.selected[x.id]=[...S.sels[x.id]];S.sess.approved[x.id]=true}
  const nx=S.people.findIndex((Q,i)=>i>S.pi&&!pDone(Q));const any=nx<0?S.people.findIndex(Q=>!pDone(Q)):nx;
- if(any>=0){toast('Готово: '+P.title);S.pi=any;loadPerson();S.tab=S.tab==='bad'?'all':S.tab;document.querySelector('.coach')?.remove()}else toast('Все подтверждены — можно собирать заказ');drawShoot();api('/api/stats').then(x=>S.stats=x)}catch(e){toast(e.message,1)}}
+ if(any>=0){toast('Готово: '+P.title);S.pi=any;loadPerson();S.tab='kit';document.querySelector('.coach')?.remove()}else toast('Все подтверждены — можно собирать заказ');drawShoot();api('/api/stats').then(x=>S.stats=x)}catch(e){toast(e.message,1)}}
+async function rebuildKit(){const P=curP();await flush();try{await api('/api/rebuild',{session:S.sid,sections:P.secs.map(i=>S.sess.sections[i].id)});await reloadSess(P.key);S.tab='kit';drawShoot();toast('Комплект собран заново')}catch(e){toast(e.message,1)}}
 function resetSel(){const P=curP();let ch=false;P.secs.forEach(si=>{const x=S.sess.sections[si];const keep=Object.keys(x.mandatory);if(S.sels[x.id].size!==keep.length){pushUndo(si);S.sels[x.id]=new Set(keep);scheduleSave(si);ch=true}});
  if(!ch)return toast('В комплекте только кадры из ведомости');drawShoot();toast('Выбор сброшен · Ctrl+Z — вернуть')}
 function reviewGuide(P,iss){try{if(localStorage.getItem('fobox.guide.off')==='1')return''}catch(e){}const d=S.sess;
