@@ -124,6 +124,38 @@ class EngineTest(unittest.TestCase):
         r = self.e.export(sid, self.tmp / 'out')
         self.assertEqual(r['files'], 6)
 
+    def test_excel_worksheet_with_russian_headers(self):
+        try:
+            import openpyxl
+        except ImportError:
+            self.skipTest('openpyxl not installed (only needed to create the test file)')
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(['Заказ 7470, 9Л'])                      # title row above the header
+        ws.append(['Фамилия Имя', 'Виньетка', 'Личный разворот', 'Личная страница', 'Друг 1', 'Друг 2'])
+        ws.append(['Иванов Иван', 110, 111, 112, 125, 126])  # numbers as Excel numbers
+        ws.append([None, None, None, None, None, None])     # empty row is skipped
+        xlsx = self.tmp / 'ведомость.xlsx'
+        wb.save(xlsx)
+        sid = self.e.import_folder(self.src, {'students': str(xlsx), 'order': '1', 'school': 'Школа', 'class_name': '1А'})
+        st = self.e.session(sid)
+        self.assertEqual(st['conflicts'], [])
+        p = st['sections'][0]
+        self.assertEqual(p['title'], 'Иванов Иван')
+        self.assertEqual(sorted(p['mandatory'].values()), ['P1', 'P2', 'V'])
+        self.assertEqual(sorted(st['sections'][1]['mandatory'].values()), ['D1', 'D2'])
+        self.approve_all(sid)
+        r = self.e.export(sid, self.tmp / 'out')
+        names = {x.name for x in (Path(r['root']) / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()}
+        self.assertTrue({'Иванов Иван_ABC0110.ARW', 'ЛР_Иванов Иван_ABC0111.ARW', 'ЛС_Иванов Иван_ABC0112.ARW',
+                         'Друг1_ABC0125.ARW', 'Друг2_ABC0126.ARW'} <= names)
+
+    def test_csv_semicolon_cp1251(self):
+        f = self.tmp / 'v.csv'
+        f.write_bytes('ФИО;В;П1;П2;Д1;Д2\r\nИванов Иван;110;111;112;125;126\r\n'.encode('cp1251'))
+        sid = self.e.import_folder(self.src, {'students': str(f)})
+        self.assertEqual(self.e.session(sid)['conflicts'], [])
+
     def test_mandatory_frames_cannot_be_removed(self):
         sid = self.school()
         st = self.e.session(sid)

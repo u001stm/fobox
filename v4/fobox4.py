@@ -32,7 +32,7 @@ def pick_path(kind):
     try:
         if kind == 'dir':
             return filedialog.askdirectory() or ''
-        types = [('CSV', '*.csv')] if kind == 'csv' else [('Все файлы', '*.*')]
+        types = [('Ведомость Excel или CSV', '*.xlsx *.xlsm *.csv'), ('Все файлы', '*.*')] if kind == 'csv' else [('Все файлы', '*.*')]
         return filedialog.askopenfilename(filetypes=types) or ''
     finally:
         root.destroy()

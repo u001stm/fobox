@@ -236,6 +236,126 @@ def hamming(a, b):
     return bin(int(a, 16) ^ int(b, 16)).count('1')
 
 
+# ---------------------------------------------------------------- worksheets (Excel / CSV)
+def _norm(h):
+    h = re.sub(r'\(.*?\)', '', str(h or ''))  # 'Портрет 1 (ЛР)' -> 'Портрет 1'
+    return re.sub(r'[\s._\-№#:]+', '', h.strip().casefold()).replace('ё', 'е')
+
+
+# accepted column titles -> canonical key (compared without spaces, case, dots)
+STUDENT_COLS = {
+    'Name': ['name', 'фио', 'фамилияимя', 'фамилияимяотчество', 'ученик', 'имя', 'ребенок', 'фамилия'],
+    'V': ['v', 'в', 'виньетка', 'вин', 'vignette'],
+    'P1': ['p1', 'п1', 'портрет1', 'лр', 'личныйразворот', 'портретлр'],
+    'P2': ['p2', 'п2', 'портрет2', 'лс', 'личнаястраница', 'портретлс'],
+    'D1': ['d1', 'д1', 'друг1', 'друзья1', 'сдругом1'],
+    'D2': ['d2', 'д2', 'друг2', 'друзья2', 'сдругом2'],
+}
+TEACHER_COLS = {
+    'Name': ['name', 'фио', 'учитель', 'педагог', 'имя'],
+    'Role': ['role', 'должность', 'роль', 'предмет'],
+    'Start': ['start', 'начало', 'с', 'первыйкадр', 'от'],
+    'End': ['end', 'конец', 'по', 'последнийкадр', 'до'],
+}
+
+
+def _cell(v):
+    """Excel stores 1750 as '1750.0' or '1750' -> '1750'; keeps file names like ANT01750 as is."""
+    v = str(v if v is not None else '').strip()
+    if re.fullmatch(r'\d+\.0+', v):
+        v = v.split('.')[0]
+    return v
+
+
+def _xlsx_rows(path):
+    import zipfile
+    import xml.etree.ElementTree as ET
+    ns = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+    rel_ns = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id'
+    with zipfile.ZipFile(path) as z:
+        shared = []
+        if 'xl/sharedStrings.xml' in z.namelist():
+            for si in ET.fromstring(z.read('xl/sharedStrings.xml')).findall('m:si', ns):
+                shared.append(''.join(t.text or '' for t in si.iter('{%s}t' % ns['m'])))
+        # first sheet in workbook order
+        sheet = 'xl/worksheets/sheet1.xml'
+        try:
+            wb = ET.fromstring(z.read('xl/workbook.xml'))
+            first = wb.find('m:sheets/m:sheet', ns)
+            rels = ET.fromstring(z.read('xl/_rels/workbook.xml.rels'))
+            for r in rels:
+                if r.get('Id') == first.get(rel_ns):
+                    t = r.get('Target').lstrip('/')
+                    sheet = t if t.startswith('xl/') else 'xl/' + t
+        except (KeyError, AttributeError, ET.ParseError):
+            pass
+        rows = []
+        for row in ET.fromstring(z.read(sheet)).iter('{%s}row' % ns['m']):
+            vals = {}
+            for cell in row.findall('m:c', ns):
+                ref = re.match(r'([A-Z]+)', cell.get('r', 'A'))[1]
+                col = 0
+                for ch in ref:
+                    col = col * 26 + ord(ch) - 64
+                typ, v = cell.get('t'), cell.find('m:v', ns)
+                if typ == 's' and v is not None:
+                    val = shared[int(v.text)]
+                elif typ == 'inlineStr':
+                    val = ''.join(t.text or '' for t in cell.iter('{%s}t' % ns['m']))
+                else:
+                    val = v.text if v is not None else ''
+                vals[col - 1] = val
+            if vals:
+                rows.append([vals.get(i, '') for i in range(max(vals) + 1)])
+        return rows
+
+
+def _csv_rows(path):
+    raw = Path(path).read_bytes()
+    for enc in ('utf-8-sig', 'cp1251'):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    first = text.splitlines()[0] if text else ''
+    delim = max([';', ',', '\t'], key=first.count)  # Russian Excel saves CSV with ';'
+    return list(csv.reader(io.StringIO(text), delimiter=delim))
+
+
+def read_worksheet(path, columns):
+    """Read an Excel (.xlsx) or CSV worksheet. Finds the header row (it may not be the first),
+    maps Russian/English column titles to canonical keys and skips empty rows."""
+    p = Path(str(path).strip().strip('"')).expanduser()
+    if not p.is_file():
+        raise ValueError('Не найдена ведомость: ' + str(p))
+    ext = p.suffix.lower()
+    if ext in ('.xlsx', '.xlsm'):
+        rows = _xlsx_rows(p)
+    elif ext == '.xls':
+        raise ValueError('Старый формат .xls: откройте файл в Excel и сохраните как .xlsx')
+    else:
+        rows = _csv_rows(p)
+    alias = {_norm(a): key for key, names in columns.items() for a in names + [key]}
+    for hi, row in enumerate(rows[:15]):
+        mapping = {}
+        for i, h in enumerate(row):
+            key = alias.get(_norm(h))
+            if key and key not in mapping.values():
+                mapping[i] = key
+        if set(mapping.values()) >= set(columns):
+            break
+    else:
+        expected = ', '.join(f'{k} ({names[1] if len(names) > 1 else names[0]})' for k, names in columns.items())
+        raise ValueError(f'{p.name}: не найдена строка заголовков. Нужны колонки: {expected}')
+    out = []
+    for row in rows[hi + 1:]:
+        rec = {key: _cell(row[i]) if i < len(row) else '' for i, key in mapping.items()}
+        if rec.get('Name'):
+            out.append(rec)
+    return out
+
+
 class Engine:
     def __init__(self, db_path, cache_dir=None):
         self.db_path = Path(db_path)
@@ -414,26 +534,19 @@ class Engine:
             prev = t
             c.execute('UPDATE files SET series=? WHERE session_id=? AND path=?', (series + 1, sid, r['path']))
 
-    def _load_people(self, c, sid, students_csv, teachers_csv):
-        def rows(p, cols):
-            if not p:
-                return []
-            p = Path(str(p).strip().strip('"')).expanduser()
-            if not p.is_file():
-                raise ValueError('Не найдена ведомость: ' + str(p))
-            with open(p, encoding='utf-8-sig', newline='') as f:
-                r = csv.DictReader(f)
-                if not set(cols) <= set(r.fieldnames or []):
-                    raise ValueError(f'{p.name}: нужны колонки ' + ','.join(cols))
-                return [x for x in r if (x.get('Name') or '').strip()]
+    def _load_people(self, c, sid, students_file, teachers_file):
         c.execute('DELETE FROM students WHERE session_id=?', (sid,))
-        for i, r in enumerate(rows(students_csv, ['Name', 'V', 'P1', 'P2', 'D1', 'D2'])):
+        n = 0
+        for r in read_worksheet(students_file, STUDENT_COLS) if students_file else []:
             name = safe_name(' '.join(r['Name'].split()[:2]))
-            anchors = {k: (r.get(k) or '').strip() for k in ('V', 'P1', 'P2', 'D1', 'D2')}
+            anchors = {k: r.get(k, '') for k in ('V', 'P1', 'P2', 'D1', 'D2')}
             c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
-                      (sid, f's{i}', name, 'student', json.dumps(anchors, ensure_ascii=False)))
-        for i, r in enumerate(rows(teachers_csv, ['Name', 'Role', 'Start', 'End'])):
-            anchors = {'Role': r['Role'].strip(), 'Start': r['Start'].strip(), 'End': r['End'].strip()}
+                      (sid, f's{n}', name, 'student', json.dumps(anchors, ensure_ascii=False)))
+            n += 1
+        if students_file and not n:
+            raise ValueError('В ведомости не найдено ни одного ученика')
+        for i, r in enumerate(read_worksheet(teachers_file, TEACHER_COLS) if teachers_file else []):
+            anchors = {'Role': r.get('Role', ''), 'Start': r.get('Start', ''), 'End': r.get('End', '')}
             c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
                       (sid, f't{i}', safe_name(r['Name']), 'teacher', json.dumps(anchors, ensure_ascii=False)))
 
