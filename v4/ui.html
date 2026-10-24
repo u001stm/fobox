@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FOBOX 4.0</title>
+<style>
+:root{--bg:#0f1218;--side:#12161e;--card:#171c25;--card2:#1d2330;--line:#262e3b;--text:#eef1f7;--muted:#8d97a8;--accent:#7738FF;--accent-soft:#7738ff26;--blue:#4DB5FF;--ok:#37c08a;--warn:#f0b14a;--bad:#ef5d6b;--gold:#ffcc4d;
+ font-family:Inter,"Segoe UI",system-ui,sans-serif;font-size:14px;color:var(--text);background:var(--bg)}
+:root[data-theme=light]{--bg:#f4f5f8;--side:#fff;--card:#fff;--card2:#f0f2f6;--line:#e1e5ec;--text:#161a22;--muted:#677184}
+*{box-sizing:border-box}body{margin:0;background:var(--bg)}button,input,select{font:inherit;color:inherit}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+aside{position:fixed;inset:0 auto 0 0;width:52px;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:20;transition:width .15s;overflow:hidden}
+aside.open{width:228px;box-shadow:8px 0 30px #0006}
+aside:not(.open) .brand>span:last-child,aside:not(.open) .nb>span:last-child{opacity:0}
+.brand{height:56px;display:flex;align-items:center;gap:12px;padding:0 14px;cursor:pointer;font-weight:800;letter-spacing:.3px;white-space:nowrap}
+.logo{width:24px;height:24px;border-radius:6px;background:var(--accent);display:grid;place-items:center;color:#fff;font-size:13px;flex-shrink:0}
+nav{display:flex;flex-direction:column;gap:2px;padding:6px}
+.nb{display:flex;align-items:center;gap:14px;padding:9px 10px;border-radius:8px;border:0;background:none;color:var(--muted);cursor:pointer;white-space:nowrap;text-align:left}
+.nb:hover{background:var(--card2);color:var(--text)}.nb.on{background:var(--accent-soft);color:var(--text)}.nb.on svg{color:var(--accent)}
+.nb.new{color:var(--text)}.nb.new svg{color:var(--blue)}
+.sp{flex:1}.me{margin:6px}.av{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px;flex-shrink:0}
+main{margin-left:52px;min-height:100vh}
+.page{padding:26px 32px 40px;max-width:1500px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+h1{font-size:24px;margin:0;font-weight:700}h2{font-size:15px;margin:0 0 14px;font-weight:600}.mut{color:var(--muted);font-size:12.5px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,input[type=text],input[type=number],input:not([type]){background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;outline:none;min-width:0}
+input:focus,select:focus{border-color:var(--accent)}
+.btn{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:#3a4456}.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}.btn.pri:hover{filter:brightness(1.1)}
+.btn.ghost{background:none}.btn:disabled{opacity:.45;cursor:default}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+.kpi .l{color:var(--muted);font-size:12.5px}.kpi .v{font-size:30px;font-weight:700;margin:10px 0 6px;font-variant-numeric:tabular-nums}
+.delta{font-size:12px;color:var(--muted)}.delta.up{color:var(--ok)}.delta.down{color:var(--bad)}
+.g2{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-top:12px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+.empty{color:var(--muted);text-align:center;padding:34px 10px;border:1px dashed var(--line);border-radius:10px;font-size:13px}
+table{width:100%;border-collapse:collapse}td,th{padding:10px 8px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--muted);font-weight:500}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--card2)}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11.5px;background:var(--card2);color:var(--muted)}
+.pill.exported{background:#37c08a22;color:var(--ok)}.pill.reviewed{background:#4db5ff22;color:var(--blue)}.pill.analyzed{background:var(--accent-soft);color:#b7a0ff}
+.rec{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}.rec:last-child{border:0}.rec b{font-variant-numeric:tabular-nums}
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,12px);gap:3px}.heat i{width:12px;height:12px;border-radius:3px;background:var(--card2)}
+.bars{display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:10px}.bars div{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;min-width:0}
+.bars span{width:100%;max-width:38px;background:var(--accent);border-radius:4px 4px 0 0;min-height:2px}.bars small{color:var(--muted);font-size:11px;white-space:nowrap}
+.meter{height:8px;background:var(--card2);border-radius:6px;overflow:hidden}.meter span{display:block;height:100%;background:var(--accent)}
+/* review */
+.rv{display:grid;grid-template-columns:270px 1fr;height:100vh}
+.rv-side{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--side)}
+.rv-head{padding:16px;border-bottom:1px solid var(--line)}
+.secs{overflow:auto;padding:8px;flex:1}
+.sec{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:9px 10px;cursor:pointer;margin-bottom:2px}
+.sec:hover{background:var(--card2)}.sec.on{background:var(--accent-soft)}
+.sec .t{display:flex;justify-content:space-between;gap:6px}.sec .s{color:var(--muted);font-size:12px;margin-top:2px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--line);display:inline-block;margin-right:7px;flex-shrink:0;align-self:center}.dot.ok{background:var(--ok)}.dot.part{background:var(--warn)}
+.rv-main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.bar{padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs{display:flex;gap:4px;background:var(--card2);padding:3px;border-radius:9px}.tabs button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--muted)}
+.tabs button.on{background:var(--card);color:var(--text);box-shadow:0 1px 2px #0004}
+.grid{flex:1;overflow:auto;padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tile,190px),1fr));gap:10px;align-content:start;grid-auto-rows:max-content}
+.tile{position:relative;border-radius:9px;overflow:hidden;background:var(--card);border:2px solid transparent;cursor:pointer;outline:none}
+.tile:focus-visible{border-color:var(--blue)}.tile.on{border-color:var(--accent)}
+.tile .im{aspect-ratio:3/2;background:#0b0d12 center/contain no-repeat;display:grid;place-items:center;color:var(--muted);font-size:12px}
+.tile.ctx .im{opacity:.55}.tile.on .im{opacity:1}
+.tile .cap{display:flex;justify-content:space-between;padding:6px 8px;font-size:11.5px;color:var(--muted);gap:6px}
+.tile .cap b{color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chk{position:absolute;top:7px;right:7px;width:22px;height:22px;border-radius:50%;border:2px solid #fff9;background:#0007;display:grid;place-items:center}
+.tile.on .chk{background:var(--accent);border-color:var(--accent)}.tile.on .chk:after{content:'';width:9px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.star{position:absolute;top:6px;left:8px;color:var(--gold);font-size:17px;text-shadow:0 1px 3px #000}
+.sug{position:absolute;top:8px;left:8px;background:#4db5ffdd;color:#04121f;border-radius:5px;font-size:10.5px;padding:1px 6px;font-weight:600}
+.star+.sug{left:30px}
+.flag{position:absolute;bottom:34px;left:8px;background:#ef5d6bdd;color:#fff;font-size:10.5px;border-radius:5px;padding:1px 6px}
+.foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.warn{background:#f0b14a1f;color:var(--warn);border-radius:8px;padding:9px 12px;font-size:12.5px;margin:10px 18px 0}
+.err{background:#ef5d6b1f;color:var(--bad)}
+/* modal */
+.modal{position:fixed;inset:0;background:#000a;display:grid;place-items:center;z-index:50;padding:16px}
+.dlg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;width:min(620px,100%);max-height:92vh;overflow:auto}
+.f{display:grid;gap:6px;margin-bottom:12px}.f label{color:var(--muted);font-size:12.5px}.f .row input{flex:1}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:flex;background:var(--card2);border-radius:9px;padding:3px;margin-bottom:14px}.seg button{flex:1;border:0;background:none;padding:8px;border-radius:7px;cursor:pointer;color:var(--muted)}.seg button.on{background:var(--accent);color:#fff}
+.prog{height:6px;background:var(--card2);border-radius:4px;overflow:hidden;margin:10px 0}.prog span{display:block;height:100%;background:var(--blue);transition:width .2s}
+.lb{position:fixed;inset:0;background:#000e;z-index:60;display:grid;grid-template-rows:1fr auto;cursor:zoom-out}.lb img{max-width:100%;max-height:100%;object-fit:contain;margin:auto;display:block;align-self:center}
+.lb div{padding:12px 20px;color:#ccc;font-size:13px;text-align:center}
+.toast{position:fixed;bottom:18px;right:18px;background:var(--card);border:1px solid var(--line);padding:11px 15px;border-radius:10px;z-index:70;box-shadow:0 8px 30px #0006;max-width:420px}
+.stabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.stabs button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 12px;cursor:pointer;color:var(--muted)}.stabs button.on{border-color:var(--accent);color:var(--text)}
+.sw{width:26px;height:26px;border-radius:7px;border:2px solid transparent;cursor:pointer}.sw.on{border-color:var(--text)}
+kbd{background:var(--card2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11px}
+@media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.g2,.g3{grid-template-columns:1fr}.rv{grid-template-columns:1fr;height:auto}.rv-side{max-height:40vh}.grid{min-height:60vh}}
+@media(max-width:560px){.page{padding:18px 14px}.kpis{grid-template-columns:1fr}.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<aside id="side"></aside>
+<main id="main"></main>
+<div id="layer"></div>
+<script>
+const I={
+ home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+ shoot:'<rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/>',
+ perf:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+ qual:'<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/>',
+ ai:'<path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M6 18l2-2M16 8l2-2"/><circle cx="12" cy="12" r="3"/>',
+ flow:'<circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h7a3 3 0 0 1 0 6H10a3 3 0 0 0 0 6h7"/>',
+ hist:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+ set:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>'};
+const ico=n=>`<svg class="i" viewBox="0 0 24 24">${I[n]}</svg>`;
+const PAGES=[['overview','Обзор','home'],['shoot','Текущая съёмка','shoot'],['perf','Производительность','perf'],['quality','Качество','qual'],['ai','Автоотбор','ai'],['flow','Рабочий процесс','flow'],['history','История съёмок','hist'],['settings','Настройки','set']];
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>n==null?'—':Number(n).toLocaleString('ru-RU');
+const MONTHS=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+let S={page:'overview',stats:null,cfg:null,sid:localStorage.getItem('fobox.sid')||'',sess:null,sec:0,tab:'all',sel:new Set(),dirty:false,period:'all'};
+async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({error:'Ошибка сервера'}));if(!r.ok)throw Error(j.error||'Ошибка');return j}
+function toast(t,bad){const d=document.createElement('div');d.className='toast';if(bad)d.style.borderColor='var(--bad)';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),bad?6000:2800)}
+function side(){const p=S.cfg?.profile||{};const ini=(p.name||'Ф').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+ $('#side').innerHTML=`<div class="brand" onclick="$('#side').classList.toggle('open')"><span class="logo">F</span><span>FOBOX 4.0</span></div>
+ <nav><button class="nb new" onclick="importDlg()">${ico('plus')}<span>Новая съёмка</span></button>${PAGES.map(([k,t,i])=>`<button class="nb ${S.page===k?'on':''}" title="${t}" onclick="go('${k}')">${ico(i)}<span>${t}</span></button>`).join('')}</nav>
+ <div class="sp"></div><button class="nb me" onclick="go('settings','Профиль')"><span class="av">${esc(ini)}</span><span>${esc(p.name||'Профиль фотографа')}</span></button>`}
+function go(p,sub){S.page=p;S.sub=sub;$('#side').classList.remove('open');side();render()}
+async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;side();render()}
+function applyTheme(){const s=S.cfg.settings;document.documentElement.style.setProperty('--accent',s.accent);document.documentElement.style.setProperty('--accent-soft',s.accent+'26');document.documentElement.dataset.theme=s.theme}
+function render(){const m=$('#main');if(S.page==='shoot')return renderShoot();const f={overview,perf,quality,ai,flow,history,settings}[S.page];m.innerHTML='<div class="page">'+f()+'</div>';if(S.page==='settings')bindSettings()}
+const head=(t,sub,right='')=>`<div class="top"><div><h1>${t}</h1><div class="mut">${sub}</div></div><div class="row">${right}</div></div>`;
+const kpi=(l,v,d='')=>`<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="delta ${d.cls||''}">${d.t||'&nbsp;'}</div></div>`;
+const empty=t=>`<div class="empty">${t}</div>`;
+const NODATA='Нет данных — импортируйте съёмку';
+// ---------- period filtering
+function periodRange(p,shift=0){const n=new Date();if(p==='month'){const a=new Date(n.getFullYear(),n.getMonth()-shift,1),b=new Date(n.getFullYear(),n.getMonth()-shift+1,1);return[a,b]}if(p==='year'){return[new Date(n.getFullYear()-shift,0,1),new Date(n.getFullYear()-shift+1,0,1)]}return[new Date(0),new Date(9e12)]}
+const iso=d=>d.toISOString().slice(0,10);
+function agg(p,shift){const [a,b]=periodRange(p,shift),A=iso(a),B=iso(b);const ss=S.stats.sessions.filter(s=>s.shoot_date&&s.shoot_date>=A&&s.shoot_date<B);
+ return{sessions:ss.length,frames:ss.reduce((x,s)=>x+s.frames,0),hours:ss.some(s=>s.hours!=null)?ss.reduce((x,s)=>x+(s.hours||0),0):null,students:ss.reduce((x,s)=>x+s.students,0)}}
+function delta(cur,prev,key){if(S.period==='all')return{t:'За всё время'};const p=prev[key],c=cur[key];if(!p||c==null)return{t:'Нет данных для сравнения'};const d=c-p,pc=Math.round(d/p*100);return{t:`${d>=0?'+':''}${fmt(Math.round(d*10)/10)} (${pc>=0?'+':''}${pc}%) к ${S.period==='month'?'прошлому месяцу':'прошлому году'}`,cls:d>0?'up':d<0?'down':''}}
+function overview(){const st=S.stats;if(!st.sessions.length)return head('Обзор','Локальная статистика по вашим съёмкам')+onboarding();
+ const cur=agg(S.period,0),prev=agg(S.period,1);
+ const sel=`<select onchange="S.period=this.value;render()">${[['month','Этот месяц'],['year','Этот год'],['all','Всё время']].map(([v,t])=>`<option value="${v}" ${S.period===v?'selected':''}>${t}</option>`).join('')}</select>`;
+ const note=S.period==='month'?'<div class="mut" style="margin:-12px 0 14px">Текущий месяц неполный — сравнение с полным прошлым месяцем.</div>':'';
+ return head('Обзор','Локальная статистика по вашим съёмкам',sel)+note+`<div class="kpis">${kpi('Проведено съёмок',fmt(cur.sessions),delta(cur,prev,'sessions'))}${kpi('Отснято кадров',fmt(cur.frames),delta(cur,prev,'frames'))}${kpi('Часы съёмок <span class="mut">(по EXIF)</span>',cur.hours==null?'—':fmt(Math.round(cur.hours*10)/10),delta(cur,prev,'hours'))}${kpi('Готовые комплекты',fmt(st.kits),{t:'Ученики с подтверждёнными портретами и друзьями'})}</div>
+ <div class="g2"><div class="card"><h2>Кадры по месяцам</h2>${monthBars()}</div><div class="card"><h2>Рекорды</h2>${records()}</div></div>
+ <div class="g2"><div class="card"><h2>Последние съёмки</h2>${sessTable(st.sessions.slice(0,6))}</div><div class="card"><h2>Календарь активности</h2>${heat()}</div></div>`}
+function onboarding(){return `<div class="card" style="padding:30px"><h2 style="font-size:18px">С чего начать</h2><div class="g3" style="margin-top:6px">
+ ${[['1. Новая съёмка','Укажите папку с карты или диска. FOBOX прочитает RAW и JPEG, время съёмки и разобьёт кадры на серии. Исходники не меняются.'],['2. Отбор','Программа отметит пустые, тёмные, нерезкие кадры и дубли и сама предложит лучшие. Вы кликами правите выбор и подтверждаете.'],['3. Экспорт','Подтверждённые кадры копируются в новую папку заказа. Статистика на этой странице считается автоматически.']].map(([t,d])=>`<div><b>${t}</b><p class="mut" style="line-height:1.55">${d}</p></div>`).join('')}
+ </div><button class="btn pri" onclick="importDlg()" style="margin-top:8px">Импортировать первую съёмку</button></div>`}
+function monthBars(){const m=S.stats.months,ks=Object.keys(m).slice(-12);if(!ks.length)return empty(NODATA);const mx=Math.max(...ks.map(k=>m[k].frames),1);
+ return `<div class="bars">${ks.map(k=>`<div title="${k}: ${m[k].frames} кадров, ${m[k].sessions} съёмок"><small>${fmt(m[k].frames)}</small><span style="height:${Math.max(2,m[k].frames/mx*110)}px"></span><small>${MONTHS[+k.slice(5)-1]} ${k.slice(2,4)}</small></div>`).join('')}</div>`}
+function heat(){const d=S.stats.days,days=Object.keys(d);if(!days.length)return empty(NODATA);const end=new Date(),start=new Date();start.setDate(end.getDate()-7*26-end.getDay());const mx=Math.max(...Object.values(d));let cells='';
+ for(let x=new Date(start);x<=end;x.setDate(x.getDate()+1)){const k=iso(x),v=d[k]||0;cells+=`<i title="${k}: ${v} кадров" style="${v?`background:var(--accent);opacity:${.25+.75*v/mx}`:''}"></i>`}
+ return `<div class="heat">${cells}</div><div class="mut" style="margin-top:10px">Последние 26 недель · ярче — больше кадров</div>`}
+function records(){const r=S.stats.records;const rows=[['Самая длинная съёмка',r.longest&&`${r.longest.value} ч`,r.longest&&`${esc(r.longest.title)}, ${r.longest.date}`],['Больше всего кадров за день',r.max_day&&fmt(r.max_day.value),r.max_day&&r.max_day.date],['Самый активный месяц',r.active_month&&fmt(r.active_month.value)+' кадр.',r.active_month&&r.active_month.month],['Самый большой класс',r.biggest_class&&r.biggest_class.value+' уч.',r.biggest_class&&`${esc(r.biggest_class.title)}`]];
+ return rows.map(([t,v,s])=>`<div class="rec"><div>${t}<div class="mut">${s||'Нет данных'}</div></div><b>${v||'—'}</b></div>`).join('')+'<div class="mut" style="margin-top:8px">Длительность — интервал между первым и последним кадром по EXIF, не активное время.</div>'}
+const STATUS={imported:'Импортирована',analyzed:'Проверена',reviewed:'Отобрана',exported:'Экспортирована'};
+function sessTable(list,full){if(!list.length)return empty(NODATA);return `<table><tr><th>Дата</th><th>Съёмка</th>${full?'<th>Тип</th><th>Ученики</th>':''}<th>Кадры</th>${full?'<th>Длит.</th>':''}<th>Статус</th></tr>${list.map(s=>`<tr class="click" onclick="openSess('${s.id}')"><td>${s.shoot_date||'—'}</td><td>${esc(s.title)}${full&&s.location?`<div class="mut">${esc(s.location)}</div>`:''}</td>${full?`<td>${s.mode==='school'?'Школа':'Обычная'}</td><td>${s.students||'—'}</td>`:''}<td>${fmt(s.frames)}</td>${full?`<td>${s.hours==null?'—':s.hours+' ч'}</td>`:''}<td><span class="pill ${s.status}">${STATUS[s.status]||s.status}</span></td></tr>`).join('')}</table>`}
+function perf(){const ss=S.stats.sessions.filter(s=>s.hours>0.05);const fph=ss.length?Math.round(ss.reduce((a,s)=>a+s.frames,0)/ss.reduce((a,s)=>a+s.hours,0)):null;
+ const days=new Set(S.stats.sessions.map(s=>s.shoot_date).filter(Boolean)).size,sch=S.stats.sessions.filter(s=>s.students);
+ return head('Производительность','Считается по EXIF-времени кадров')+`<div class="kpis">${kpi('Кадров в час',fmt(fph))}${kpi('Съёмок в день',days?(S.stats.sessions.length/days).toFixed(1):'—')}${kpi('Учеников за съёмку',sch.length?Math.round(sch.reduce((a,s)=>a+s.students,0)/sch.length):'—')}${kpi('Средняя длительность',ss.length?(ss.reduce((a,s)=>a+s.hours,0)/ss.length).toFixed(1)+' ч':'—')}</div>
+ <div class="card" style="margin-top:12px"><h2>Кадров в час по съёмкам</h2>${ss.length?bars(ss.slice(0,12).reverse().map(s=>[s.shoot_date?.slice(5)||'', Math.round(s.frames/s.hours),s.title])):empty(NODATA)}</div>`}
+function bars(rows){const mx=Math.max(...rows.map(r=>r[1]),1);return `<div class="bars">${rows.map(([l,v,t])=>`<div title="${esc(t||l)}: ${v}"><small>${fmt(v)}</small><span style="height:${Math.max(2,v/mx*110)}px"></span><small>${esc(l)}</small></div>`).join('')}</div>`}
+const FL={white:'Пустые белые',black:'Пустые чёрные',over:'Пересветы',under:'Недодержка',blur:'Нерезкие',dup:'Дубли'};
+function quality(){const st=S.stats,f=st.flags,an=st.analyzed;if(!st.pillow)return head('Качество','')+empty('Проверка качества недоступна: установите Pillow командой <kbd>py -m pip install pillow</kbd> и перезапустите.');
+ if(!an)return head('Качество','Технические проблемы кадров')+empty(NODATA);const pc=n=>an?((n||0)/an*100).toFixed(1)+'%':'—';
+ return head('Качество',`Проверено ${fmt(an)} кадров. Проблемные кадры не удаляются — они попадают во вкладку «На проверку».`)+`<div class="kpis">${kpi('Нерезкие',fmt(f.blur||0),{t:pc(f.blur)})}${kpi('Дубли',fmt(f.dup||0),{t:pc(f.dup)})}${kpi('Пересветы / недодержка',fmt((f.over||0)+(f.under||0)),{t:pc((f.over||0)+(f.under||0))})}${kpi('Технический брак',fmt((f.white||0)+(f.black||0)),{t:'Пустые белые и чёрные кадры'})}</div>
+ <div class="card" style="margin-top:12px"><h2>Причины отметок</h2>${Object.keys(FL).map(k=>`<div class="rec"><div style="flex:1">${FL[k]}<div class="meter" style="margin-top:6px;max-width:520px"><span style="width:${Math.min(100,(f[k]||0)/Math.max(1,...Object.values(f))*100)}%"></span></div></div><b>${fmt(f[k]||0)}</b></div>`).join('')}</div>`}
+function ai(){const s=S.stats.selection;const rate=s.sections_approved?Math.round(s.sections_untouched/s.sections_approved*100)+'%':'—';
+ return head('Автоотбор','Как часто вы соглашаетесь с предложениями программы. Сейчас это эвристика (резкость + непохожесть кадров), распознавание лиц — следующий этап.')+`<div class="kpis">${kpi('Предложено',fmt(s.suggested))}${kpi('Оставлено в подтверждённых',fmt(s.accepted))}${kpi('Снято вручную',fmt(s.replaced))}${kpi('Секций без правок',rate,{t:`${s.sections_untouched} из ${s.sections_approved} подтверждённых`})}</div>
+ <div class="card" style="margin-top:12px"><h2>Добавлено вручную</h2><div class="kpi"><div class="v">${fmt(s.manual_added)}</div><div class="mut">кадров, которые вы выбрали сами сверх предложенных и обязательных</div></div></div>`}
+function flow(){const w=S.stats.workflow,t=v=>v==null?'—':v<90?Math.round(v)+' с':(v/60).toFixed(1)+' мин';
+ return head('Рабочий процесс','Время этапов измеряется с момента начала использования 4.0-alpha.2; старые съёмки этого не восстановят')+`<div class="kpis">${kpi('Импорт',t(w.import_sec),{t:'среднее на съёмку'})}${kpi('Проверка качества',t(w.analysis_sec),{t:'среднее на съёмку'})}${kpi('Проверка секции',t(w.review_per_section_sec),{t:'между подтверждениями'})}${kpi('Экспорт',t(w.export_sec),{t:'среднее на съёмку'})}</div>
+ <div class="card" style="margin-top:12px"><h2>Объём RAW</h2><div class="kpi"><div class="v">${fmt(S.stats.raw)}</div><div class="mut">RAW-файлов в каталоге из ${fmt(S.stats.files)} кадров</div></div></div>`}
+function history(){return head('История съёмок','Нажмите строку, чтобы открыть отбор')+`<div class="card">${sessTable(S.stats.sessions,true)}</div>`}
+// ---------- settings & profile
+function settings(){const s=S.cfg.settings,p=S.cfg.profile,tab=S.sub||'Профиль';const tabs=['Профиль','Отбор и качество','Файлы и экспорт','Интерфейс','Данные'];
+ const field=(k,l,h,src='s')=>`<div class="f"><label>${l}</label><input data-${src}="${k}" value="${esc((src==='s'?s:p)[k]||'')}">${h?`<span class="mut">${h}</span>`:''}</div>`;
+ let body='';
+ if(tab==='Профиль')body=`<div class="two">${field('name','Имя фотографа','','p')}${field('studio','Студия','','p')}${field('email','Email','','p')}${field('phone','Телефон','','p')}${field('city','Город','','p')}${field('workspace','Название рабочего пространства','Показывается в шапке и отчётах')}</div>`;
+ if(tab==='Отбор и качество')body=`<div class="two">${field('series_gap_sec','Пауза для новой серии, сек','Если между кадрами дольше — начинается новая серия')}${field('target_per_student','Ориентир кадров на ученика','Включая 5 обязательных; не жёсткий лимит')}${field('radius','Окно вокруг кадров ведомости','± номеров кадров для показа')}${field('blur_threshold','Порог нерезкости','Меньше — строже. Также сравнивается с серией')}${field('dup_distance','Чувствительность к дублям','0–10, больше — больше кадров считается дублями')}${field('clip_threshold','Доля пересвеченных пикселей','0.25 = 25%')}</div><p class="mut">Изменения порогов применяются после «Перепроверить качество» в съёмке.</p>`;
+ if(tab==='Файлы и экспорт')body=`<p class="mut" style="line-height:1.6">Исходники только читаются. Экспорт копирует файлы в новую пустую папку заказа и никогда не перезаписывает.<br>Школьная структура: Заказ / Школа / Дата / Класс / 01_ДОКУМЕНТЫ … 07_ФОН.<br>Имена обязательных RAW: «Фамилия Имя_исх», «ЛР_…», «ЛС_…», «Друг1_исх», «Друг2_исх».</p>`;
+ if(tab==='Интерфейс')body=`<div class="f"><label>Тема</label><div class="row"><button class="btn ${s.theme==='dark'?'pri':''}" onclick="setS('theme','dark')">Тёмная</button><button class="btn ${s.theme==='light'?'pri':''}" onclick="setS('theme','light')">Светлая</button></div></div>
+  <div class="f"><label>Акцентный цвет</label><div class="row">${['#7738FF','#4DB5FF','#E5484D','#2EB67D','#F59E0B'].map(c=>`<span class="sw ${s.accent.toUpperCase()===c?'on':''}" style="background:${c}" onclick="setS('accent','${c}')"></span>`).join('')}<input data-s="accent" value="${s.accent}" style="width:110px"></div><span class="mut">Цвета ошибок и предупреждений не меняются.</span></div>`;
+ if(tab==='Данные')body=`<p class="mut" style="line-height:1.6">Каталог хранится локально в SQLite (по умолчанию <kbd>%USERPROFILE%\\.fobox\\fobox4.sqlite3</kbd>). Для резервной копии скопируйте этот файл. Удаление съёмки из каталога не трогает фотографии на диске.</p>${S.stats.sessions.map(x=>`<div class="rec"><div>${esc(x.title)}<div class="mut">${esc(x.source||'')}</div></div><button class="btn" onclick="delSess('${x.id}')">Убрать из каталога</button></div>`).join('')||empty('Каталог пуст')}`;
+ return head('Настройки','Хранятся локально')+`<div class="stabs">${tabs.map(t=>`<button class="${t===tab?'on':''}" onclick="go('settings','${t}')">${t}</button>`).join('')}</div><div class="card">${body}${['Профиль','Отбор и качество','Интерфейс'].includes(tab)?'<button class="btn pri" id="saveS">Сохранить</button>':''}</div>`}
+function bindSettings(){const b=$('#saveS');if(b)b.onclick=async()=>{const st={},pr={...S.cfg.profile};document.querySelectorAll('[data-s]').forEach(i=>st[i.dataset.s]=i.value.trim());document.querySelectorAll('[data-p]').forEach(i=>pr[i.dataset.p]=i.value.trim());
+ try{await api('/api/settings',{settings:st,profile:pr});toast('Сохранено');await load()}catch(e){toast(e.message,1)}}}
+async function setS(k,v){try{await api('/api/settings',{settings:{[k]:v}});await load()}catch(e){toast(e.message,1)}}
+async function delSess(id){if(!confirm('Убрать съёмку из каталога? Файлы на диске останутся.'))return;await api('/api/delete',{session:id});if(S.sid===id){S.sid='';S.sess=null}await load()}
+// ---------- import
+function importDlg(){S.imode=S.imode||'general';const school=S.imode==='school';
+ const f=(id,l,ph='',pick)=>`<div class="f"><label>${l}</label><div class="row"><input id="${id}" placeholder="${ph}">${pick?`<button class="btn" onclick="pick('${id}','${pick}')">Обзор…</button>`:''}</div></div>`;
+ $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Новая съёмка</h2>
+ <div class="seg"><button class="${school?'':'on'}" onclick="S.imode='general';importDlg()">Обычная съёмка</button><button class="${school?'on':''}" onclick="S.imode='school';importDlg()">Школьный заказ</button></div>
+ ${f('i_src','Папка с исходниками (RAW и/или JPEG)','D:\\DCIM\\100MSDCF','dir')}${f('i_title','Название','Например: Свадьба Анны и Ильи')}
+ ${school?`${f('i_students','Ведомость учеников (CSV: Name,V,P1,P2,D1,D2)','','csv')}${f('i_teachers','Учителя (CSV: Name,Role,Start,End) — необязательно','','csv')}<div class="two">${f('i_order','Номер заказа')}${f('i_school','Школа')}${f('i_date','Дата','09.10.2026')}${f('i_class','Класс','9Л')}</div>`:f('i_loc','Локация — необязательно')}
+ <p class="mut">${school?'Каждый ученик получит две секции: портреты и друзья. 5 кадров из ведомости обязательны (★).':'Кадры разобьются на серии по паузам между снимками. Программа отметит брак и предложит лучшие кадры каждой серии.'} Исходные файлы не изменяются.</p>
+ <div id="i_prog"></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn ghost" onclick="closeL()">Отмена</button><button class="btn pri" id="i_go" onclick="doImport()">Импортировать</button></div></div></div>`;
+ const keep=S.ivals||{};Object.entries(keep).forEach(([k,v])=>{const e=$('#'+k);if(e)e.value=v});document.querySelectorAll('.dlg input').forEach(i=>i.oninput=()=>{(S.ivals=S.ivals||{})[i.id]=i.value})}
+async function pick(id,kind){try{const r=await api('/api/pick',{kind});if(r.path){$('#'+id).value=r.path;(S.ivals=S.ivals||{})[id]=r.path}}catch(e){toast(e.message,1)}}
+const closeL=()=>$('#layer').innerHTML='';
+async function doImport(){const v=id=>($('#'+id)?.value||'').trim();const body={source:v('i_src'),title:v('i_title'),location:v('i_loc')};
+ if(S.imode==='school')Object.assign(body,{students:v('i_students'),teachers:v('i_teachers'),order:v('i_order'),school:v('i_school'),date:v('i_date'),class_name:v('i_class')});
+ if(!body.source)return toast('Укажите папку',1);if(S.imode==='school'&&!body.students)return toast('Укажите ведомость учеников',1);
+ $('#i_go').disabled=true;try{const r=await api('/api/import',body);await watchJob(r.session,'#i_prog');S.ivals={};closeL();S.sid=r.session;localStorage.setItem('fobox.sid',r.session);S.sess=null;S.sec=0;await load();go('shoot')}catch(e){$('#i_prog').innerHTML=`<div class="warn err" style="margin:0">${esc(e.message)}</div>`;$('#i_go').disabled=false}}
+async function watchJob(id,el){for(;;){const j=await api('/api/job?id='+id);const pc=j.total?Math.round(j.done/j.total*100):5;if($(el))$(el).innerHTML=`<div class="mut">${esc(j.stage||'')} ${j.total?`${j.done} / ${j.total}`:''}</div><div class="prog"><span style="width:${pc}%"></span></div>`;if(j.error)throw Error(j.error);if(j.finished)return;await new Promise(r=>setTimeout(r,400))}}
+// ---------- review
+async function openSess(id){S.sid=id;localStorage.setItem('fobox.sid',id);S.sess=null;S.sec=0;go('shoot')}
+async function renderShoot(){const m=$('#main');if(!S.sid){m.innerHTML='<div class="page">'+head('Текущая съёмка','')+onboarding()+'</div>';return}
+ if(!S.sess||S.sess.session.id!==S.sid){m.innerHTML='<div class="page mut">Загрузка…</div>';try{S.sess=await api('/api/session?id='+S.sid);S.fmap=Object.fromEntries(S.sess.files.map(f=>[f.path,f]));loadSec()}catch(e){S.sid='';localStorage.removeItem('fobox.sid');m.innerHTML='<div class="page">'+empty(esc(e.message))+'</div>';return}}
+ drawShoot()}
+function loadSec(){const s=S.sess.sections[S.sec];S.sel=new Set(S.sess.selected[s.id]||[]);S.dirty=false}
+function secState(s){if(S.sess.approved[s.id])return'ok';return (S.sess.selected[s.id]||[]).length?'part':''}
+function drawShoot(){const d=S.sess,ss=d.session,s=d.sections[S.sec];const done=d.sections.filter(x=>d.approved[x.id]).length;const school=ss.mode==='school';
+ const files=s.files.map(p=>S.fmap[p]).filter(Boolean);const flagged=files.filter(f=>f.flags);
+ const list=S.tab==='kit'?files.filter(f=>S.sel.has(f.path)):S.tab==='bad'?flagged:files;
+ const must=s.mandatory,sug=new Set(d.suggested[s.id]||[]);
+ $('#main').innerHTML=`<div class="rv"><div class="rv-side"><div class="rv-head"><div style="font-weight:600">${esc(ss.title)}</div><div class="mut">${school?`Заказ ${esc(ss.order_no||'—')} · ${esc(ss.class_name||'')} · `:''}${fmt(d.files.length)} кадров</div>
+ <div class="meter" style="margin:10px 0 4px"><span style="width:${done/d.sections.length*100}%"></span></div><div class="mut">Подтверждено ${done} из ${d.sections.length}</div>
+ <div class="row" style="margin-top:10px"><select style="flex:1" onchange="openSess(this.value)">${S.stats.sessions.map(x=>`<option value="${x.id}" ${x.id===S.sid?'selected':''}>${esc(x.title)}</option>`).join('')}</select></div></div>
+ <div class="secs">${d.sections.map((x,i)=>`<button class="sec ${i===S.sec?'on':''}" onclick="pickSec(${i})"><div class="t"><span style="display:flex"><span class="dot ${secState(x)}"></span>${esc(x.title)}</span><span class="mut">${(d.selected[x.id]||[]).length}</span></div><div class="s" style="padding-left:15px">${esc(x.subtitle)}</div></button>`).join('')}</div>
+ <div style="padding:10px;border-top:1px solid var(--line);display:grid;gap:6px"><button class="btn pri" onclick="exportDlg()">Экспорт заказа…</button><button class="btn" onclick="reanalyze()">Перепроверить качество</button></div></div>
+ <div class="rv-main"><div class="bar"><div><div style="font-size:18px;font-weight:600">${esc(s.title)} <span class="mut" style="font-size:14px;font-weight:400">${esc(s.subtitle)}</span></div><div class="mut">${S.sel.size} выбрано из ${files.length}${Object.keys(must).length?' · ★ обязательные из ведомости':''}${s.limit?` · максимум ${s.limit}`:''}</div></div>
+ <div class="row"><div class="tabs">${[['kit','Комплект',S.sel.size],['all','Все кадры',files.length],['bad','На проверку',flagged.length]].map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';drawShoot()">${t} ${n}</button>`).join('')}</div>
+ <select title="Размер плиток" onchange="document.documentElement.style.setProperty('--tile',this.value)"><option value="150px">S</option><option value="190px" selected>M</option><option value="260px">L</option></select></div></div>
+ ${d.conflicts.length?`<div class="warn">Ведомость: ${esc(d.conflicts.slice(0,4).join('; '))}${d.conflicts.length>4?'…':''}. Экспорт заблокирован, пока ведомость не исправлена и съёмка не импортирована заново.</div>`:''}
+ ${!d.pillow?'<div class="warn">Проверка качества выключена — установите Pillow: <kbd>py -m pip install pillow</kbd></div>':''}
+ ${files.filter(f=>must[f.path]&&f.flags).map(f=>`<div class="warn">Обязательный кадр ${esc(f.name)} (${must[f.path]}) помечен как «${esc(f.flags.split(',').map(x=>d.flag_names[x]).join(', '))}». Проверьте ведомость.</div>`).join('')}
+ <div class="grid" id="grid">${list.length?list.map(f=>tile(f,must,sug)).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div>
+ <div class="foot"><div class="mut">Клик — выбрать · двойной клик — крупно · <kbd>←</kbd><kbd>→</kbd> секции · <kbd>Enter</kbd> подтвердить</div><div class="row">${S.dirty?'<span class="mut">Есть несохранённые изменения</span>':''}<button class="btn" onclick="save(false)">Сохранить</button><button class="btn pri" onclick="save(true)">${d.approved[s.id]&&!S.dirty?'Подтверждено ✓':'Подтвердить и дальше'}</button></div></div></div></div>`}
+function tile(f,must,sug){const on=S.sel.has(f.path),m=must[f.path];const fl=f.flags?f.flags.split(',').map(x=>S.sess.flag_names[x]).join(', '):'';
+ return `<div class="tile ${on?'on':'ctx'}" tabindex="0" data-p="${esc(f.path)}" onclick="tog(this)" ondblclick="lightbox(this.dataset.p)"><div class="im" style="${f.has_preview?`background-image:url('/api/preview?s=${S.sid}&p=${encodeURIComponent(f.path)}&size=480')`:''}">${f.has_preview?'':'Нет превью'}</div>
+ ${m?`<span class="star" title="Обязательный: ${m}">★</span>`:''}${sug.has(f.path)?'<span class="sug" title="Предложено автоотбором">авто</span>':''}${fl?`<span class="flag">${esc(fl)}</span>`:''}<span class="chk"></span>
+ <div class="cap"><b>${esc(f.name)}</b><span>${m||f.capture_at.slice(11,19)}</span></div></div>`}
+function tog(el){const p=el.dataset.p,s=S.sess.sections[S.sec];if(s.mandatory[p]){toast('Обязательный кадр из ведомости — его нельзя снять');return}
+ if(S.sel.has(p))S.sel.delete(p);else{if(s.limit&&S.sel.size>=s.limit)return toast('Максимум '+s.limit+' кадров');S.sel.add(p)}
+ S.dirty=true;el.classList.toggle('on',S.sel.has(p));el.classList.toggle('ctx',!S.sel.has(p));if(S.tab==='kit')drawShoot();else{const b=$('.bar .mut');if(b)b.firstChild.textContent=S.sel.size+' выбрано из '+s.files.length}}
+function pickSec(i){if(S.dirty&&!confirm('Есть несохранённые изменения. Перейти без сохранения?'))return;S.sec=i;loadSec();drawShoot();$('#grid').scrollTop=0}
+async function save(approved){const s=S.sess.sections[S.sec];try{await api('/api/review',{session:S.sid,section:s.id,selected:[...S.sel],approved});S.sess.selected[s.id]=[...S.sel];S.sess.approved[s.id]=approved;S.dirty=false;
+ if(approved){toast('Подтверждено: '+s.title);const nx=S.sess.sections.findIndex((x,i)=>i>S.sec&&!S.sess.approved[x.id]);const any=nx<0?S.sess.sections.findIndex(x=>!S.sess.approved[x.id]):nx;if(any>=0){S.sec=any;loadSec()}else toast('Все секции подтверждены — можно экспортировать')}else toast('Сохранено');drawShoot();S.stats=await api('/api/stats')}catch(e){toast(e.message,1)}}
+function lightbox(p){const f=S.fmap[p];if(!f.has_preview)return;$('#layer').innerHTML=`<div class="lb" onclick="closeL()"><img src="/api/preview?s=${S.sid}&p=${encodeURIComponent(p)}&size=1800"><div>${esc(f.name)} · ${f.capture_at}${f.flags?' · '+esc(f.flags.split(',').map(x=>S.sess.flag_names[x]).join(', ')):''} · серия ${f.series}</div></div>`}
+async function reanalyze(){$('#layer').innerHTML=`<div class="modal"><div class="dlg"><h2>Проверка качества</h2><div id="ra"></div></div></div>`;try{await api('/api/reanalyze',{session:S.sid});await watchJob(S.sid,'#ra');closeL();S.sess=null;await load()}catch(e){closeL();toast(e.message,1)}}
+function exportDlg(){const ss=S.sess.session,meta=JSON.parse(ss.meta||'{}');const school=ss.mode==='school';
+ $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Экспорт</h2><p class="mut">Подтверждённые кадры копируются в новую папку. Исходники не трогаются, существующие файлы не перезаписываются.</p>
+ <div class="f"><label>Папка для экспорта</label><div class="row"><input id="e_out" value="${esc(meta.output||'')}" placeholder="F:\\FOBOX_EXPORT"><button class="btn" onclick="pick('e_out','dir')">Обзор…</button></div></div>
+ ${school?`<div class="f"><label>Фон (один файл, необязательно)</label><div class="row"><input id="e_bg" value="${esc(meta.background||'')}" placeholder="Полный путь к файлу фона"><button class="btn" onclick="pick('e_bg','file')">Обзор…</button></div></div>`:''}
+ <div id="e_info"></div><div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn ghost" onclick="closeL()">Закрыть</button><button class="btn" onclick="exp(true)">Проверить</button><button class="btn pri" onclick="exp(false)">Копировать</button></div></div></div>`}
+async function exp(dry){const out=$('#e_out').value.trim(),info=$('#e_info');try{const meta={session:S.sid,output:out};if($('#e_bg'))meta.background=$('#e_bg').value.trim();await api('/api/meta',meta);
+ if(!dry&&!confirm('Скопировать выбранные файлы?'))return;const r=await api('/api/export',{session:S.sid,output:out,dry_run:dry});
+ info.innerHTML=`<div class="warn" style="margin:0;background:#37c08a1f;color:var(--ok)">${dry?'Готово к экспорту':'Скопировано'}: ${r.files} файлов, ${(r.bytes/1048576).toFixed(1)} МБ${dry?` · свободно ${(r.free/1073741824).toFixed(1)} ГБ`:''}<br><span style="word-break:break-all">${esc(r.root)}</span></div>`;if(!dry){S.sess=null;S.stats=await api('/api/stats')}}catch(e){info.innerHTML=`<div class="warn err" style="margin:0">${esc(e.message)}</div>`}}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')return closeL();if(S.page!=='shoot'||!S.sess||$('#layer').innerHTML||/INPUT|SELECT/.test(e.target.tagName))return;
+ if(e.key==='ArrowRight'&&e.altKey===false&&!e.target.classList.contains('tile')){pickSec(Math.min(S.sec+1,S.sess.sections.length-1))}
+ else if(e.key==='ArrowLeft'&&!e.target.classList.contains('tile')){pickSec(Math.max(S.sec-1,0))}
+ else if(e.key==='Enter'){e.preventDefault();save(true)}else if(e.key===' '&&e.target.classList.contains('tile')){e.preventDefault();tog(e.target)}});
+load().catch(e=>{$('#main').innerHTML='<div class="page">'+empty('Сервер недоступен: '+esc(e.message))+'</div>'});
+</script>
+</body>
+</html>
