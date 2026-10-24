@@ -1011,11 +1011,9 @@ class Engine:
             raise ValueError('Укажите папку для экспорта')
         if out == src or src in out.parents:
             raise ValueError('Папка экспорта не может быть внутри папки исходников')
-        if st['conflicts']:
-            raise ValueError('Сначала исправьте ведомость: ' + '; '.join(st['conflicts'][:3]))
-        missing = [x['title'] + ' — ' + x['subtitle'] for x in st['sections'] if not st['approved'].get(x['id'])]
-        if missing:
-            raise ValueError(f'Не подтверждено секций: {len(missing)} (например: {missing[0]})')
+        # problems do not block the export (the photographer may fix them later); they are reported
+        warnings = list(st['conflicts']) + [f"Не подтверждено: {x['title']} — {x['subtitle']}"
+                                             for x in st['sections'] if not st['approved'].get(x['id'])]
         files = {f['path']: f for f in st['files']}
         ops, names = [], set()
 
@@ -1057,12 +1055,31 @@ class Engine:
                     add(p, root / safe_name(sec['title']) / files[p]['name'], sec['title'], 'Серия')
         if not ops:
             raise ValueError('Не выбрано ни одного кадра')
+        update = False
         if (out / root).exists() and any((out / root).iterdir()):
-            raise ValueError('Папка заказа уже существует и не пуста: ' + str(out / root))
-        need = sum(Path(op[0]).stat().st_size for op in ops)
+            if not (out / root / '_FOBOX_отчёт.csv').exists():
+                raise ValueError('Папка заказа уже существует и не пуста: ' + str(out / root))
+            update = True  # an earlier FOBOX export: add what is missing, never overwrite or delete
+        skip, clash = set(), []
+        for op in ops:
+            d = out / op[1]
+            if d.exists():
+                if d.stat().st_size == Path(op[0]).stat().st_size:
+                    skip.add(str(op[1]))
+                else:
+                    clash.append(str(op[1]))
+        if clash:
+            raise ValueError('В заказе уже есть другой файл с таким именем (перезапись запрещена): ' + clash[0])
+        if update:
+            wanted = {str(out / op[1]).casefold() for op in ops}
+            for f in (out / root).rglob('*'):
+                if f.is_file() and not f.name.startswith('_FOBOX_') and str(f).casefold() not in wanted:
+                    warnings.append(f'Лишний файл в заказе (снят с выбора, удалите вручную): {f.relative_to(out / root)}')
+        need = sum(Path(op[0]).stat().st_size for op in ops if str(op[1]) not in skip)
         free = shutil.disk_usage(out if out.exists() else out.parent if out.parent.exists() else Path.home()).free
         return {'root': str(out / root), 'files': len(ops), 'bytes': need, 'free': free, 'ops': ops, 'out': out,
-                'categories': s['mode'] == 'school', 'rootrel': root}
+                'categories': s['mode'] == 'school', 'rootrel': root, 'warnings': warnings,
+                'skip': skip, 'update': update, 'new': len(ops) - len(skip)}
 
     def export(self, sid, output, dry_run=False, job=None):
         job = job if job is not None else {}
@@ -1070,7 +1087,7 @@ class Engine:
         if plan['bytes'] > plan['free']:
             raise ValueError('Недостаточно места на диске')
         if dry_run:
-            return {k: plan[k] for k in ('root', 'files', 'bytes', 'free')}
+            return {k: plan[k] for k in ('root', 'files', 'bytes', 'free', 'warnings', 'update', 'new')}
         with self.conn() as c:
             self.event(c, sid, 'export', 'start')
         root = plan['out'] / plan['rootrel']
@@ -1078,6 +1095,10 @@ class Engine:
         report = []
         for p, rel, who, what, role in plan['ops']:
             d = plan['out'] / rel
+            if str(rel) in plan['skip']:      # already copied by an earlier export
+                report.append([what, who, role, str(rel.relative_to(plan['rootrel'])), str(p), d.stat().st_size])
+                job['done'] += 1
+                continue
             d.parent.mkdir(parents=True, exist_ok=True)
             if d.exists():
                 raise ValueError('Файл уже существует, перезапись запрещена: ' + str(d))
@@ -1096,12 +1117,19 @@ class Engine:
             w = csv.writer(f, delimiter=';')
             w.writerow(['Тип', 'Кто', 'Роль', 'Файл в заказе', 'Исходный файл', 'Размер, байт'])
             w.writerows(sorted(report, key=lambda r: (r[0], r[1], r[3])))
+        notes = root / '_FOBOX_замечания.txt'
+        if not plan['warnings'] and notes.exists():
+            notes.unlink()  # our own notes file: everything is fixed now
+        if plan['warnings']:
+            with open(notes, 'w', encoding='utf-8-sig') as f:
+                f.write('Заказ собран с незакрытыми замечаниями. Исправьте и при необходимости соберите заново:\n\n')
+                f.write('\n'.join('- ' + w for w in plan['warnings']) + '\n')
         with self.conn() as c:
             self.event(c, sid, 'export', 'end')
             c.execute("UPDATE sessions SET status='exported' WHERE id=?", (sid,))
         self.set_meta(sid, {'last_export': str(root)})
         job['stage'] = 'Готово'
-        return {'root': plan['root'], 'files': plan['files'], 'bytes': plan['bytes'], 'report': str(root / '_FOBOX_отчёт.csv')}
+        return {'root': plan['root'], 'files': plan['files'], 'new': plan['new'], 'update': plan['update'], 'bytes': plan['bytes'], 'report': str(root / '_FOBOX_отчёт.csv'), 'warnings': plan['warnings']}
 
     def start_export(self, sid, output):
         self.plan_export(sid, output)  # validate synchronously so the dialog shows errors at once

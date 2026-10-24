@@ -101,8 +101,8 @@ class EngineTest(unittest.TestCase):
 
     def test_school_export_names_and_no_overwrite(self):
         sid = self.school()
-        with self.assertRaises(ValueError):           # not approved yet
-            self.e.export(sid, self.tmp / 'out')
+        dry = self.e.export(sid, self.tmp / 'out', dry_run=True)   # not approved: allowed, but warned
+        self.assertTrue(dry['warnings'])
         self.approve_all(sid)
         r = self.e.export(sid, self.tmp / 'out')
         kid = Path(r['root']) / '05_УЧЕНИКИ' / 'Иванов Иван'
@@ -111,8 +111,14 @@ class EngineTest(unittest.TestCase):
                   'Друг1_ABC0125.ARW', 'Друг2_ABC0126.ARW'):
             self.assertIn(n, names)
         self.assertTrue((Path(r['root']) / '07_ФОН').is_dir())
-        with self.assertRaises(ValueError):           # second export into non-empty order folder
-            self.e.export(sid, self.tmp / 'out')
+        again = self.e.export(sid, self.tmp / 'out')   # re-export = top-up, nothing copied twice
+        self.assertEqual(again['new'], 0)
+        (Path(r['root']) / 'чужой.txt').write_text('x')
+        other = self.tmp / 'out2' / Path(r['root']).relative_to(self.tmp / 'out')
+        other.mkdir(parents=True)
+        (other / 'чужой.txt').write_text('x')           # a non-FOBOX folder is never written into
+        with self.assertRaises(ValueError):
+            self.e.export(sid, self.tmp / 'out2')
 
     def test_frame_in_portraits_and_friends_copied_once(self):
         sid = self.school()
@@ -275,6 +281,33 @@ class EngineTest(unittest.TestCase):
         rep = Path(job['result']['report']).read_text(encoding='utf-8-sig').splitlines()
         self.assertEqual(rep[0].split(';')[:3], ['Тип', 'Кто', 'Роль'])
         self.assertTrue(any(';Иванов Иван;Личный разворот;' in r for r in rep))
+
+    def test_export_with_open_issues_is_allowed_and_listed(self):
+        f = self.tmp / 'v.csv'
+        f.write_text('Иванов Иван;110;111;112;125;999\n', encoding='utf-8')   # 999 is not on the card
+        sid = self.e.import_folder(self.src, {'students': str(f), 'order': '1', 'school': 'Ш', 'class_name': '1А'})
+        r = self.e.export(sid, self.tmp / 'out')                                # nothing approved, one conflict
+        self.assertEqual(len(r['warnings']), 3)
+        root = Path(r['root'])
+        self.assertIn('999', (root / '_FOBOX_замечания.txt').read_text(encoding='utf-8-sig'))
+        self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
+
+    def test_fix_after_export_and_top_up(self):
+        f = self.tmp / 'v.csv'
+        f.write_text('Иванов Иван;110;111;112;125;999\n', encoding='utf-8')
+        sid = self.e.import_folder(self.src, {'students': str(f), 'order': '1', 'school': 'Ш', 'class_name': '1А'})
+        first = self.e.export(sid, self.tmp / 'out')
+        root = Path(first['root'])
+        st = self.e.session(sid)
+        fr = next(x for x in st['sections'] if x['kind'] == 'friends')
+        fix = next(x for x in fr['files'] if x not in fr['mandatory'])
+        self.e.set_role(sid, {'section': fr['id'], 'path': fix, 'role': 'D2'})   # fix the missing Друг 2
+        self.approve_all(sid)
+        second = self.e.export(sid, self.tmp / 'out')
+        self.assertTrue(second['update'])
+        self.assertEqual(second['new'], 1)
+        self.assertIn('Друг2_' + Path(fix).name, {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
+        self.assertFalse((root / '_FOBOX_замечания.txt').exists())
 
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'
