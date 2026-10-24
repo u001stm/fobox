@@ -1,3 +1,7 @@
+## FOBOX 4.0 alpha.2 — актуальная версия
+
+Импорт съёмки → проверка брака → предложенный отбор → подтверждение → экспорт копий + статистика, в одном локальном приложении. Подробно: [v4/README.md](v4/README.md). Запуск: `cd v4; py -3 -m pip install pillow; py -3 fobox4.py`.
+
 ## FOBOX 3.0 Preview
 
 New local single-window review and order assembly prototype: [v3/README.md](v3/README.md). **Not yet AI-enabled**; manual review is required. The previous v1/v2 versions remain available for comparison.
