@@ -309,6 +309,21 @@ class EngineTest(unittest.TestCase):
         self.assertIn('Друг2_' + Path(fix).name, {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
         self.assertFalse((root / '_FOBOX_замечания.txt').exists())
 
+    def test_dashboard_stats_per_shoot_and_profile(self):
+        sid = self.school()
+        self.approve_all(sid)
+        st = self.e.stats()
+        s = st['sessions'][0]
+        self.assertEqual((s['frames'], s['students'], s['kits']), (40, 1, 1))
+        self.assertTrue(s['cover'])
+        self.assertIn('2026-10-09', st['days'])
+        self.e.save_profile({'name': 'Иван', 'telegram': '@ivan'})
+        self.assertEqual(self.e.profile()['telegram'], '@ivan')
+        with self.assertRaises(ValueError):
+            self.e.save_profile({'avatar': 'javascript:alert(1)'})
+        self.e.save_profile({'avatar': 'data:image/jpeg;base64,AAAA'})
+        self.assertTrue(self.e.profile()['avatar'].startswith('data:image/'))
+
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'
         f.write_bytes('ФИО;В;П1;П2;Д1;Д2\r\nИванов Иван;110;111;112;125;126\r\n'.encode('cp1251'))

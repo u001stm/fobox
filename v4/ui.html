@@ -3,161 +3,190 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FOBOX 4.0</title>
+<title>FoboX 4.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-:root{--bg:#0f1218;--side:#12161e;--card:#171c25;--card2:#1d2330;--line:#262e3b;--text:#eef1f7;--muted:#8d97a8;--accent:#7738FF;--accent-soft:#7738ff26;--blue:#4DB5FF;--ok:#37c08a;--warn:#f0b14a;--bad:#ef5d6b;--gold:#ffcc4d;
- font-family:Inter,"Segoe UI",system-ui,sans-serif;font-size:14px;color:var(--text);background:var(--bg)}
-:root[data-theme=light]{--bg:#f4f5f8;--side:#fff;--card:#fff;--card2:#f0f2f6;--line:#e1e5ec;--text:#161a22;--muted:#677184}
-*{box-sizing:border-box}body{margin:0;background:var(--bg)}button,input,select{font:inherit;color:inherit}
-svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
-aside{position:fixed;inset:0 auto 0 0;width:52px;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:20;transition:width .15s;overflow:hidden}
-aside.open{width:228px;box-shadow:8px 0 30px #0006}
-aside:not(.open) .brand>span:last-child,aside:not(.open) .nb>span:last-child{opacity:0}
-.brand{height:56px;display:flex;align-items:center;gap:12px;padding:0 14px;cursor:pointer;font-weight:800;letter-spacing:.3px;white-space:nowrap}
-.logo{width:24px;height:24px;border-radius:6px;background:var(--accent);display:grid;place-items:center;color:#fff;font-size:13px;flex-shrink:0}
-nav{display:flex;flex-direction:column;gap:2px;padding:6px}
-.nb{display:flex;align-items:center;gap:14px;padding:9px 10px;border-radius:8px;border:0;background:none;color:var(--muted);cursor:pointer;white-space:nowrap;text-align:left}
+/* Design tokens follow the FoboX 4.0 mockup: blue-black graphite, violet #7738FF, sky #4DB5FF */
+:root{--bg:#0b0f17;--side:#0d121b;--card:#121823;--card2:#182030;--card3:#1e2738;--line:#1f2838;--line2:#2a3446;--text:#e9ecf4;--muted:#8a94a8;--dim:#5f6a80;
+ --accent:#7738FF;--accent-soft:#7738ff24;--blue:#4DB5FF;--ok:#2fd18b;--warn:#f3b44c;--bad:#ff5d70;--gold:#ffc940;
+ --c1:#7738FF;--c2:#4DB5FF;--c3:#2fd18b;--c4:#f3b44c;--c5:#ff5d70;--c6:#8a94a8;
+ font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;font-size:14px;color:var(--text);background:var(--bg);color-scheme:dark}
+:root[data-theme=light]{--bg:#f3f4f8;--side:#fff;--card:#fff;--card2:#f1f3f7;--card3:#e8ebf2;--line:#e3e6ee;--line2:#d4d9e3;--text:#151925;--muted:#606b80;--dim:#8d96a8;color-scheme:light}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);-webkit-font-smoothing:antialiased}button,input,select,textarea{font:inherit;color:inherit}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+/* shell */
+aside#side{position:fixed;inset:0 auto 0 0;width:60px;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:stretch;z-index:20;transition:width .15s;overflow:hidden}
+aside#side.open{width:232px;box-shadow:8px 0 30px #0007}
+.brand{height:60px;display:flex;align-items:center;gap:12px;padding:0 16px;cursor:pointer;white-space:nowrap}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px;flex-shrink:0;letter-spacing:-.5px}
+.bname{font-weight:700;font-size:17px;letter-spacing:-.02em}.bname b{color:var(--accent)}
+nav{display:flex;flex-direction:column;gap:4px;padding:8px}
+.nb{display:flex;align-items:center;gap:14px;padding:9px 10px;border-radius:9px;border:0;background:none;color:var(--muted);cursor:pointer;white-space:nowrap;text-align:left;position:relative}
 .nb:hover{background:var(--card2);color:var(--text)}.nb.on{background:var(--accent-soft);color:var(--text)}.nb.on svg{color:var(--accent)}
-.nb.new{color:var(--text)}.nb.new svg{color:var(--blue)}
-.sp{flex:1}.me{margin:6px}.av{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px;flex-shrink:0}
-main{margin-left:52px;min-height:100vh}
-.page{padding:26px 32px 40px;max-width:1500px}
-.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px}
-h1{font-size:24px;margin:0;font-weight:700}h2{font-size:15px;margin:0 0 14px;font-weight:600}.mut{color:var(--muted);font-size:12.5px}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-select,input[type=text],input[type=number],input:not([type]){background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;outline:none;min-width:0}
-input:focus,select:focus{border-color:var(--accent)}
-.btn{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer;white-space:nowrap}
-.btn:hover{border-color:#3a4456}.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}.btn.pri:hover{filter:brightness(1.1)}
-.btn.ghost{background:none}.btn:disabled{opacity:.45;cursor:default}
+.nb.on::before{content:"";position:absolute;left:-8px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+.nb.new svg{color:var(--blue)}
+aside:not(.open) .nb>span:last-child,aside:not(.open) .bname{opacity:0}
+.sp{flex:1}.me{margin:8px}.av{width:32px;height:32px;border-radius:50%;background:var(--card3) center/cover;display:grid;place-items:center;font-weight:700;font-size:12px;flex-shrink:0;color:var(--text);border:1px solid var(--line2)}
+main{margin-left:60px;min-height:100vh}
+.page{padding:22px 28px 40px;max-width:1520px;display:grid;gap:14px}
+/* header + filters */
+.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+h1{font-size:22px;margin:0;font-weight:650;letter-spacing:-.02em}h2{font-size:14px;margin:0;font-weight:600}
+.mut{color:var(--muted);font-size:12.5px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:none;padding:6px 14px;border-radius:7px;cursor:pointer;color:var(--muted);font-size:13px;white-space:nowrap}
+.seg button.on{background:var(--accent);color:#fff}.seg button:not(.on):hover{color:var(--text)}
+.mnav{display:flex;align-items:center;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px}
+.mnav button{border:0;background:none;color:var(--muted);width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:16px}.mnav button:hover:not(:disabled){background:var(--card2);color:var(--text)}.mnav button:disabled{opacity:.3}
+.mnav span{min-width:120px;text-align:center;font-size:13px;font-weight:500}
+select,input[type=text],input[type=email],input[type=number],input:not([type]),textarea{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 11px;outline:none;min-width:0}
+select{cursor:pointer}input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.btn{background:var(--card2);border:1px solid var(--line2);border-radius:9px;padding:8px 14px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+.btn:hover{border-color:#3b4760}.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}.btn.pri:hover{filter:brightness(1.12)}
+.btn.ghost{background:none;border-color:transparent;color:var(--blue)}.btn:disabled{opacity:.45;cursor:default}.btn.sm{padding:5px 10px;font-size:12.5px}.btn.danger{color:var(--bad);border-color:#ff5d7055}
+.lnk{background:none;border:0;color:var(--blue);cursor:pointer;font-size:12.5px;padding:0}
+kbd{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:var(--card3);border:1px solid var(--line2);border-radius:5px;padding:1px 5px;color:var(--muted)}kbd.inv{background:#ffffff26;border-color:#ffffff33;color:#fff}
+/* cards & KPIs */
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;min-width:0}
+.ch{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
-.kpi .l{color:var(--muted);font-size:12.5px}.kpi .v{font-size:30px;font-weight:700;margin:10px 0 6px;font-variant-numeric:tabular-nums}
-.delta{font-size:12px;color:var(--muted)}.delta.up{color:var(--ok)}.delta.down{color:var(--bad)}
-.g2{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-top:12px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
-.empty{color:var(--muted);text-align:center;padding:34px 10px;border:1px dashed var(--line);border-radius:10px;font-size:13px}
-table{width:100%;border-collapse:collapse}td,th{padding:10px 8px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--muted);font-weight:500}
-tr.click{cursor:pointer}tr.click:hover td{background:var(--card2)}
-.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11.5px;background:var(--card2);color:var(--muted)}
-.pill.exported{background:#37c08a22;color:var(--ok)}.pill.reviewed{background:#4db5ff22;color:var(--blue)}.pill.analyzed{background:var(--accent-soft);color:#b7a0ff}
-.rec{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}.rec:last-child{border:0}.rec b{font-variant-numeric:tabular-nums}
-.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,12px);gap:3px}.heat i{width:12px;height:12px;border-radius:3px;background:var(--card2)}
-.bars{display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:10px}.bars div{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;min-width:0}
-.bars span{width:100%;max-width:38px;background:var(--accent);border-radius:4px 4px 0 0;min-height:2px}.bars small{color:var(--muted);font-size:11px;white-space:nowrap}
-.meter{height:8px;background:var(--card2);border-radius:6px;overflow:hidden}.meter span{display:block;height:100%;background:var(--accent)}
-/* review */
-.rv{display:grid;grid-template-columns:270px 1fr;height:100vh}
-.rv-side{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--side)}
-.rv-head{padding:16px;border-bottom:1px solid var(--line)}
-.secs{overflow:auto;padding:8px;flex:1}
-.sec{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:9px 10px;cursor:pointer;margin-bottom:2px}
-.sec:hover{background:var(--card2)}.sec.on{background:var(--accent-soft)}
-.sec .t{display:flex;justify-content:space-between;gap:6px}.sec .s{color:var(--muted);font-size:12px;margin-top:2px}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--line);display:inline-block;margin-right:7px;flex-shrink:0;align-self:center}.dot.ok{background:var(--ok)}.dot.part{background:var(--warn)}
-.rv-main{display:flex;flex-direction:column;min-width:0;min-height:0}
-.bar{padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.tabs{display:flex;gap:4px;background:var(--card2);padding:3px;border-radius:9px}.tabs button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--muted)}
-.tabs button.on{background:var(--card);color:var(--text);box-shadow:0 1px 2px #0004}
-.grid{flex:1;overflow:auto;padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tile,190px),1fr));gap:10px;align-content:start;grid-auto-rows:max-content}
-.tile{position:relative;border-radius:9px;overflow:hidden;background:var(--card);border:2px solid transparent;cursor:pointer;outline:none}
-.tile:focus-visible{border-color:var(--blue)}.tile.on{border-color:var(--accent)}
-.tile .im{aspect-ratio:3/2;background:#0b0d12 center/contain no-repeat;display:grid;place-items:center;color:var(--muted);font-size:12px}
-.tile.ctx .im{opacity:.55}.tile.on .im{opacity:1}
-.tile .cap{display:flex;justify-content:space-between;padding:6px 8px;font-size:11.5px;color:var(--muted);gap:6px}
-.tile .cap b{color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chk{position:absolute;top:7px;right:7px;width:22px;height:22px;border-radius:50%;border:2px solid #fff9;background:#0007;display:grid;place-items:center}
-.tile.on .chk{background:var(--accent);border-color:var(--accent)}.tile.on .chk:after{content:'';width:9px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
-.star{position:absolute;top:6px;left:8px;color:var(--gold);font-size:17px;text-shadow:0 1px 3px #000}
-.sug{position:absolute;top:8px;left:8px;background:#4db5ffdd;color:#04121f;border-radius:5px;font-size:10.5px;padding:1px 6px;font-weight:600}
-.star+.sug{left:30px}
-.more{position:absolute;right:7px;bottom:34px;width:26px;height:22px;border-radius:6px;border:0;background:#000a;color:#fff;cursor:pointer;font-size:15px;line-height:1;opacity:0;transition:opacity .1s}
-.tile:hover .more,.tile:focus-within .more,.tile .more.show{opacity:1}
-.menu{position:fixed;z-index:80;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px;min-width:230px;box-shadow:0 10px 30px #0008}
-.menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:7px;cursor:pointer}
-.menu button:hover{background:var(--card2)}.menu .bad{color:var(--bad)}.menu .h{color:var(--muted);font-size:12px;padding:6px 10px 4px}
-.other{position:absolute;bottom:34px;left:8px;background:#000b;color:#fff;font-size:10.5px;border-radius:5px;padding:1px 6px}
-.flag{position:absolute;bottom:34px;left:8px;background:#ef5d6bdd;color:#fff;font-size:10.5px;border-radius:5px;padding:1px 6px}
-.foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.warn{background:#f0b14a1f;color:var(--warn);border-radius:8px;padding:9px 12px;font-size:12.5px;margin:10px 18px 0}
-.err{background:#ef5d6b1f;color:var(--bad)}
-/* modal */
-.modal{position:fixed;inset:0;background:#000a;display:grid;place-items:center;z-index:50;padding:16px}
-.dlg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;width:min(620px,100%);max-height:92vh;overflow:auto}
+.kpi .v{font-size:28px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi .l{color:var(--muted);font-size:12.5px;margin-top:6px}.kpi .d{font-size:12.5px;margin-top:8px;color:var(--muted);font-variant-numeric:tabular-nums}
+.d.up{color:var(--ok)}.d.down{color:var(--bad)}
+.g2{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:12px}.g2e{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.minis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.mini{background:var(--card2);border-radius:11px;padding:12px 14px}.mini .v{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}.mini .l{color:var(--muted);font-size:12px;margin-top:4px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px;vertical-align:-1px}
+.legend i.ln{height:3px;border-radius:2px;width:14px;vertical-align:3px}
+.chart{width:100%;height:auto;display:block}.chart text{fill:var(--dim);font-size:11px;font-family:inherit}.chart .gl{stroke:var(--line);stroke-width:1}
+.empty{color:var(--muted);text-align:center;padding:34px 10px;border:1px dashed var(--line2);border-radius:11px;font-size:13px}
+.split{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center}
+.ll{display:grid;gap:9px;font-size:13px}.ll>div{display:grid;grid-template-columns:12px 1fr auto;gap:10px;align-items:center}.ll i{width:10px;height:10px;border-radius:3px}.ll b{font-weight:600;font-variant-numeric:tabular-nums}
+.hb{display:grid;gap:12px}.hb>div{display:grid;grid-template-columns:110px 1fr 130px;gap:12px;align-items:center;font-size:13px}.hb .tr{height:10px;background:var(--card3);border-radius:5px;overflow:hidden}.hb .tr span{display:block;height:100%;border-radius:5px;background:var(--accent)}.hb .vv{color:var(--muted);font-variant-numeric:tabular-nums}
+.rec{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.rec:last-child{border:0}.rec b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.recent{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rc{display:grid;grid-template-columns:52px 1fr;gap:12px;align-items:center;padding:8px;border-radius:11px;cursor:pointer;border:1px solid transparent}.rc:hover{background:var(--card2);border-color:var(--line)}
+.th{width:52px;height:52px;border-radius:9px;background:var(--card3) center/cover no-repeat}.rc .t{font-weight:550;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status{display:inline-flex;align-items:center;gap:7px;font-size:12.5px}.status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.status.exported::before{background:var(--ok)}.status.reviewed::before{background:var(--blue)}.status.analyzed::before,.status.imported::before{background:var(--warn)}
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);gap:3px;overflow-x:auto}.heat i{width:11px;height:11px;border-radius:3px;background:var(--card3)}
+/* next-step guide */
+.guide{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;background:linear-gradient(0deg,var(--accent-soft),var(--accent-soft)),var(--card);border:1px solid #7738ff55;border-radius:14px;padding:12px 16px}
+.guide .ic{width:34px;height:34px;border-radius:10px;background:var(--accent);display:grid;place-items:center;color:#fff;font-weight:700}
+.guide .gt{font-weight:600}.guide .gs{color:var(--muted);font-size:12.5px;margin-top:2px}
+.steps{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:6px;flex-wrap:wrap}.steps span{display:inline-flex;align-items:center;gap:6px}.steps span b{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--card3);font-size:11px;font-weight:600}
+.steps span.done b{background:var(--ok);color:#06150d}.steps span.cur{color:var(--text)}.steps span.cur b{background:var(--accent);color:#fff}.steps i{width:18px;height:1px;background:var(--line2)}
+.guide.warnc{border-color:#f3b44c66;background:linear-gradient(0deg,#f3b44c14,#f3b44c14),var(--card)}.guide.warnc .ic{background:var(--warn);color:#2a1b00}
+.guide.okc{border-color:#2fd18b66;background:linear-gradient(0deg,#2fd18b12,#2fd18b12),var(--card)}.guide.okc .ic{background:var(--ok);color:#06150d}
+.gx{background:none;border:0;color:var(--dim);cursor:pointer;font-size:18px;padding:0 4px}
+/* sub tabs */
+.subtabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:4px;width:max-content;max-width:100%;overflow-x:auto}
+.subtabs button{border:0;background:none;padding:7px 14px;border-radius:8px;cursor:pointer;color:var(--muted);white-space:nowrap}.subtabs button.on{background:var(--accent-soft);color:var(--text);box-shadow:inset 0 0 0 1px #7738ff66}
+/* tables */
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:760px}td,th{padding:10px 10px;text-align:left;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap}th{color:var(--muted);font-weight:500;font-size:12px}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}tr.click{cursor:pointer}tr.click:hover td{background:var(--card2)}
+td .tt{display:flex;align-items:center;gap:10px}td .th{width:36px;height:36px;border-radius:7px}
+/* settings, profile */
+.sl{display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start}
+.snav{display:grid;gap:2px;padding:8px}.snav button{text-align:left;border:0;background:none;padding:9px 12px;border-radius:9px;cursor:pointer;color:var(--muted)}.snav button.on{background:var(--accent-soft);color:var(--text)}.snav button:hover{color:var(--text)}
+.sg{display:grid;gap:4px;margin-bottom:22px}.sg h3{font-size:13px;margin:0 0 8px;font-weight:600}
+.sr2{display:grid;grid-template-columns:minmax(160px,1fr) minmax(0,260px);gap:14px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}.sr2 label{font-size:13px}.sr2 .h{color:var(--muted);font-size:12px;margin-top:2px}
+.sr2 input,.sr2 select{width:100%}
+.prof{display:grid;grid-template-columns:200px 1fr;gap:26px;align-items:start}.pph{width:200px;height:240px;border-radius:14px;background:var(--card3) center/cover;display:grid;place-items:center;font-size:56px;font-weight:700;color:var(--dim)}
+.pf2{display:grid;grid-template-columns:120px 1fr;gap:10px 16px;align-items:center;font-size:13.5px;margin-top:18px}.pf2 .k{color:var(--muted)}
+.soc{display:flex;gap:8px}.soc a,.soc span{width:34px;height:34px;border-radius:9px;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);font-size:12px;font-weight:700;text-decoration:none}
+.sw{width:26px;height:26px;border-radius:7px;border:2px solid transparent;cursor:pointer}.sw.on{border-color:var(--text)}
+/* dialogs */
+.modal{position:fixed;inset:0;background:#000b;display:grid;place-items:center;z-index:50;padding:16px}.modal.top{align-items:start;padding-top:12vh}
+.dlg{background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:22px;width:min(620px,100%);max-height:92vh;overflow:auto;box-shadow:0 20px 60px #000a}.dlg.wide{width:min(860px,100%)}
 .f{display:grid;gap:6px;margin-bottom:12px}.f label{color:var(--muted);font-size:12.5px}.f .row input{flex:1}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.seg{display:flex;background:var(--card2);border-radius:9px;padding:3px;margin-bottom:14px}.seg button{flex:1;border:0;background:none;padding:8px;border-radius:7px;cursor:pointer;color:var(--muted)}.seg button.on{background:var(--accent);color:#fff}
-.prog{height:6px;background:var(--card2);border-radius:4px;overflow:hidden;margin:10px 0}.prog span{display:block;height:100%;background:var(--blue);transition:width .2s}
-.lb{position:fixed;inset:0;background:#000e;z-index:60;display:grid;grid-template-rows:1fr auto;cursor:zoom-out}.lb img{max-width:100%;max-height:100%;object-fit:contain;margin:auto;display:block;align-self:center}
-.lb div{padding:12px 20px;color:#ccc;font-size:13px;text-align:center}
-.toast{position:fixed;bottom:18px;right:18px;background:var(--card);border:1px solid var(--line);padding:11px 15px;border-radius:10px;z-index:70;box-shadow:0 8px 30px #0006;max-width:420px}
-.stabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.stabs button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 12px;cursor:pointer;color:var(--muted)}.stabs button.on{border-color:var(--accent);color:var(--text)}
-.sw{width:26px;height:26px;border-radius:7px;border:2px solid transparent;cursor:pointer}.sw.on{border-color:var(--text)}
-kbd{background:var(--card2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11px}
-@media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.g2,.g3{grid-template-columns:1fr}.rv{grid-template-columns:1fr;height:auto}.rv-side{max-height:40vh}.grid{min-height:60vh}}
-@media(max-width:560px){.page{padding:18px 14px}.kpis{grid-template-columns:1fr}.two{grid-template-columns:1fr}}
-
-/* ---- review v2 ---- */
-.rv-head .ttl{font-weight:650;font-size:15px;letter-spacing:-.01em}
+.segw{display:flex;background:var(--card2);border-radius:10px;padding:3px;margin-bottom:14px}.segw button{flex:1;border:0;background:none;padding:8px;border-radius:8px;cursor:pointer;color:var(--muted)}.segw button.on{background:var(--accent);color:#fff}
+.prog{height:6px;background:var(--card3);border-radius:4px;overflow:hidden;margin:10px 0}.prog span{display:block;height:100%;background:var(--blue);transition:width .2s}
+.warn{background:#f3b44c1a;color:var(--warn);border-radius:10px;padding:9px 12px;font-size:12.5px}.err{background:#ff5d701a;color:var(--bad)}
+.toast{position:fixed;bottom:18px;right:18px;background:var(--card3);border:1px solid var(--line2);padding:11px 15px;border-radius:11px;z-index:90;box-shadow:0 8px 30px #0008;max-width:420px;animation:tin .18s ease}
+@keyframes tin{from{transform:translateY(8px);opacity:0}}
+.meter{height:6px;background:var(--card3);border-radius:6px;overflow:hidden}.meter span{display:block;height:100%;background:var(--accent);border-radius:6px}
+/* review */
+.rv{display:grid;grid-template-columns:280px 1fr;height:100vh}
+.rv-side{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--side)}
+.rv-head{padding:16px;border-bottom:1px solid var(--line)}.rv-head .ttl{font-weight:650;font-size:15px}
 .srch{position:relative;margin-top:12px}.srch input{width:100%;padding-right:62px}.srch kbd{position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none}
+.secs{overflow:auto;padding:8px;flex:1}
 .grp{border-radius:10px;margin-bottom:2px}.grp.act{background:var(--card2)}
-.gh{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:default}.gh[onclick]{cursor:pointer}
+.gh{display:flex;align-items:center;gap:8px;padding:8px 10px}.gh[onclick]{cursor:pointer}
 .gh .gt{flex:1;font-weight:550;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gh .gn{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
-.st{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-size:10px;flex-shrink:0;color:#fff}
-.st.part{border-color:var(--warn)}.st.ok{background:var(--ok);border-color:var(--ok)}
+.st{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;font-size:10px;flex-shrink:0;color:#06150d}.st.part{border-color:var(--warn)}.st.ok{background:var(--ok);border-color:var(--ok)}
 .iss{width:16px;height:16px;border-radius:50%;background:var(--bad);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;cursor:help}
 .sr{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;padding:6px 10px 6px 34px;border-radius:8px;cursor:pointer;color:var(--muted);text-align:left;font-size:13px}
 .sr .mut{margin-left:auto;font-variant-numeric:tabular-nums}.sr:hover{color:var(--text)}.sr.on{color:var(--text);background:var(--accent-soft)}
-.sr .dot{margin:0}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--line2);flex-shrink:0}.dot.ok{background:var(--ok)}.dot.part{background:var(--warn)}
 .sidefoot{padding:10px;border-top:1px solid var(--line);display:grid;gap:6px}
-.bar .h1{font-size:18px;font-weight:650;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .h1 span{color:var(--muted);font-weight:400;font-size:14px;margin-left:6px}
-.tabs button b{font-weight:500;color:var(--muted);margin-left:2px;font-variant-numeric:tabular-nums}.tabs button.on b{color:var(--text)}
-.seg2{display:flex;background:var(--card2);border-radius:8px;padding:3px}.seg2 button{border:0;background:none;color:var(--muted);padding:5px 9px;border-radius:6px;cursor:pointer;font-size:12px}.seg2 button.on{background:var(--card);color:var(--text)}
-.notes:empty{display:none}.notes .warn{margin:10px 18px 0}
-.warn.info{background:var(--card2);color:var(--muted)}.warn.acc{background:var(--accent-soft);color:var(--text);display:flex;align-items:center;gap:10px;flex-wrap:wrap}.warn.okb{background:#37c08a1f;color:var(--ok);margin:0}
+.rv-main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.crumbs{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);padding:14px 20px 0}.crumbs b{color:var(--text);font-weight:500}.crumbs a{color:var(--muted);cursor:pointer}.crumbs a:hover{color:var(--text)}
+.bar{padding:10px 20px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.bar .h1{font-size:19px;font-weight:650;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .h1 span{color:var(--muted);font-weight:400;font-size:14px;margin-left:6px}
+.tabs{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);padding:3px;border-radius:10px}
+.tabs button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--muted);font-size:13px;white-space:nowrap}.tabs button.on{background:var(--accent);color:#fff}
+.tabs button b{font-weight:500;opacity:.75;margin-left:3px;font-variant-numeric:tabular-nums}
+.seg2{display:flex;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px}.seg2 button{border:0;background:none;color:var(--muted);padding:5px 9px;border-radius:6px;cursor:pointer;font-size:12px}.seg2 button.on{background:var(--card3);color:var(--text)}
+.notes:empty{display:none}.notes{display:grid;gap:6px;padding:10px 20px 0}.notes .warn{padding:7px 12px}
+.warn.info{background:var(--card2);color:var(--muted)}.warn.acc{background:var(--accent-soft);color:var(--text);display:flex;align-items:center;gap:10px;flex-wrap:wrap}.warn.okb{background:#2fd18b1a;color:var(--ok)}
 .path{word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:12px;opacity:.85}
-.btn.sm{padding:4px 10px;font-size:12.5px}.btn.danger{color:var(--bad);border-color:#ef5d6b55}
-kbd{font-family:ui-monospace,Consolas,monospace;color:var(--muted)}kbd.inv{background:#ffffff26;border-color:#ffffff33;color:#fff}
-.tile{transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease}.tile:hover{transform:translateY(-1px)}
-.tile.fc{box-shadow:0 0 0 2px var(--blue)}.tile.on{box-shadow:0 0 0 1px var(--accent)}.tile.on.fc{box-shadow:0 0 0 2px var(--blue),0 0 0 4px var(--accent)}
-.tile .im{background-color:var(--card2);transition:opacity .25s ease}.tile .im[data-src]:not(.ld){animation:pulse 1.2s ease-in-out infinite}
-.tile .cap .role{color:var(--gold);font-weight:600}
-@keyframes pulse{50%{opacity:.55}}
-.skel{background:var(--card2);border-radius:10px;animation:pulse 1.2s ease-in-out infinite}
-.hint{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.hint kbd{margin-left:6px}
-.lnk{background:none;border:0;color:var(--blue);cursor:pointer;font-size:12px;padding:0 0 0 6px}
-.savest{font-size:12px;color:var(--muted);min-width:90px;text-align:right}.savest.ok{color:var(--ok)}.savest.bad{color:var(--bad)}
-.menu button{display:flex;justify-content:space-between;gap:14px;align-items:center}
+.grid{flex:1;overflow:auto;padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tile,200px),1fr));gap:12px;align-content:start;grid-auto-rows:max-content}
+.tile{position:relative;border-radius:11px;overflow:hidden;background:var(--card);border:1px solid var(--line);cursor:pointer;outline:none;transition:transform .12s ease,box-shadow .12s ease}
+.tile:hover{transform:translateY(-1px);border-color:var(--line2)}
+.tile .im{aspect-ratio:4/3;background:#06080c center/contain no-repeat;display:grid;place-items:center;color:var(--muted);font-size:12px;transition:opacity .25s ease}
+.tile .im[data-src]:not(.ld){background-color:var(--card2);animation:pulse 1.2s ease-in-out infinite}
+.tile.ctx .im{opacity:.6}.tile.on .im{opacity:1}
+.tile.on{box-shadow:0 0 0 2px var(--accent);border-color:var(--accent)}.tile.fc{box-shadow:0 0 0 2px var(--blue)}.tile.on.fc{box-shadow:0 0 0 2px var(--blue),0 0 0 4px var(--accent)}
+.tile .cap{display:flex;justify-content:space-between;padding:7px 9px;font-size:11.5px;color:var(--muted);gap:6px}.tile .cap b{color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile .cap .role{color:var(--gold);font-weight:600}
+.chk{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;border:2px solid #ffffffb0;background:#0006;display:grid;place-items:center}
+.tile.on .chk{background:var(--accent);border-color:#fff}.tile.on .chk:after{content:'';width:9px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.star{position:absolute;top:7px;left:8px;width:22px;height:22px;border-radius:6px;background:#0008;color:var(--gold);font-size:14px;display:grid;place-items:center}
+.sug{position:absolute;top:9px;left:8px;background:#4db5ffe6;color:#04121f;border-radius:6px;font-size:10.5px;padding:2px 7px;font-weight:600}
+.flag{position:absolute;bottom:38px;left:8px;background:#ff5d70e6;color:#fff;font-size:10.5px;border-radius:6px;padding:2px 7px}
+.other{position:absolute;bottom:38px;left:8px;background:#000b;color:#fff;font-size:10.5px;border-radius:6px;padding:2px 7px}
+.more{position:absolute;right:8px;bottom:38px;width:28px;height:24px;border-radius:7px;border:0;background:#000b;color:#fff;cursor:pointer;font-size:15px;line-height:1;opacity:0;transition:opacity .1s}
+.tile:hover .more,.tile:focus-within .more,.tile .more.show{opacity:1}
+.foot{padding:12px 20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--side)}
+.kitsum{display:flex;align-items:center;gap:12px}.kitsum .ki{width:38px;height:38px;border-radius:10px;background:var(--card2);display:grid;place-items:center;color:var(--accent)}
+.kitsum b{font-size:14px}.hint{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.savest{font-size:12px;color:var(--muted);min-width:80px;text-align:right}.savest.ok{color:var(--ok)}.savest.bad{color:var(--bad)}
+.menu{position:fixed;z-index:80;background:var(--card3);border:1px solid var(--line2);border-radius:11px;padding:5px;min-width:240px;box-shadow:0 10px 30px #0009}
+.menu button{display:flex;justify-content:space-between;gap:14px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:7px;cursor:pointer}
+.menu button:hover{background:var(--card2)}.menu .bad{color:var(--bad)}.menu .h{color:var(--muted);font-size:12px;padding:6px 10px 4px}
+@keyframes pulse{50%{opacity:.55}}.skel{background:var(--card2);border-radius:12px;animation:pulse 1.2s ease-in-out infinite}
 /* viewer */
-.vw{position:fixed;inset:0;z-index:60;background:#07090d;display:grid;grid-template-rows:auto 1fr auto;color:#eef1f7}
-.vtop{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #1d2330;flex-wrap:wrap}
-.vw .btn{background:#1a2030;border-color:#2a3242;color:#eef1f7}.vw .btn.pri{background:var(--accent);border-color:var(--accent)}.vw .mut{color:#8d97a8}
+.vw{position:fixed;inset:0;z-index:60;background:#05070b;display:grid;grid-template-rows:auto 1fr auto;color:#eef1f7}
+.vtop{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #1a2130;flex-wrap:wrap}
+.vw .btn{background:#161d2b;border-color:#283246;color:#eef1f7}.vw .btn.pri{background:var(--accent);border-color:var(--accent)}.vw .mut{color:#8a94a8}
 .vstage{min-height:0;display:flex;gap:6px;padding:10px;overflow:hidden}.vstage.zoom{overflow:auto;cursor:zoom-out;display:block}
-.vf{margin:0;flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;cursor:zoom-in;position:relative;border-radius:8px}
+.vf{margin:0;flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;cursor:zoom-in;border-radius:8px}
 .vf img{max-width:100%;max-height:calc(100vh - 230px);object-fit:contain;border-radius:4px;box-shadow:0 10px 40px #000}
-.vstage.two .vf{border:2px solid transparent;padding:6px}.vstage.two .vf.on{border-color:var(--accent)}.vstage.two .vf+.vf{cursor:pointer}
+.vstage.two .vf{border:2px solid transparent;padding:6px}.vstage.two .vf.on{border-color:var(--accent)}
 .vstage.zoom .vf{display:block}.vstage.zoom .vf img{max-width:none;max-height:none}.vstage.zoom figcaption{display:none}
 .vf figcaption{font-size:12.5px;color:#aab3c3;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
-.rb{background:#ffcc4d22;color:var(--gold);padding:1px 8px;border-radius:20px;font-weight:600}.sb{background:var(--accent);color:#fff;padding:1px 8px;border-radius:20px}
-.vnav{position:fixed;top:50%;transform:translateY(-50%);width:44px;height:64px;border:0;border-radius:10px;background:#ffffff12;color:#fff;font-size:30px;cursor:pointer}.vnav:hover{background:#ffffff26}.vnav.l{left:12px}.vnav.r{right:12px}
-.vbar{border-top:1px solid #1d2330;padding:10px 16px;display:grid;gap:10px}
-.strip{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px}.strip img{height:54px;border-radius:4px;opacity:.5;cursor:pointer;border:2px solid transparent;flex-shrink:0}
-.strip img.on{opacity:.85;border-color:var(--accent)}.strip img.cur{opacity:1;border-color:#fff}
-/* palette, help */
-.modal.top{align-items:start;padding-top:12vh}
-.pal{width:min(620px,100%);background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px #000a}
+.rb{background:#ffc94022;color:var(--gold);padding:1px 8px;border-radius:20px;font-weight:600}.sb{background:var(--accent);color:#fff;padding:1px 8px;border-radius:20px}
+.pill{background:var(--card3);border-radius:20px;padding:2px 9px;font-size:12px}
+.vnav{position:fixed;top:50%;transform:translateY(-50%);width:44px;height:64px;border:0;border-radius:11px;background:#ffffff12;color:#fff;font-size:30px;cursor:pointer}.vnav:hover{background:#ffffff26}.vnav.l{left:12px}.vnav.r{right:12px}
+.vbar{border-top:1px solid #1a2130;padding:10px 16px;display:grid;gap:10px}
+.strip{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px}.strip img{height:54px;border-radius:5px;opacity:.5;cursor:pointer;border:2px solid transparent;flex-shrink:0}.strip img.on{opacity:.85;border-color:var(--accent)}.strip img.cur{opacity:1;border-color:#fff}
+/* palette, help, preflight */
+.pal{width:min(620px,100%);background:var(--card);border:1px solid var(--line2);border-radius:15px;overflow:hidden;box-shadow:0 20px 60px #000a}
 .pal input{width:100%;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:16px 18px;font-size:16px;background:var(--card)}
 #pall{max-height:50vh;overflow:auto;padding:6px}.pi{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border-radius:8px;cursor:pointer}.pi.on{background:var(--accent-soft)}
-.pk{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:1px 6px;align-self:center}
+.pk{font-size:11px;color:var(--muted);border:1px solid var(--line2);border-radius:5px;padding:1px 6px;align-self:center}
 .palf{display:flex;gap:16px;padding:8px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
-.dlg.wide{width:min(860px,100%)}.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}.kh{font-weight:600;margin-bottom:8px}
-.kr{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}.kr>span:last-child{color:var(--muted);text-align:right}
-/* export preflight */
-.pf{border:1px solid var(--line);border-radius:10px;margin-bottom:14px;overflow:hidden}.pf.okk{border-color:#37c08a66}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}.kh{font-weight:600;margin-bottom:8px}.kr{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}.kr>span:last-child{color:var(--muted);text-align:right}
+.pf{border:1px solid var(--line2);border-radius:11px;margin-bottom:14px;overflow:hidden}.pf.okk{border-color:#2fd18b66}
 .pfh{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;font-weight:600;background:var(--card2);flex-wrap:wrap}.pf.okk .pfh{color:var(--ok)}
 .pfl{max-height:200px;overflow:auto}.pfi{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:8px 12px;font-size:13px;cursor:pointer}
-.pfi:hover{background:var(--card2)}.pfi .lv{width:8px;height:8px;border-radius:50%;flex-shrink:0}.pfi.lv-bad .lv{background:var(--bad)}.pfi.lv-warn .lv{background:var(--warn)}.pfi.lv-info .lv{background:var(--blue)}
-.pfi .go{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
-@media(max-width:1000px){.keys{grid-template-columns:1fr}.hint{display:none}}
+.pfi:hover{background:var(--card2)}.pfi .lv{width:8px;height:8px;border-radius:50%;flex-shrink:0}.pfi.lv-bad .lv{background:var(--bad)}.pfi.lv-warn .lv{background:var(--warn)}.pfi.lv-info .lv{background:var(--blue)}.pfi .go{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+.coach{position:fixed;z-index:70;background:var(--accent);color:#fff;border-radius:11px;padding:10px 12px;font-size:13px;max-width:280px;box-shadow:0 10px 30px #0008}.coach button{background:#ffffff2e;border:0;color:#fff;border-radius:6px;padding:3px 9px;margin-top:8px;cursor:pointer;font-size:12px}
+@media(max-width:1200px){.recent{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1000px){.kpis,.minis{grid-template-columns:repeat(2,minmax(0,1fr))}.g2,.g2e,.sl,.prof{grid-template-columns:1fr}.rv{grid-template-columns:1fr;height:auto}.rv-side{max-height:45vh}.grid{min-height:60vh}.keys{grid-template-columns:1fr}.hint{display:none}.split{grid-template-columns:1fr}.guide{grid-template-columns:auto 1fr}.guide>.row{grid-column:1/-1}}
+@media(max-width:560px){.page{padding:16px 14px}.kpis,.minis,.recent{grid-template-columns:1fr}.two{grid-template-columns:1fr}.hb>div{grid-template-columns:80px 1fr}.hb .vv{grid-column:2}.pph{width:100%}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -168,97 +197,201 @@ kbd{font-family:ui-monospace,Consolas,monospace;color:var(--muted)}kbd.inv{backg
 <script>
 const I={
  home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
- shoot:'<rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/>',
- perf:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
- qual:'<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/>',
- ai:'<path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M6 18l2-2M16 8l2-2"/><circle cx="12" cy="12" r="3"/>',
- flow:'<circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h7a3 3 0 0 1 0 6H10a3 3 0 0 0 0 6h7"/>',
- hist:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+ shoot:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+ chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+ hist:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
  set:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
- plus:'<path d="M12 5v14M5 12h14"/>'};
+ plus:'<path d="M12 5v14M5 12h14"/>',kit:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5l2 2 4-4"/>'};
 const ico=n=>`<svg class="i" viewBox="0 0 24 24">${I[n]}</svg>`;
-const PAGES=[['overview','Обзор','home'],['shoot','Текущая съёмка','shoot'],['perf','Производительность','perf'],['quality','Качество','qual'],['ai','Автоотбор','ai'],['flow','Рабочий процесс','flow'],['history','История съёмок','hist'],['settings','Настройки','set']];
+const PAGES=[['overview','Обзор','home'],['shoot','Текущая съёмка','shoot'],['analytics','Аналитика','chart'],['history','История съёмок','hist'],['settings','Настройки','set']];
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt=n=>n==null?'—':Number(n).toLocaleString('ru-RU');
-const MONTHS=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
-let S={page:'overview',stats:null,cfg:null,sid:localStorage.getItem('fobox.sid')||'',sess:null,sec:0,tab:'all',sel:new Set(),dirty:false,period:'all'};
-async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({error:'Ошибка сервера'}));if(!r.ok)throw Error(j.error||'Ошибка');return j}
-function toast(t,bad){const d=document.createElement('div');d.className='toast';if(bad)d.style.borderColor='var(--bad)';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),bad?6000:2800)}
-function side(){const p=S.cfg?.profile||{};const ini=(p.name||'Ф').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
- $('#side').innerHTML=`<div class="brand" onclick="$('#side').classList.toggle('open')"><span class="logo">F</span><span>FOBOX 4.0</span></div>
- <nav><button class="nb new" onclick="importDlg()">${ico('plus')}<span>Новая съёмка</span></button>${PAGES.map(([k,t,i])=>`<button class="nb ${S.page===k?'on':''}" title="${t}" onclick="go('${k}')">${ico(i)}<span>${t}</span></button>`).join('')}</nav>
- <div class="sp"></div><button class="nb me" onclick="go('settings','Профиль')"><span class="av">${esc(ini)}</span><span>${esc(p.name||'Профиль фотографа')}</span></button>`}
-function go(p,sub){S.page=p;S.sub=sub;$('#side').classList.remove('open');side();render()}
-async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;side();render()}
-function applyTheme(){const s=S.cfg.settings;document.documentElement.style.setProperty('--accent',s.accent);document.documentElement.style.setProperty('--accent-soft',s.accent+'26');document.documentElement.dataset.theme=s.theme}
-function render(){const m=$('#main');if(S.page==='shoot')return renderShoot();const f={overview,perf,quality,ai,flow,history,settings}[S.page];m.innerHTML='<div class="page">'+f()+'</div>';if(S.page==='settings')bindSettings()}
-const head=(t,sub,right='')=>`<div class="top"><div><h1>${t}</h1><div class="mut">${sub}</div></div><div class="row">${right}</div></div>`;
-const kpi=(l,v,d='')=>`<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="delta ${d.cls||''}">${d.t||'&nbsp;'}</div></div>`;
-const empty=t=>`<div class="empty">${t}</div>`;
-const NODATA='Нет данных — импортируйте съёмку';
-// ---------- period filtering
-function periodRange(p,shift=0){const n=new Date();if(p==='month'){const a=new Date(n.getFullYear(),n.getMonth()-shift,1),b=new Date(n.getFullYear(),n.getMonth()-shift+1,1);return[a,b]}if(p==='year'){return[new Date(n.getFullYear()-shift,0,1),new Date(n.getFullYear()-shift+1,0,1)]}return[new Date(0),new Date(9e12)]}
-const iso=d=>d.toISOString().slice(0,10);
-function agg(p,shift){const [a,b]=periodRange(p,shift),A=iso(a),B=iso(b);const ss=S.stats.sessions.filter(s=>s.shoot_date&&s.shoot_date>=A&&s.shoot_date<B);
- return{sessions:ss.length,frames:ss.reduce((x,s)=>x+s.frames,0),hours:ss.some(s=>s.hours!=null)?ss.reduce((x,s)=>x+(s.hours||0),0):null,students:ss.reduce((x,s)=>x+s.students,0)}}
-function delta(cur,prev,key){if(S.period==='all')return{t:'За всё время'};const p=prev[key],c=cur[key];if(!p||c==null)return{t:'Нет данных для сравнения'};const d=c-p,pc=Math.round(d/p*100);return{t:`${d>=0?'+':''}${fmt(Math.round(d*10)/10)} (${pc>=0?'+':''}${pc}%) к ${S.period==='month'?'прошлому месяцу':'прошлому году'}`,cls:d>0?'up':d<0?'down':''}}
-function overview(){const st=S.stats;if(!st.sessions.length)return head('Обзор','Локальная статистика по вашим съёмкам')+onboarding();
- const cur=agg(S.period,0),prev=agg(S.period,1);
- const sel=`<select onchange="S.period=this.value;render()">${[['month','Этот месяц'],['year','Этот год'],['all','Всё время']].map(([v,t])=>`<option value="${v}" ${S.period===v?'selected':''}>${t}</option>`).join('')}</select>`;
- const note=S.period==='month'?'<div class="mut" style="margin:-12px 0 14px">Текущий месяц неполный — сравнение с полным прошлым месяцем.</div>':'';
- return head('Обзор','Локальная статистика по вашим съёмкам',sel)+note+`<div class="kpis">${kpi('Проведено съёмок',fmt(cur.sessions),delta(cur,prev,'sessions'))}${kpi('Отснято кадров',fmt(cur.frames),delta(cur,prev,'frames'))}${kpi('Часы съёмок <span class="mut">(по EXIF)</span>',cur.hours==null?'—':fmt(Math.round(cur.hours*10)/10),delta(cur,prev,'hours'))}${kpi('Готовые комплекты',fmt(st.kits),{t:'Ученики с подтверждёнными портретами и друзьями'})}</div>
- <div class="g2"><div class="card"><h2>Кадры по месяцам</h2>${monthBars()}</div><div class="card"><h2>Рекорды</h2>${records()}</div></div>
- <div class="g2"><div class="card"><h2>Последние съёмки</h2>${sessTable(st.sessions.slice(0,6))}</div><div class="card"><h2>Календарь активности</h2>${heat()}</div></div>`}
-function onboarding(){return `<div class="card" style="padding:30px"><h2 style="font-size:18px">С чего начать</h2><div class="g3" style="margin-top:6px">
- ${[['1. Новая съёмка','Укажите папку с карты или диска. FOBOX прочитает RAW и JPEG, время съёмки и разобьёт кадры на серии. Исходники не меняются.'],['2. Отбор','Программа отметит пустые, тёмные, нерезкие кадры и дубли и сама предложит лучшие. Вы кликами правите выбор и подтверждаете.'],['3. Экспорт','Подтверждённые кадры копируются в новую папку заказа. Статистика на этой странице считается автоматически.']].map(([t,d])=>`<div><b>${t}</b><p class="mut" style="line-height:1.55">${d}</p></div>`).join('')}
- </div><button class="btn pri" onclick="importDlg()" style="margin-top:8px">Импортировать первую съёмку</button></div>`}
-function monthBars(){const m=S.stats.months,ks=Object.keys(m).slice(-12);if(!ks.length)return empty(NODATA);const mx=Math.max(...ks.map(k=>m[k].frames),1);
- return `<div class="bars">${ks.map(k=>`<div title="${k}: ${m[k].frames} кадров, ${m[k].sessions} съёмок"><small>${fmt(m[k].frames)}</small><span style="height:${Math.max(2,m[k].frames/mx*110)}px"></span><small>${MONTHS[+k.slice(5)-1]} ${k.slice(2,4)}</small></div>`).join('')}</div>`}
-function heat(){const d=S.stats.days,days=Object.keys(d);if(!days.length)return empty(NODATA);const end=new Date(),start=new Date();start.setDate(end.getDate()-7*26-end.getDay());const mx=Math.max(...Object.values(d));let cells='';
- for(let x=new Date(start);x<=end;x.setDate(x.getDate()+1)){const k=iso(x),v=d[k]||0;cells+=`<i title="${k}: ${v} кадров" style="${v?`background:var(--accent);opacity:${.25+.75*v/mx}`:''}"></i>`}
- return `<div class="heat">${cells}</div><div class="mut" style="margin-top:10px">Последние 26 недель · ярче — больше кадров</div>`}
-function records(){const r=S.stats.records;const rows=[['Самая длинная съёмка',r.longest&&`${r.longest.value} ч`,r.longest&&`${esc(r.longest.title)}, ${r.longest.date}`],['Больше всего кадров за день',r.max_day&&fmt(r.max_day.value),r.max_day&&r.max_day.date],['Самый активный месяц',r.active_month&&fmt(r.active_month.value)+' кадр.',r.active_month&&r.active_month.month],['Самый большой класс',r.biggest_class&&r.biggest_class.value+' уч.',r.biggest_class&&`${esc(r.biggest_class.title)}`]];
- return rows.map(([t,v,s])=>`<div class="rec"><div>${t}<div class="mut">${s||'Нет данных'}</div></div><b>${v||'—'}</b></div>`).join('')+'<div class="mut" style="margin-top:8px">Длительность — интервал между первым и последним кадром по EXIF, не активное время.</div>'}
+const fmt=n=>n==null||Number.isNaN(n)?'—':Number(n).toLocaleString('ru-RU');
+const MONTHS=['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+const MON=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
 const ALAB={V:'Виньетка',P1:'ЛР',P2:'ЛС',D1:'Друг 1',D2:'Друг 2',T:'Учитель'};
-const STATUS={imported:'Импортирована',analyzed:'Проверена',reviewed:'Отобрана',exported:'Экспортирована'};
-function sessTable(list,full){if(!list.length)return empty(NODATA);return `<table><tr><th>Дата</th><th>Съёмка</th>${full?'<th>Тип</th><th>Ученики</th>':''}<th>Кадры</th>${full?'<th>Длит.</th>':''}<th>Статус</th></tr>${list.map(s=>`<tr class="click" onclick="openSess('${s.id}')"><td>${s.shoot_date||'—'}</td><td>${esc(s.title)}${full&&s.location?`<div class="mut">${esc(s.location)}</div>`:''}</td>${full?`<td>${s.mode==='school'?'Школа':'Обычная'}</td><td>${s.students||'—'}</td>`:''}<td>${fmt(s.frames)}</td>${full?`<td>${s.hours==null?'—':s.hours+' ч'}</td>`:''}<td><span class="pill ${s.status}">${STATUS[s.status]||s.status}</span></td></tr>`).join('')}</table>`}
-function perf(){const ss=S.stats.sessions.filter(s=>s.hours>0.05);const fph=ss.length?Math.round(ss.reduce((a,s)=>a+s.frames,0)/ss.reduce((a,s)=>a+s.hours,0)):null;
- const days=new Set(S.stats.sessions.map(s=>s.shoot_date).filter(Boolean)).size,sch=S.stats.sessions.filter(s=>s.students);
- return head('Производительность','Считается по EXIF-времени кадров')+`<div class="kpis">${kpi('Кадров в час',fmt(fph))}${kpi('Съёмок в день',days?(S.stats.sessions.length/days).toFixed(1):'—')}${kpi('Учеников за съёмку',sch.length?Math.round(sch.reduce((a,s)=>a+s.students,0)/sch.length):'—')}${kpi('Средняя длительность',ss.length?(ss.reduce((a,s)=>a+s.hours,0)/ss.length).toFixed(1)+' ч':'—')}</div>
- <div class="card" style="margin-top:12px"><h2>Кадров в час по съёмкам</h2>${ss.length?bars(ss.slice(0,12).reverse().map(s=>[s.shoot_date?.slice(5)||'', Math.round(s.frames/s.hours),s.title])):empty(NODATA)}</div>`}
-function bars(rows){const mx=Math.max(...rows.map(r=>r[1]),1);return `<div class="bars">${rows.map(([l,v,t])=>`<div title="${esc(t||l)}: ${v}"><small>${fmt(v)}</small><span style="height:${Math.max(2,v/mx*110)}px"></span><small>${esc(l)}</small></div>`).join('')}</div>`}
-const FL={white:'Пустые белые',black:'Пустые чёрные',over:'Пересветы',under:'Недодержка',blur:'Нерезкие',dup:'Дубли'};
-function quality(){const st=S.stats,f=st.flags,an=st.analyzed;if(!st.pillow)return head('Качество','')+empty('Проверка качества недоступна: установите Pillow командой <kbd>py -m pip install pillow</kbd> и перезапустите.');
- if(!an)return head('Качество','Технические проблемы кадров')+empty(NODATA);const pc=n=>an?((n||0)/an*100).toFixed(1)+'%':'—';
- return head('Качество',`Проверено ${fmt(an)} кадров. Проблемные кадры не удаляются — они попадают во вкладку «На проверку».`)+`<div class="kpis">${kpi('Нерезкие',fmt(f.blur||0),{t:pc(f.blur)})}${kpi('Дубли',fmt(f.dup||0),{t:pc(f.dup)})}${kpi('Пересветы / недодержка',fmt((f.over||0)+(f.under||0)),{t:pc((f.over||0)+(f.under||0))})}${kpi('Технический брак',fmt((f.white||0)+(f.black||0)),{t:'Пустые белые и чёрные кадры'})}</div>
- <div class="card" style="margin-top:12px"><h2>Причины отметок</h2>${Object.keys(FL).map(k=>`<div class="rec"><div style="flex:1">${FL[k]}<div class="meter" style="margin-top:6px;max-width:520px"><span style="width:${Math.min(100,(f[k]||0)/Math.max(1,...Object.values(f))*100)}%"></span></div></div><b>${fmt(f[k]||0)}</b></div>`).join('')}</div>`}
-function ai(){const s=S.stats.selection;const rate=s.sections_approved?Math.round(s.sections_untouched/s.sections_approved*100)+'%':'—';
- return head('Автоотбор','Как часто вы соглашаетесь с предложениями программы. Сейчас это эвристика (резкость + непохожесть кадров), распознавание лиц — следующий этап.')+`<div class="kpis">${kpi('Предложено',fmt(s.suggested))}${kpi('Оставлено в подтверждённых',fmt(s.accepted))}${kpi('Снято вручную',fmt(s.replaced))}${kpi('Секций без правок',rate,{t:`${s.sections_untouched} из ${s.sections_approved} подтверждённых`})}</div>
- <div class="card" style="margin-top:12px"><h2>Добавлено вручную</h2><div class="kpi"><div class="v">${fmt(s.manual_added)}</div><div class="mut">кадров, которые вы выбрали сами сверх предложенных и обязательных</div></div></div>`}
-function flow(){const w=S.stats.workflow,t=v=>v==null?'—':v<90?Math.round(v)+' с':(v/60).toFixed(1)+' мин';
- return head('Рабочий процесс','Время этапов измеряется с момента начала использования 4.0-alpha.2; старые съёмки этого не восстановят')+`<div class="kpis">${kpi('Импорт',t(w.import_sec),{t:'среднее на съёмку'})}${kpi('Проверка качества',t(w.analysis_sec),{t:'среднее на съёмку'})}${kpi('Проверка секции',t(w.review_per_section_sec),{t:'между подтверждениями'})}${kpi('Экспорт',t(w.export_sec),{t:'среднее на съёмку'})}</div>
- <div class="card" style="margin-top:12px"><h2>Объём RAW</h2><div class="kpi"><div class="v">${fmt(S.stats.raw)}</div><div class="mut">RAW-файлов в каталоге из ${fmt(S.stats.files)} кадров</div></div></div>`}
-function history(){return head('История съёмок','Нажмите строку, чтобы открыть отбор')+`<div class="card">${sessTable(S.stats.sessions,true)}</div>`}
+const STATUS={imported:'Импортирована',analyzed:'В отборе',reviewed:'Отобрана',exported:'Готово'};
+let S={page:'overview',sub:null,stats:null,cfg:null,sid:'',sess:null,sec:0,tab:'all',sel:new Set(),period:'month',anchor:new Date(),cmp:'prev',atab:'perf',undo:[]};
+try{S.sid=localStorage.getItem('fobox.sid')||''}catch(e){}
+async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({error:'Ошибка сервера'}));if(!r.ok)throw Error(j.error||'Ошибка');return j}
+function toast(t,bad){const d=document.createElement('div');d.className='toast';if(bad)d.style.borderColor='var(--bad)';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),bad?6000:2600)}
+function fdate(d){if(!d)return'—';const [y,m,dd]=d.slice(0,10).split('-');return (S.cfg?.settings?.date_format==='yyyy-mm-dd')?`${y}-${m}-${dd}`:`${dd}.${m}.${y}`}
+const dur=h=>h==null?'—':h<1?Math.round(h*60)+' мин':`${Math.floor(h)} ч ${Math.round(h%1*60)} мин`;
+const secs=v=>v==null?'—':v<90?Math.round(v)+' с':v<5400?Math.round(v/60)+' мин':(v/3600).toFixed(1)+' ч';
+function initials(n){return (n||'Ф').split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,2).toUpperCase()}
+function avatarStyle(p){return p&&p.avatar?`style="background-image:url('${p.avatar}');color:transparent"`:''}
+function side(){const p=S.cfg?.profile||{};
+ $('#side').innerHTML=`<div class="brand" onclick="$('#side').classList.toggle('open')" title="Развернуть меню"><span class="logo">F</span><span class="bname">Fobo<b>X</b> 4.0</span></div>
+ <nav><button class="nb new" title="Новая съёмка" onclick="importDlg()">${ico('plus')}<span>Новая съёмка</span></button>${PAGES.map(([k,t,i])=>`<button class="nb ${S.page===k?'on':''}" title="${t}" onclick="go('${k}')">${ico(i)}<span>${t}</span></button>`).join('')}</nav>
+ <div class="sp"></div><button class="nb me" title="Профиль фотографа" onclick="go('settings','Профиль')"><span class="av" ${avatarStyle(p)}>${esc(initials(p.name))}</span><span>${esc(p.name||'Профиль фотографа')}</span></button>`}
+async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
+async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
+function applyTheme(){const s=S.cfg.settings;document.documentElement.style.setProperty('--accent',s.accent);document.documentElement.style.setProperty('--c1',s.accent);document.documentElement.style.setProperty('--accent-soft',s.accent+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
+function render(){document.querySelector('.coach')?.remove();const m=$('#main');if(S.page==='shoot')return renderShoot();const f={overview,analytics,history,settings}[S.page]||overview;m.innerHTML='<div class="page">'+f()+'</div>';if(S.page==='settings')bindSettings();hydrate()}
+function hydrate(){document.querySelectorAll('[data-bg]').forEach(el=>{const im=new Image();im.onload=()=>el.style.backgroundImage=`url('${el.dataset.bg}')`;im.src=el.dataset.bg})}
+const empty=t=>`<div class="empty">${t}</div>`;
+const head=(t,sub)=>`<div class="top"><div><h1>${t}</h1>${sub?`<div class="mut">${sub}</div>`:''}</div></div>`;
+const NODATA='Нет данных за этот период';
+// ---------- periods
+function rng(period,anchor,shift){const y=anchor.getFullYear(),m=anchor.getMonth();
+ if(period==='month'){const a=new Date(y,m-shift,1);return[a,new Date(a.getFullYear(),a.getMonth()+1,1)]}
+ if(period==='year'){return[new Date(y-shift,0,1),new Date(y-shift+1,0,1)]}return[new Date(2000,0,1),new Date(2100,0,1)]}
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function cmpRange(){if(S.period==='all')return null;if(S.period==='month'&&S.cmp==='year')return rng('month',new Date(S.anchor.getFullYear()-1,S.anchor.getMonth(),1),0);return rng(S.period,S.anchor,1)}
+function inR(d,r){return d&&r&&d>=iso(r[0])&&d<iso(r[1])}
+function agg(r){const ss=r?S.stats.sessions.filter(s=>inR(s.shoot_date,r)):[];const sum=k=>ss.reduce((a,s)=>a+(s[k]||0),0);
+ const fl={};ss.forEach(s=>Object.entries(s.flags||{}).forEach(([k,v])=>fl[k]=(fl[k]||0)+v));const hs=ss.filter(s=>s.hours!=null);
+ const dd={};ss.forEach(s=>Object.entries(s.durations||{}).forEach(([k,v])=>{if(v!=null&&k!=='review_per_section'){(dd[k]=dd[k]||[]).push(v)}}));
+ const days=new Set(ss.map(s=>s.shoot_date)).size;
+ return{ss,n:ss.length,frames:sum('frames'),hours:hs.length?hs.reduce((a,s)=>a+s.hours,0):null,kits:sum('kits'),students:sum('students'),selected:sum('selected'),analyzed:sum('analyzed'),flags:fl,
+  suggested:sum('suggested'),accepted:sum('accepted'),replaced:sum('replaced'),manual:sum('manual_added'),untouched:sum('untouched'),approved:sum('approved'),days,
+  fph:hs.length&&hs.reduce((a,s)=>a+s.hours,0)>0.05?hs.reduce((a,s)=>a+s.frames,0)/hs.reduce((a,s)=>a+s.hours,0):null,
+  durations:Object.fromEntries(Object.entries(dd).map(([k,v])=>[k,v.reduce((a,b)=>a+b,0)/v.length]))}}
+function delta(c,p,lowerIsBetter){if(S.period==='all')return{t:'за всё время'};if(p==null||c==null||p===0)return{t:'нет данных для сравнения'};const pc=Math.round((c-p)/p*100);const good=lowerIsBetter?pc<0:pc>0;
+ return{t:`${pc>0?'↑':pc<0?'↓':'→'} ${Math.abs(pc)}% ${S.cmp==='year'&&S.period==='month'?'к прошлому году':S.period==='month'?'к прошлому месяцу':'к прошлому году'}`,cls:pc===0?'':good?'up':'down'}}
+function filters(){const lbl=S.period==='month'?`${MONTHS[S.anchor.getMonth()][0].toUpperCase()+MONTHS[S.anchor.getMonth()].slice(1)} ${S.anchor.getFullYear()}`:S.period==='year'?`${S.anchor.getFullYear()} год`:'Всё время';
+ const now=new Date();const atEnd=S.period==='month'?S.anchor.getFullYear()*12+S.anchor.getMonth()>=now.getFullYear()*12+now.getMonth():S.anchor.getFullYear()>=now.getFullYear();
+ return `<div class="filters"><div class="seg">${[['month','Месяц'],['year','Год'],['all','Всё время']].map(([v,t])=>`<button class="${S.period===v?'on':''}" onclick="S.period='${v}';render()">${t}</button>`).join('')}</div>
+ ${S.period!=='all'?`<div class="mnav"><button onclick="shiftA(-1)" aria-label="Назад">‹</button><span>${lbl}</span><button onclick="shiftA(1)" ${atEnd?'disabled':''} aria-label="Вперёд">›</button></div>`:''}
+ ${S.period==='month'?`<select onchange="S.cmp=this.value;render()" aria-label="Сравнение"><option value="prev" ${S.cmp==='prev'?'selected':''}>к прошлому месяцу</option><option value="year" ${S.cmp==='year'?'selected':''}>к этому месяцу год назад</option></select>`:S.period==='year'?'<span class="mut">сравнение с прошлым годом</span>':''}</div>`}
+function shiftA(d){const a=S.anchor;S.anchor=S.period==='month'?new Date(a.getFullYear(),a.getMonth()+d,1):new Date(a.getFullYear()+d,a.getMonth(),1);render()}
+// ---------- charts (SVG, drawn to scale)
+function niceMax(v){if(v<=0)return 1;const e=Math.pow(10,Math.floor(Math.log10(v)));const f=v/e;return (f<=1?1:f<=2?2:f<=5?5:10)*e}
+function bars(labels,series,opt={}){const W=opt.w||720,H=opt.h||200,pl=34,pr=opt.line?40:8,pt=10,pb=24;const cw=W-pl-pr,chh=H-pt-pb;
+ const mx=Math.max(4,niceMax(Math.max(1,...series.flatMap(s=>s.values))));const n=labels.length,gw=cw/n,bw=Math.max(2,Math.min(16,(gw-4)/series.length));
+ let g='';for(let i=0;i<=4;i++){const y=pt+chh-chh*i/4;g+=`<line class="gl" x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}"/><text x="${pl-6}" y="${y+4}" text-anchor="end">${fmt(Math.round(mx*i/4))}</text>`}
+ let b='';series.forEach((s,si)=>s.values.forEach((v,i)=>{if(!v)return;const h=chh*v/mx;const x=pl+gw*i+gw/2-bw*series.length/2+bw*si;b+=`<rect x="${x.toFixed(1)}" y="${(pt+chh-h).toFixed(1)}" width="${(bw-1).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${s.color}"><title>${labels[i]}: ${fmt(v)} ${s.name}</title></rect>`}));
+ const every=Math.ceil(n/(opt.maxLabels||12));let xl='';labels.forEach((l,i)=>{if(i%every===0||i===n-1)xl+=`<text x="${(pl+gw*i+gw/2).toFixed(1)}" y="${H-6}" text-anchor="middle">${l}</text>`});
+ let ln='';if(opt.line){const lm=Math.max(4,niceMax(Math.max(1,...opt.line.values.filter(v=>v!=null))));const pts=opt.line.values.map((v,i)=>v==null?null:[pl+gw*i+gw/2,pt+chh-chh*v/lm]);
+  const segs=[];let cur=[];pts.forEach(p=>{if(p)cur.push(p);else if(cur.length){segs.push(cur);cur=[]}});if(cur.length)segs.push(cur);
+  ln=segs.map(sg=>`<polyline fill="none" stroke="${opt.line.color}" stroke-width="2" points="${sg.map(p=>p.map(x=>x.toFixed(1)).join(',')).join(' ')}"/>`).join('')+pts.filter(Boolean).map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" fill="${opt.line.color}"/>`).join('');
+  for(let i=0;i<=4;i++){const y=pt+chh-chh*i/4;ln+=`<text x="${W-pr+6}" y="${y+4}">${fmt(Math.round(lm*i/4))}</text>`}}
+ return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}${b}${ln}${xl}</svg>`}
+function linechart(labels,values,opt={}){const W=opt.w||520,H=opt.h||170,pl=38,pr=10,pt=10,pb=24,cw=W-pl-pr,chh=H-pt-pb;const lo=opt.min??0,hi=opt.max??niceMax(Math.max(1,...values.filter(v=>v!=null)));
+ const n=labels.length;const X=i=>pl+(n<2?cw/2:cw*i/(n-1)),Y=v=>pt+chh-chh*(v-lo)/(hi-lo);
+ let g='';for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4,y=Y(v);g+=`<line class="gl" x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}"/><text x="${pl-6}" y="${y+4}" text-anchor="end">${Math.round(v)}${opt.unit||''}</text>`}
+ const pts=values.map((v,i)=>v==null?null:[X(i),Y(v)]).filter(Boolean);const pl2=pts.map(p=>p.map(x=>x.toFixed(1)).join(',')).join(' ');
+ const area=pts.length>1?`<polygon fill="${opt.color||'var(--c1)'}" opacity=".12" points="${pts[0][0].toFixed(1)},${pt+chh} ${pl2} ${pts[pts.length-1][0].toFixed(1)},${pt+chh}"/>`:'';
+ return `<svg class="chart" viewBox="0 0 ${W} ${H}">${g}${area}<polyline fill="none" stroke="${opt.color||'var(--c1)'}" stroke-width="2.2" points="${pl2}"/>${pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3" fill="${opt.color||'var(--c1)'}"/>`).join('')}${labels.map((l,i)=>`<text x="${X(i).toFixed(1)}" y="${H-6}" text-anchor="middle">${l}</text>`).join('')}</svg>`}
+function donut(parts,center,sub){const R=58,C=2*Math.PI*R;const tot=parts.reduce((a,p)=>a+p.v,0)||1;let off=0;
+ const arcs=parts.map(p=>{const len=C*p.v/tot;const s=`<circle r="${R}" cx="80" cy="80" fill="none" stroke="${p.c}" stroke-width="16" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 80 80)"><title>${p.n}: ${fmt(p.v)}</title></circle>`;off+=len;return s}).join('');
+ return `<svg viewBox="0 0 160 160" width="160" height="160" style="max-width:100%"><circle r="${R}" cx="80" cy="80" fill="none" stroke="var(--card3)" stroke-width="16"/>${arcs}<text x="80" y="80" text-anchor="middle" fill="var(--text)" font-size="26" font-weight="650">${center}</text><text x="80" y="100" text-anchor="middle" fill="var(--muted)" font-size="10.5">${sub||''}</text></svg>`}
+const kpi=(v,l,d)=>`<div class="card kpi"><div class="v">${v}</div><div class="l">${l}</div><div class="d ${d&&d.cls||''}">${d?d.t:'&nbsp;'}</div></div>`;
+// ---------- next-step guide
+function nextStep(){const st=S.stats;if(!st.sessions.length)return{step:0,t:'Добавьте первую съёмку',s:'Выберите папку с карты памяти и, для школы, файл со списком детей. Исходники не изменятся.',btn:['Новая съёмка','importDlg()']};
+ const cur=st.sessions.find(x=>x.id===S.sid)||st.sessions[0];
+ const left0=cur.sections-cur.approved;
+ if(cur.status==='exported'&&left0>0)return{step:2,warn:1,t:`«${cur.title}» собрана с замечаниями`,s:`Не подтверждено секций: ${left0}. Доделайте отбор и нажмите экспорт ещё раз — докопируется только новое.`,btn:['Продолжить отбор',`openSess('${cur.id}')`]};
+ if(cur.status==='exported')return{step:3,ok:1,t:`«${cur.title}» собрана`,s:'Нужно что-то поправить — исправьте в отборе и нажмите экспорт ещё раз: докопируется только новое.',btn:['Новая съёмка','importDlg()'],btn2:['Открыть съёмку',`openSess('${cur.id}')`]};
+ const left=cur.sections-cur.approved;
+ if(left>0)return{step:2,t:`Отберите кадры: «${cur.title}»`,s:`Осталось подтвердить ${left} из ${cur.sections}. Проверьте кадры и нажмите «Подтвердить» — или Ctrl+Enter.`,btn:['Продолжить отбор',`openSess('${cur.id}')`]};
+ return{step:3,t:`Всё подтверждено — соберите заказ`,s:'Копии уйдут в новую папку, исходники останутся как были.',btn:['Экспорт заказа',`openSess('${cur.id}').then(()=>setTimeout(exportDlg,300))`]}}
+function guideHTML(g){if(!g)return'';try{if(localStorage.getItem('fobox.guide.off')==='1')return''}catch(e){}
+ const st=['Импорт','Отбор','Экспорт'];
+ return `<div class="guide ${g.warn?'warnc':g.ok?'okc':''}"><div class="ic">${g.ok?'✓':g.warn?'!':'→'}</div><div><div class="gt">${esc(g.t)}</div><div class="gs">${esc(g.s)}</div>
+ ${g.step!=null?`<div class="steps">${st.map((x,i)=>`${i?'<i></i>':''}<span class="${i+1<g.step||g.ok?'done':i+1===g.step||(g.step===0&&i===0)?'cur':''}"><b>${i+1<g.step||g.ok?'✓':i+1}</b>${x}</span>`).join('')}</div>`:''}</div>
+ <div class="row">${g.btn2?`<button class="btn" onclick="${g.btn2[1]}">${g.btn2[0]}</button>`:''}${g.btn?`<button class="btn pri" onclick="${g.btn[1]}">${g.btn[0]}</button>`:''}<button class="gx" title="Скрыть подсказки (вернуть — в Настройках → Интерфейс)" onclick="try{localStorage.setItem('fobox.guide.off','1')}catch(e){};render()">×</button></div></div>`}
+// ---------- overview
+function overview(){const st=S.stats;const g=guideHTML(nextStep());if(!st.sessions.length)return `<div class="top"><h1>Обзор</h1></div>${g}${onboarding()}`;
+ const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?agg(pr):null;
+ const cards=`<div class="kpis">${kpi(fmt(c.n),'Съёмок',delta(c.n,p&&p.n))}${kpi(fmt(c.frames),'Отснято кадров',delta(c.frames,p&&p.frames))}${kpi(c.hours==null?'—':fmt(Math.round(c.hours))+' ч','Часов съёмки (по EXIF)',delta(c.hours,p&&p.hours))}${kpi(fmt(c.kits),'Готовых комплектов',delta(c.kits,p&&p.kits))}</div>`;
+ const recent=st.sessions.slice(0,4).map(s=>`<div class="rc" onclick="openSess('${s.id}')"><div class="th" ${s.cover?`data-bg="/api/preview?s=${s.id}&p=${encodeURIComponent(s.cover)}&size=160"`:''}></div><div style="min-width:0"><div class="mut">${fdate(s.shoot_date)}</div><div class="t">${esc(s.title)}</div><div class="row" style="gap:10px"><span class="mut">${fmt(s.frames)} кадров</span><span class="status ${s.status}">${STATUS[s.status]||''}</span></div></div></div>`).join('');
+ return `<div class="top"><h1>Обзор</h1>${filters()}</div>${g}${cards}
+ <div class="g2"><div class="card"><div class="ch"><h2>Кадры ${S.period==='month'?'по дням':'по месяцам'}</h2>${chartLegend()}</div>${overviewChart()}</div><div class="card"><div class="ch"><h2>Рекорды</h2></div>${records()}</div></div>
+ <div class="card"><div class="ch"><h2>Последние съёмки</h2><button class="btn ghost sm" onclick="go('history')">Все съёмки →</button></div><div class="recent">${recent}</div></div>`}
+function chartLegend(){if(S.period==='all')return `<div class="legend"><span><i style="background:var(--c1)"></i>Кадры</span></div>`;const pr=cmpRange();
+ const a=S.period==='month'?`${MON[S.anchor.getMonth()]} ${S.anchor.getFullYear()}`:S.anchor.getFullYear(),b=S.period==='month'?`${MON[pr[0].getMonth()]} ${pr[0].getFullYear()}`:pr[0].getFullYear();
+ return `<div class="legend"><span><i style="background:var(--c1)"></i>${a}</span><span><i style="background:var(--c2)"></i>${b}</span></div>`}
+function overviewChart(){const d=S.stats.days;
+ if(S.period==='month'){const r=rng('month',S.anchor,0),pr=cmpRange();const n=(r[1]-r[0])/864e5|0;const L=[],A=[],B=[];
+  for(let i=0;i<n;i++){const x=new Date(r[0].getFullYear(),r[0].getMonth(),i+1),y=new Date(pr[0].getFullYear(),pr[0].getMonth(),i+1);L.push(String(i+1));A.push(d[iso(x)]||0);B.push(y.getMonth()===pr[0].getMonth()?d[iso(y)]||0:0)}
+  if(!A.some(Boolean)&&!B.some(Boolean))return empty(NODATA);return bars(L,[{name:'кадров',values:A,color:'var(--c1)'},{name:'кадров (сравнение)',values:B,color:'var(--c2)'}],{maxLabels:11})}
+ const M=y=>MON.map((_,i)=>Object.entries(d).filter(([k])=>k.startsWith(`${y}-${String(i+1).padStart(2,'0')}`)).reduce((a,[,v])=>a+v,0));
+ if(S.period==='year'){const y=S.anchor.getFullYear();const A=M(y),B=M(y-1);if(!A.some(Boolean)&&!B.some(Boolean))return empty(NODATA);return bars(MON,[{name:'кадров',values:A,color:'var(--c1)'},{name:'кадров',values:B,color:'var(--c2)'}])}
+ const ks=Object.keys(S.stats.months).slice(-18);if(!ks.length)return empty(NODATA);return bars(ks.map(k=>`${MON[+k.slice(5)-1]} ${k.slice(2,4)}`),[{name:'кадров',values:ks.map(k=>S.stats.months[k].frames),color:'var(--c1)'}],{maxLabels:9})}
+function records(){const r=S.stats.records;const rows=[['Самая длинная съёмка',r.longest&&dur(r.longest.value),r.longest&&`${esc(r.longest.title)} · ${fdate(r.longest.date)}`],['Больше всего кадров за день',r.max_day&&fmt(r.max_day.value),r.max_day&&fdate(r.max_day.date)],['Самый активный месяц',r.active_month&&fmt(r.active_month.value)+' кадров',r.active_month&&`${MONTHS[+r.active_month.month.slice(5)-1]} ${r.active_month.month.slice(0,4)}`],['Самый большой класс',r.biggest_class&&r.biggest_class.value+' учеников',r.biggest_class&&esc(r.biggest_class.title)]];
+ return rows.map(([t,v,s])=>`<div class="rec"><div>${t}<div class="mut">${s||'Нет данных'}</div></div><b>${v||'—'}</b></div>`).join('')}
+function onboarding(){return `<div class="card" style="padding:26px"><h2 style="font-size:17px">Как это работает</h2><div class="kpis" style="margin-top:14px">
+ ${[['1','Импорт','Папка с карты и, для школы, список детей с 5 номерами. FoboX найдёт RAW, прочитает время, разобьёт на серии.'],['2','Проверка','Сам отметит пустые, тёмные, нерезкие кадры и дубли. Ничего не удаляет.'],['3','Отбор','Предложит лучшие кадры. Вы правите кликами или клавишами и подтверждаете.'],['4','Экспорт','Копии в папку заказа с правильными именами и отчётом. Исходники не меняются.']].map(([n,t,d])=>`<div><div class="guide" style="display:inline-flex;padding:0;border:0;background:none"><span class="ic" style="width:28px;height:28px">${n}</span></div><div style="font-weight:600;margin:10px 0 4px">${t}</div><div class="mut" style="line-height:1.55">${d}</div></div>`).join('')}</div></div>`}
+// ---------- analytics (sub tabs)
+function analytics(){const st=S.stats;const tabs=[['perf','Производительность'],['quality','Качество'],['ai','Отбор ИИ'],['flow','Рабочий процесс']];
+ const body=!st.sessions.length?guideHTML(nextStep())+onboarding():{perf:aPerf,quality:aQual,ai:aAI,flow:aFlow}[S.atab]();
+ return `<div class="top"><h1>Аналитика</h1>${filters()}</div><div class="subtabs">${tabs.map(([k,t])=>`<button class="${S.atab===k?'on':''}" onclick="S.atab='${k}';render()">${t}</button>`).join('')}</div>${body}`}
+function monthsBack(n){const out=[];for(let i=n-1;i>=0;i--){const d=new Date(S.anchor.getFullYear(),S.anchor.getMonth()-i,1);out.push([d,new Date(d.getFullYear(),d.getMonth()+1,1)])}return out}
+function aPerf(){const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?agg(pr):null,all=agg(rng('all',S.anchor,0));
+ const spd=x=>x.days?x.n/x.days:null,spp=x=>{const k=x.ss.filter(s=>s.students);return k.length?k.reduce((a,s)=>a+s.students,0)/k.length:null},avgH=x=>{const k=x.ss.filter(s=>s.hours!=null);return k.length?k.reduce((a,s)=>a+s.hours,0)/k.length:null};
+ let chart;if(S.period==='month'){const n=(r[1]-r[0])/864e5|0;const L=[],A=[],B=[];for(let i=0;i<n;i++){const k=iso(new Date(r[0].getFullYear(),r[0].getMonth(),i+1));const ss=c.ss.filter(s=>s.shoot_date===k);L.push(String(i+1));A.push(ss.length);const h=S.stats.day_hours[k];B.push(h>0.05?Math.round((S.stats.days[k]||0)/h):null)}
+  chart=A.some(Boolean)?bars(L,[{name:'съёмок',values:A,color:'var(--c1)'}],{line:{values:B,color:'var(--c2)'},maxLabels:11}):empty(NODATA)}
+ else{const ms=monthsBack(12);const xs=ms.map(m=>agg(m));chart=xs.some(x=>x.n)?bars(ms.map(m=>MON[m[0].getMonth()]),[{name:'съёмок',values:xs.map(x=>x.n),color:'var(--c1)'}],{line:{values:xs.map(x=>x.fph?Math.round(x.fph):null),color:'var(--c2)'}}):empty(NODATA)}
+ return `<div class="kpis">${kpi(c.fph?fmt(Math.round(c.fph)):'—','Кадров в час',delta(c.fph,p&&p.fph))}${kpi(spd(c)?spd(c).toFixed(1):'—','Съёмок в день',delta(spd(c),p&&spd(p)))}${kpi(spp(c)?Math.round(spp(c)):'—','Учеников за съёмку',delta(spp(c),p&&spp(p)))}${kpi(dur(avgH(c)),'Средняя длительность',delta(avgH(c),p&&avgH(p),true))}</div>
+ <div class="card"><div class="ch"><div class="legend"><span><i style="background:var(--c1)"></i>Съёмки</span><span><i class="ln" style="background:var(--c2)"></i>Кадров в час (правая шкала)</span></div></div>${chart}
+ <h2 style="margin:18px 0 10px">Средние показатели за всё время</h2><div class="minis">${[[all.fph?fmt(Math.round(all.fph)):'—','Кадров в час'],[spp(all)?Math.round(spp(all)):'—','Учеников за съёмку'],[dur(avgH(all)),'Длительность'],[all.n?fmt(Math.round(all.frames/all.n)):'—','Кадров за съёмку']].map(([v,l])=>`<div class="mini"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('')}</div></div>`}
+const QF=[['sharp','Резкие','var(--c1)'],['dup','Дубли','var(--c2)'],['over','Пересветы','var(--c5)'],['under','Недодержка','var(--c4)'],['blur','Нерезкие','var(--c6)'],['tech','Пустые кадры','var(--c3)']];
+function qParts(x){const f=x.flags;const tech=(f.white||0)+(f.black||0);const bad=(f.dup||0)+(f.over||0)+(f.under||0)+(f.blur||0)+tech;return{sharp:Math.max(0,x.analyzed-bad),dup:f.dup||0,over:f.over||0,under:f.under||0,blur:f.blur||0,tech}}
+function aQual(){if(!S.stats.pillow)return empty('Проверка качества выключена: установите Pillow (<kbd>py -m pip install pillow</kbd>) и перезапустите.');
+ const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?agg(pr):null;if(!c.analyzed)return `<div class="card">${empty(NODATA)}</div>`;
+ const q=qParts(c),pq=p&&p.analyzed?qParts(p):null;const pct=(v,t)=>t?Math.round(v/t*1000)/10:0;const share=pct(q.sharp,c.analyzed);
+ const ms=monthsBack(7);const tr=ms.map(m=>{const x=agg(m);return x.analyzed?pct(qParts(x).sharp,x.analyzed):null});
+ const cmpRow=[['sharp','Резкие'],['dup','Дубли'],['over','Пересветы'],['blur','Нерезкие']].map(([k,l])=>{const a=pct(q[k],c.analyzed),b=pq?pct(pq[k],p.analyzed):null;const d=b==null?'':` <span class="d ${(k==='sharp'?a>=b:a<=b)?'up':'down'}" style="display:inline">(${a-b>=0?'+':''}${(a-b).toFixed(1)})</span>`;return `<div class="mini"><div class="l" style="margin:0 0 4px">${l}</div><div class="v" style="font-size:17px">${a}%${d}</div></div>`}).join('');
+ return `<div class="g2e"><div class="card"><div class="ch"><h2>Доля технически хороших кадров</h2><span class="mut">${fmt(c.analyzed)} проверено</span></div><div class="split">${donut(QF.map(([k,n,col])=>({n,v:q[k],c:col})),share+'%','хорошие кадры')}<div class="ll">${QF.map(([k,n,col])=>`<div><i style="background:${col}"></i><span>${n}</span><b>${pct(q[k],c.analyzed)}%</b></div>`).join('')}</div></div></div>
+ <div class="card"><div class="ch"><h2>Доля хороших кадров по месяцам</h2></div>${tr.some(v=>v!=null)?linechart(ms.map(m=>MON[m[0].getMonth()]),tr,{min:Math.max(0,Math.floor(Math.min(...tr.filter(v=>v!=null))/10)*10-10),max:100,unit:'%'}):empty(NODATA)}</div></div>
+ <div class="card"><div class="ch"><h2>${pq?'Сравнение с периодом для сравнения':'Сравнение'}</h2><span class="mut">в скобках — изменение в процентных пунктах</span></div><div class="minis">${cmpRow}</div></div>
+ <p class="mut" style="margin:0">Отмеченные кадры не удаляются — они во вкладке «На проверку». Пороги настраиваются в Настройках → Отбор и качество.</p>`}
+function aAI(){const r=rng(S.period,S.anchor,0),c=agg(r);if(!c.suggested)return `<div class="card">${empty('Нет данных: автоотбор появится после импорта и подтверждения секций')}</div>`;
+ const kept=c.accepted,rep=c.replaced,man=c.manual,base=Math.max(1,kept+rep);const rate=c.approved?Math.round(c.untouched/c.approved*100):0;
+ const ms=monthsBack(7);const acc=ms.map(m=>{const x=agg(m);return x.accepted+x.replaced?Math.round(x.accepted/(x.accepted+x.replaced)*100):null});
+ const P=[['Оставлено как предложено',kept,'var(--c1)'],['Снято вручную',rep,'var(--c5)'],['Добавлено вручную',man,'var(--c2)']];
+ return `<div class="g2e"><div class="card"><div class="ch"><h2>Секции без правок</h2><span class="mut">${c.untouched} из ${c.approved} подтверждённых</span></div><div class="split">${donut(P.map(([n,v,col])=>({n,v,c:col})),rate+'%','без изменений')}<div class="ll">${P.map(([n,v,col])=>`<div><i style="background:${col}"></i><span>${n}</span><b>${fmt(v)}</b></div>`).join('')}</div></div></div>
+ <div class="card"><div class="ch"><h2>Точность предложений по месяцам</h2><span class="mut">% оставленных из проверенных</span></div>${acc.some(v=>v!=null)?bars(ms.map(m=>MON[m[0].getMonth()]),[{name:'%',values:acc.map(v=>v||0),color:'var(--c1)'}],{w:520,h:170}):empty(NODATA)}</div></div>
+ <div class="kpis" style="grid-template-columns:repeat(5,minmax(0,1fr))">${[[fmt(c.suggested),'Предложено'],[fmt(kept),`Оставлено · ${Math.round(kept/base*100)}%`],[fmt(rep),`Снято · ${Math.round(rep/base*100)}%`],[fmt(man),'Добавлено вручную'],[rate+'%','Секций без правок']].map(([v,l])=>kpi(v,l)).join('')}</div>
+ <p class="mut" style="margin:0">Сейчас подбор эвристический: резкость и непохожесть кадров. Распознавание лиц — следующий этап.</p>`}
+function aFlow(){const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?agg(pr):null;const D=c.durations,PD=p?p.durations:{};
+ const st=[['import','Импорт','var(--c2)'],['analysis','Проверка качества','var(--c4)'],['review','Отбор','var(--c1)'],['export','Экспорт','var(--c3)']];
+ const tot=st.reduce((a,[k])=>a+(D[k]||0),0);const perKid=c.students&&D.review?D.review/c.students:null,pPerKid=p&&p.students&&PD.review?PD.review/p.students:null;
+ return `<div class="kpis">${kpi(secs((D.import||0)+(D.analysis||0)||null),'Импорт и анализ',delta((D.import||0)+(D.analysis||0)||null,PD&&((PD.import||0)+(PD.analysis||0))||null,true))}${kpi(secs(D.review),'Отбор комплектов',delta(D.review,PD.review,true))}${kpi(secs(perKid),'Отбор одного ученика',delta(perKid,pPerKid,true))}${kpi(secs(D.export),'Экспорт',delta(D.export,PD.export,true))}</div>
+ <div class="card"><div class="ch"><h2>Время обработки съёмки</h2><span class="mut">в среднем на съёмку за период</span></div>${tot?`<div class="split" style="grid-template-columns:1fr auto"><div class="hb">${st.map(([k,n,col])=>`<div><span>${n}</span><div class="tr"><span style="width:${(D[k]||0)/tot*100}%;background:${col}"></span></div><span class="vv">${secs(D[k]||null)} (${Math.round((D[k]||0)/tot*100)}%)</span></div>`).join('')}</div>${donut(st.map(([k,n,col])=>({n,v:D[k]||0,c:col})),secs(tot),'всего')}</div>`:empty('Нет данных: время этапов записывается начиная с этой версии')}</div>
+ <p class="mut" style="margin:0">Отбор считается по паузам между подтверждениями секций (перерывы больше 30 минут не учитываются).</p>`}
+// ---------- history
+function history(){const st=S.stats;const f=S.hf||{type:'',status:'',q:''};S.hf=f;
+ const list=st.sessions.filter(s=>(!f.type||s.mode===f.type)&&(!f.status||s.status===f.status)&&(!f.q||(s.title+' '+(s.location||'')+' '+(s.school||'')).toLowerCase().includes(f.q.toLowerCase())));
+ return `<div class="top"><h1>История съёмок</h1><div class="filters"><select onchange="S.hf.type=this.value;render()" aria-label="Тип"><option value="">Все типы</option><option value="school" ${f.type==='school'?'selected':''}>Школа</option><option value="general" ${f.type==='general'?'selected':''}>Обычная</option></select>
+ <select onchange="S.hf.status=this.value;render()" aria-label="Статус"><option value="">Все статусы</option>${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${f.status===k?'selected':''}>${v}</option>`).join('')}</select>
+ <input id="hq" placeholder="Поиск" value="${esc(f.q)}" oninput="S.hf.q=this.value;clearTimeout(S.hqT);S.hqT=setTimeout(()=>{render();const i=$('#hq');i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)"></div></div>
+ <div class="card" style="padding:6px 8px"><div class="tw">${list.length?`<table><tr><th>Дата</th><th>Название / локация</th><th>Тип</th><th class="num">Ученики</th><th class="num">Кадры</th><th class="num">Комплект</th><th class="num">Длительность</th><th>Статус</th><th></th></tr>
+ ${list.map(s=>`<tr class="click" onclick="openSess('${s.id}')"><td>${fdate(s.shoot_date)}</td><td><div class="tt"><div class="th" ${s.cover?`data-bg="/api/preview?s=${s.id}&p=${encodeURIComponent(s.cover)}&size=120"`:''}></div><div>${esc(s.title)}${s.location||s.school?`<div class="mut">${esc(s.location||s.school)}</div>`:''}</div></div></td><td>${s.mode==='school'?'Школа':'Обычная'}</td><td class="num">${s.students||'—'}</td><td class="num">${fmt(s.frames)}</td><td class="num">${fmt(s.selected)}</td><td class="num">${dur(s.hours)}</td><td><span class="status ${s.status}">${STATUS[s.status]||s.status}</span></td><td><button class="btn sm" onclick="event.stopPropagation();openSess('${s.id}')">Открыть</button></td></tr>`).join('')}</table>`:empty(st.sessions.length?'Ничего не найдено — измените фильтры':'Съёмок пока нет')}</div></div>`}
 // ---------- settings & profile
-function settings(){const s=S.cfg.settings,p=S.cfg.profile,tab=S.sub||'Профиль';const tabs=['Профиль','Отбор и качество','Файлы и экспорт','Интерфейс','Данные'];
- const field=(k,l,h,src='s')=>`<div class="f"><label>${l}</label><input data-${src}="${k}" value="${esc((src==='s'?s:p)[k]||'')}">${h?`<span class="mut">${h}</span>`:''}</div>`;
- let body='';
- if(tab==='Профиль')body=`<div class="two">${field('name','Имя фотографа','','p')}${field('studio','Студия','','p')}${field('email','Email','','p')}${field('phone','Телефон','','p')}${field('city','Город','','p')}${field('workspace','Название рабочего пространства','Показывается в шапке и отчётах')}</div>`;
- if(tab==='Отбор и качество')body=`<div class="two">${field('series_gap_sec','Пауза для новой серии, сек','Если между кадрами дольше — начинается новая серия')}${field('target_per_student','Ориентир кадров на ученика','Включая 5 обязательных; не жёсткий лимит')}${field('radius','Окно вокруг кадров ведомости','± номеров кадров для показа')}${field('blur_threshold','Порог нерезкости','Меньше — строже. Также сравнивается с серией')}${field('dup_distance','Чувствительность к дублям','0–10, больше — больше кадров считается дублями')}${field('clip_threshold','Доля пересвеченных пикселей','0.25 = 25%')}</div><p class="mut">Изменения порогов применяются после «Перепроверить качество» в съёмке.</p>`;
- if(tab==='Файлы и экспорт')body=`<p class="mut" style="line-height:1.6">Исходники только читаются. Экспорт копирует файлы в новую пустую папку заказа и никогда не перезаписывает.<br>Школьная структура: Заказ / Школа / Дата / Класс / 01_ДОКУМЕНТЫ … 07_ФОН.<br>Имена обязательных RAW: «Фамилия Имя_исх», «ЛР_…», «ЛС_…», «Друг1_исх», «Друг2_исх».</p>`;
- if(tab==='Интерфейс')body=`<div class="f"><label>Тема</label><div class="row"><button class="btn ${s.theme==='dark'?'pri':''}" onclick="setS('theme','dark')">Тёмная</button><button class="btn ${s.theme==='light'?'pri':''}" onclick="setS('theme','light')">Светлая</button></div></div>
-  <div class="f"><label>Акцентный цвет</label><div class="row">${['#7738FF','#4DB5FF','#E5484D','#2EB67D','#F59E0B'].map(c=>`<span class="sw ${s.accent.toUpperCase()===c?'on':''}" style="background:${c}" onclick="setS('accent','${c}')"></span>`).join('')}<input data-s="accent" value="${s.accent}" style="width:110px"></div><span class="mut">Цвета ошибок и предупреждений не меняются.</span></div>`;
- if(tab==='Данные')body=`<p class="mut" style="line-height:1.6">Каталог хранится локально в SQLite (по умолчанию <kbd>%USERPROFILE%\\.fobox\\fobox4.sqlite3</kbd>). Для резервной копии скопируйте этот файл. Удаление съёмки из каталога не трогает фотографии на диске.</p>${S.stats.sessions.map(x=>`<div class="rec"><div>${esc(x.title)}<div class="mut">${esc(x.source||'')}</div></div><button class="btn" onclick="delSess('${x.id}')">Убрать из каталога</button></div>`).join('')||empty('Каталог пуст')}`;
- return head('Настройки','Хранятся локально')+`<div class="stabs">${tabs.map(t=>`<button class="${t===tab?'on':''}" onclick="go('settings','${t}')">${t}</button>`).join('')}</div><div class="card">${body}${['Профиль','Отбор и качество','Интерфейс'].includes(tab)?'<button class="btn pri" id="saveS">Сохранить</button>':''}</div>`}
-function bindSettings(){const b=$('#saveS');if(b)b.onclick=async()=>{const st={},pr={...S.cfg.profile};document.querySelectorAll('[data-s]').forEach(i=>st[i.dataset.s]=i.value.trim());document.querySelectorAll('[data-p]').forEach(i=>pr[i.dataset.p]=i.value.trim());
- try{await api('/api/settings',{settings:st,profile:pr});toast('Сохранено');await load()}catch(e){toast(e.message,1)}}}
+const SNAV=['Профиль','Предпочтения','Отбор и качество','Файлы и экспорт','Интерфейс','Данные и резервные копии','О программе'];
+function settings(){const s=S.cfg.settings,p=S.cfg.profile,tab=S.sub||'Профиль';
+ const row=(k,l,h,ctl)=>`<div class="sr2"><div><label for="${k}">${l}</label>${h?`<div class="h">${h}</div>`:''}</div><div>${ctl}</div></div>`;
+ const inp=(k,src='s',type='text')=>`<input id="${k}" type="${type}" data-${src}="${k}" value="${esc((src==='s'?s:p)[k]||'')}">`;
+ const sel=(k,opts)=>`<select id="${k}" data-s="${k}">${opts.map(([v,t])=>`<option value="${v}" ${s[k]===v?'selected':''}>${t}</option>`).join('')}</select>`;
+ let body='';const fld=(k,l,t)=>`<div class="f"><label for="${k}">${l}</label>${inp(k,'p',t||'text')}</div>`;
+ if(tab==='Профиль'){body=`<div class="prof"><div><div class="pph" ${avatarStyle(p)}>${p.avatar?'':esc(initials(p.name))}</div><div class="row" style="margin-top:10px"><label class="btn sm" style="cursor:pointer">Изменить фото<input type="file" accept="image/*" hidden onchange="setAvatar(this.files[0])"></label>${p.avatar?'<button class="btn sm ghost" onclick="setAvatar(null)">Убрать</button>':''}</div></div>
+  <div><div style="font-size:22px;font-weight:650">${esc(p.name||'Ваше имя')}</div><div class="mut" style="margin-top:4px">${esc(p.role||'Фотограф')}${p.studio?' · '+esc(p.studio):''}${p.city?' · '+esc(p.city):''}</div>
+  <div class="row" style="margin-top:14px">${[['Съёмок',fmt(S.stats.sessions.length)],['Кадров',fmt(S.stats.files)],['Комплектов',fmt(S.stats.kits)]].map(([l,v])=>`<div class="mini" style="min-width:120px"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
+  <h3 style="font-size:13px;margin:22px 0 10px">Основное</h3><div class="two">${fld('name','Имя и фамилия')}${fld('role','Должность')}${fld('studio','Студия')}${fld('city','Город')}</div>
+  <h3 style="font-size:13px;margin:12px 0 10px">Контакты</h3><div class="two">${fld('email','Email','email')}${fld('phone','Телефон')}${fld('site','Сайт')}${fld('telegram','Telegram')}${fld('vk','ВКонтакте')}${fld('instagram','Instagram')}${fld('youtube','YouTube')}</div></div></div>`}
+ if(tab==='Предпочтения')body=`<div class="sg"><h3>Основные</h3>${row('lang','Язык приложения','',`<select id="lang" disabled><option>Русский</option></select>`)}${row('date_format','Формат даты','',sel('date_format',[['dd.mm.yyyy','ДД.ММ.ГГГГ'],['yyyy-mm-dd','ГГГГ-ММ-ДД']]))}${row('compare_to','Сравнение на «Обзоре» по умолчанию','',sel('compare_to',[['prev','с прошлым месяцем'],['year','с этим месяцем год назад']]))}${row('workspace','Название рабочего пространства','Видно в отчётах',inp('workspace'))}</div>`;
+ if(tab==='Отбор и качество')body=`<div class="sg"><h3>Отбор</h3>${row('target_per_student','Рекомендуемое число фото на ученика','Включая 5 из ведомости; не жёсткий лимит',inp('target_per_student','s','number'))}${row('radius','Окно вокруг номеров ведомости','± кадров, которые показываются рядом',inp('radius','s','number'))}${row('series_gap_sec','Пауза для новой серии, секунд','Для обычных съёмок',inp('series_gap_sec','s','number'))}</div>
+  <div class="sg"><h3>Качество</h3>${row('blur_threshold','Порог нерезкости','Меньше — мягче; кадр также сравнивается со своей серией',inp('blur_threshold','s','number'))}${row('dup_distance','Чувствительность к дублям','0–10, больше — больше кадров считается дублями',inp('dup_distance','s','number'))}${row('clip_threshold','Доля пересвеченных пикселей','0.25 = 25%',inp('clip_threshold'))}<p class="mut">Новые пороги применяются после «Перепроверить» на экране съёмки.</p></div>`;
+ if(tab==='Файлы и экспорт')body=`<div class="sg"><h3>Экспорт</h3><p class="mut" style="line-height:1.7;margin:0">Исходники только читаются. Экспорт копирует RAW в новую папку заказа и никогда не перезаписывает файлы; повторный экспорт докопирует только новое.<br>Структура школьного заказа: Заказ / Школа / Дата / Класс / 01_ДОКУМЕНТЫ … 07_ФОН.<br>Имена кадров из ведомости: «Фамилия Имя_исх», «ЛР_Фамилия Имя_исх», «ЛС_…», «Друг1_исх», «Друг2_исх».<br>В папку кладутся отчёт <kbd>_FOBOX_отчёт.csv</kbd> и, если есть, <kbd>_FOBOX_замечания.txt</kbd>.</p></div>`;
+ if(tab==='Интерфейс')body=`<div class="sg"><h3>Внешний вид</h3>${row('theme','Тема','',`<div class="seg" style="width:max-content"><button class="${s.theme==='dark'?'on':''}" onclick="setS('theme','dark')">Тёмная</button><button class="${s.theme==='light'?'on':''}" onclick="setS('theme','light')">Светлая</button></div>`)}
+  ${row('accent','Акцентный цвет','Цвета ошибок и предупреждений не меняются',`<div class="row">${['#7738FF','#4DB5FF','#E5484D','#2EB67D','#F59E0B'].map(c=>`<span class="sw ${s.accent.toUpperCase()===c?'on':''}" style="background:${c}" role="button" aria-label="${c}" onclick="setS('accent','${c}')"></span>`).join('')}<input id="accent" data-s="accent" value="${s.accent}" style="width:100px"></div>`)}
+  ${row('guide','Подсказки «Что дальше»','Короткая подсказка следующего шага на главных экранах',`<button class="btn sm" onclick="try{localStorage.removeItem('fobox.guide.off');localStorage.removeItem('fobox.coach')}catch(e){};toast('Подсказки включены')">Показывать снова</button>`)}</div>`;
+ if(tab==='Данные и резервные копии')body=`<div class="sg"><h3>Каталог</h3><p class="mut" style="line-height:1.6;margin:0 0 10px">Каталог — один файл SQLite: <kbd>%USERPROFILE%\\.fobox\\fobox4.sqlite3</kbd>. Резервная копия — копия этого файла. Удаление съёмки из каталога не трогает фото на диске.</p>${S.stats.sessions.map(x=>`<div class="sr2"><div><label>${esc(x.title)}</label><div class="h path">${esc(x.source||'')}</div></div><div><button class="btn sm danger" onclick="delSess('${x.id}')">Убрать из каталога</button></div></div>`).join('')||empty('Каталог пуст')}</div>`;
+ if(tab==='О программе')body=`<div class="sg"><h3>FoboX 4.0 alpha.2</h3><p class="mut" style="line-height:1.7;margin:0">Локальный сортировщик фото для фотографов: импорт, проверка качества, отбор, экспорт и статистика. Работает без интернета, ничего не отправляет. Горячие клавиши — <button class="lnk" onclick="helpDlg()">показать</button>.</p></div>`;
+ const savable=['Профиль','Предпочтения','Отбор и качество','Интерфейс'].includes(tab);
+ return `<div class="top"><h1>${tab==='Профиль'?'Профиль фотографа':'Настройки'}</h1>${savable?'<button class="btn pri" id="saveS">Сохранить</button>':''}</div><div class="sl"><div class="card snav">${SNAV.map(t=>`<button class="${t===tab?'on':''}" onclick="go('settings','${t}')">${t}</button>`).join('')}</div><div class="card">${body}</div></div>`}
+function bindSettings(){const b=$('#saveS');if(b)b.onclick=async()=>{const st={},pr={};document.querySelectorAll('[data-s]').forEach(i=>st[i.dataset.s]=i.value.trim());document.querySelectorAll('[data-p]').forEach(i=>pr[i.dataset.p]=i.value.trim());
+ try{await api('/api/settings',Object.keys(pr).length?{settings:st,profile:pr}:{settings:st});toast('Сохранено');await load()}catch(e){toast(e.message,1)}}}
 async function setS(k,v){try{await api('/api/settings',{settings:{[k]:v}});await load()}catch(e){toast(e.message,1)}}
+async function setAvatar(file){let data='';if(file){data=await new Promise((res,rej)=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas'),n=320,k=Math.max(img.width,img.height)>n?n/Math.max(img.width,img.height):1;c.width=img.width*k;c.height=img.height*k;c.getContext('2d').drawImage(img,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.85))};img.onerror=()=>rej(Error('Не удалось прочитать изображение'));img.src=URL.createObjectURL(file)})}
+ try{await api('/api/settings',{settings:{},profile:{avatar:data}});await load();toast(data?'Фото обновлено':'Фото убрано')}catch(e){toast(e.message,1)}}
 async function delSess(id){if(!confirm('Убрать съёмку из каталога? Файлы на диске останутся.'))return;await api('/api/delete',{session:id});if(S.sid===id){S.sid='';S.sess=null}await load()}
 // ---------- import
 function importDlg(){S.imode=S.imode||'general';const school=S.imode==='school';
  const f=(id,l,ph='',pick)=>`<div class="f"><label>${l}</label><div class="row"><input id="${id}" placeholder="${ph}">${pick?`<button class="btn" onclick="pick('${id}','${pick}')">Обзор…</button>`:''}</div></div>`;
  $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Новая съёмка</h2>
- <div class="seg"><button class="${school?'':'on'}" onclick="S.imode='general';importDlg()">Обычная съёмка</button><button class="${school?'on':''}" onclick="S.imode='school';importDlg()">Школьный заказ</button></div>
+ <div class="segw"><button class="${school?'':'on'}" onclick="S.imode='general';importDlg()">Обычная съёмка</button><button class="${school?'on':''}" onclick="S.imode='school';importDlg()">Школьный заказ</button></div>
  ${f('i_src','Папка с исходниками (RAW и/или JPEG)','D:\\DCIM\\100MSDCF','dir')}${f('i_title','Название','Например: Свадьба Анны и Ильи')}
  ${school?`${f('i_students','Ведомость учеников — Excel или CSV (ФИО, Виньетка, Портрет 1, Портрет 2, Друг 1, Друг 2)','','csv')}${f('i_teachers','Учителя — Excel или CSV (ФИО, Должность, Начало, Конец), необязательно','','csv')}<div class="two">${f('i_order','Номер заказа')}${f('i_school','Школа')}${f('i_date','Дата','09.10.2026')}${f('i_class','Класс','9Л')}</div>`:f('i_loc','Локация — необязательно')}
  <p class="mut">${school?'Номера из ведомости подставятся сами: у каждого ребёнка две секции (портреты и друзья), 5 кадров отмечены ★. При экспорте они переименуются: «Фамилия Имя_», «ЛР_», «ЛС_», «Друг1_», «Друг2_».':'Кадры разобьются на серии по паузам между снимками. Программа отметит брак и предложит лучшие кадры каждой серии.'} Исходные файлы не изменяются.</p>
@@ -274,7 +407,7 @@ async function watchJob(id,el){for(;;){const j=await api('/api/job?id='+id);cons
 // ---------- review: state, autosave, undo
 const ROLEKEYS={'1':'V','2':'P1','3':'P2','4':'D1','5':'D2'};
 async function openSess(id){await flush();S.sid=id;localStorage.setItem('fobox.sid',id);S.sess=null;S.sec=0;S.undo=[];go('shoot')}
-async function renderShoot(){const m=$('#main');if(!S.sid){m.innerHTML='<div class="page">'+head('Текущая съёмка','')+onboarding()+'</div>';return}
+async function renderShoot(){const m=$('#main');if(!S.sid){m.innerHTML='<div class="page">'+head('Текущая съёмка','')+guideHTML(nextStep())+onboarding()+'</div>';return}
  if(!S.sess||S.sess.session.id!==S.sid){m.innerHTML='<div class="page"><div class="skel" style="height:40px;width:40%"></div><div class="skel" style="height:420px;margin-top:16px"></div></div>';try{await reloadSess()}catch(e){S.sid='';localStorage.removeItem('fobox.sid');m.innerHTML='<div class="page">'+empty(esc(e.message))+'</div>';return}}
  drawShoot()}
 async function reloadSess(keepId){const id=keepId||S.sess?.sections[S.sec]?.id;S.sess=await api('/api/session?id='+S.sid);S.fmap=Object.fromEntries(S.sess.files.map(f=>[f.path,f]));
@@ -316,22 +449,36 @@ function drawShoot(){const d=S.sess,ss=d.session,s=curSec();if(!s){$('#main').in
  <div class="srch"><input id="secq" placeholder="${school?'Найти ребёнка':'Найти серию'}" value="${esc(S.q||'')}" oninput="S.q=this.value;refreshSide()"><kbd title="Быстрый поиск">Ctrl K</kbd></div></div>
  <div class="secs" id="secs"></div>
  <div class="sidefoot"><button class="btn pri" onclick="exportDlg()">Экспорт заказа…</button><div class="row" style="gap:6px"><button class="btn" style="flex:1" onclick="reanalyze()">Перепроверить</button><select style="flex:1" onchange="openSess(this.value)" title="Другая съёмка">${S.stats.sessions.map(x=>`<option value="${x.id}" ${x.id===S.sid?'selected':''}>${esc(x.title)}</option>`).join('')}</select></div></div></div>
- <div class="rv-main"><div class="bar"><div style="min-width:0"><div class="h1">${esc(s.title)} <span>${esc(s.subtitle)}</span></div><div class="mut" id="cnt"></div></div>
- <div class="row"><div class="tabs">${[['kit',s.person&&s.kind!=='teacher'?'Комплект ученика':'Комплект',V.kit.length],['all','Все кадры',V.files.length],['bad','На проверку',V.flagged.length]].map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';S.fi=0;drawShoot()">${t} <b>${n}</b></button>`).join('')}</div>
+ <div class="rv-main"><div class="crumbs"><a onclick="go('history')">Съёмки</a><span>/</span><b>${fdate(ss.shoot_date)} · ${esc(ss.title)}</b><span style="margin-left:auto" class="row"><button class="lnk" onclick="helpDlg()">Клавиши <kbd>?</kbd></button><button class="lnk" onclick="palette()">Поиск <kbd>Ctrl K</kbd></button></span></div><div class="bar"><div style="min-width:0"><div class="h1">${esc(s.title)} <span>${esc(s.subtitle)}</span></div><div class="mut" id="cnt"></div></div>
+ <div class="row"><div class="tabs">${[['all','Все кадры',V.files.length],['kit',s.person&&s.kind!=='teacher'?'Комплект ученика':'Отобранные',V.kit.length],['bad','На проверку',V.flagged.length]].map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';S.fi=0;drawShoot()">${t} <b>${n}</b></button>`).join('')}</div>
  <div class="seg2" title="Размер превью">${[['150px','S'],['200px','M'],['280px','L']].map(([v,t])=>`<button class="${(S.tsize||'200px')===v?'on':''}" onclick="S.tsize='${v}';document.documentElement.style.setProperty('--tile','${v}');drawShoot()">${t}</button>`).join('')}</div></div></div>
- <div class="notes">
+ <div class="notes">${reviewGuide(s,iss)}
  ${iss.length?`<div class="warn">${iss.map(esc).join('<br>')}<div class="mut" style="margin-top:4px">Если на кадре другой человек — «⋯» → «Не тот человек», затем назначьте роль правильному кадру.</div></div>`:''}
- ${missing.length?`<div class="warn info">Не назначено: ${missing.map(k=>ALAB[k]).join(', ')}. Выберите кадр и нажмите ${missing.map(k=>`<kbd>${Object.keys(ROLEKEYS).find(x=>ROLEKEYS[x]===k)||''}</kbd>`).join(' ')} или «⋯». Если кадра нет — оставьте пустым.</div>`:''}
- ${s.overridden?`<div class="warn acc">Роли исправлены вручную. <button class="btn sm" onclick="setRole(null,null,true)">Вернуть как в ведомости</button></div>`:''}
+ ${s.overridden?`<div class="warn acc"><span>Роли исправлены вручную.${missing.length?` Не назначено: ${missing.map(k=>`${ALAB[k]} <kbd>${Object.keys(ROLEKEYS).find(x=>ROLEKEYS[x]===k)||''}</kbd>`).join(', ')} — или оставьте пустым.`:''}</span><button class="btn sm" onclick="setRole(null,null,true)">Вернуть как в ведомости</button></div>`:''}
  ${S.sec===0&&d.absent&&d.absent.length?`<div class="warn info">Без номеров в ведомости (пропущены): ${esc(d.absent.join(', '))}</div>`:''}
  ${!d.pillow?'<div class="warn">Проверка качества выключена — установите Pillow: <kbd>py -m pip install pillow</kbd></div>':''}</div>
  <div class="grid" id="grid">${V.list.length?V.list.map((f,i)=>tile(f,must,sug,V.otherOf[f.path],i)).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div>
- <div class="foot"><div class="hint"><kbd>←↑→↓</kbd> кадры <kbd>Пробел</kbd> выбрать <kbd>Enter</kbd> крупно <kbd>1–5</kbd> роль <kbd>Ctrl Z</kbd> отменить <button class="lnk" onclick="helpDlg()">все клавиши <kbd>?</kbd></button></div>
- <div class="row"><span class="savest" id="savest"></span><button class="btn pri" onclick="approve()">${d.approved[s.id]?'Подтверждено ✓ · дальше':'Подтвердить и дальше'} <kbd class="inv">Ctrl ↵</kbd></button></div></div></div></div>`;
- refreshSide();updCount();const g=$('#grid');if(sameSec)g.scrollTop=gridTop;
+ <div class="foot"><div class="kitsum"><div class="ki">${ico('kit')}</div><div><b id="kitn"></b><div class="mut" id="kitd"></div></div></div>
+ <div class="row"><span class="savest" id="savest"></span><button class="btn ghost" onclick="resetSel()" title="Оставить только кадры из ведомости">Сбросить выбор</button><button class="btn pri" id="apbtn" onclick="approve()">${d.approved[s.id]?'Подтверждено ✓ · дальше':'Подтвердить комплект'} <kbd class="inv">Ctrl ↵</kbd></button></div></div></div></div>`;
+ refreshSide();updCount();setTimeout(coach,600);const g=$('#grid');if(sameSec)g.scrollTop=gridTop;
  const sa=$('#secs .sr.on, #secs .grp.act');if(sa&&!sameSec)sa.scrollIntoView({block:'nearest'});
  g.querySelectorAll('.im[data-src]').forEach(el=>{const im=new Image();im.onload=()=>{el.style.backgroundImage=`url('${el.dataset.src}')`;el.classList.add('ld')};im.src=el.dataset.src})}
-function updCount(){const s=curSec(),e=$('#cnt');if(e)e.textContent=`${S.sel.size} выбрано из ${s.files.length}`+(Object.keys(s.mandatory).length?' · ★ кадры из ведомости':'')+(s.limit?` · максимум ${s.limit}`:'')}
+function updCount(){const s=curSec(),e=$('#cnt');if(e)e.textContent=`${S.sel.size} выбрано из ${s.files.length}`+(Object.keys(s.mandatory).length?' · ★ кадры из ведомости':'')+(s.limit?` · максимум ${s.limit}`:'');
+ const m=[...S.sel].filter(p=>s.mandatory[p]).length,n=$('#kitn'),k=$('#kitd');const fw=x=>x%10===1&&x%100!==11?'фото':'фото';
+ if(n)n.textContent=`${S.sel.size} ${fw(S.sel.size)} в комплекте`;if(k)k.textContent=(m?`${m} из ведомости · `:'')+`${S.sel.size-m} дополнительных`+(s.kind==='portrait'||s.kind==='friends'?` · ориентир ${S.cfg.settings.target_per_student} на ученика`:'')}
+function resetSel(){const s=curSec();const keep=Object.keys(s.mandatory);if(S.sel.size===keep.length)return toast('В комплекте только кадры из ведомости');pushUndo();S.sel=new Set(keep);scheduleSave();drawShoot();toast('Выбор сброшен · Ctrl+Z — вернуть')}
+function reviewGuide(s,iss){try{if(localStorage.getItem('fobox.guide.off')==='1')return''}catch(e){}const d=S.sess;
+ const g=(cls,ic,t,sub,btn)=>`<div class="guide ${cls}" style="padding:9px 12px"><div class="ic" style="width:28px;height:28px">${ic}</div><div><div class="gt" style="font-size:13px">${t}</div>${sub?`<div class="gs">${sub}</div>`:''}</div><div class="row">${btn||''}</div></div>`;
+ const conf=s.person?d.conflicts.filter(t=>t.startsWith(s.title+', ')):[];
+ if(conf.length){const k=Object.entries(ALAB).find(([key,l])=>conf[0].includes(', '+l+':'));const key=k?Object.keys(ROLEKEYS).find(x=>ROLEKEYS[x]===k[0]):'';
+  return g('warnc','!',esc(conf[0]),`Найдите правильный кадр, выделите его и нажмите ${key?`<kbd>${key}</kbd>`:'«⋯» → «Сделать …»'}. Или исправьте ведомость и импортируйте заново.`)}
+ const left=d.sections.filter(x=>!d.approved[x.id]).length;
+ if(!left)return g('okc','✓','Все секции подтверждены','Осталось собрать заказ — копии уйдут в новую папку.',`<button class="btn pri sm" onclick="exportDlg()">Экспорт заказа</button>`);
+ if(d.approved[s.id])return g('','→',`Эта секция готова. Осталось ${left}`,'',`<button class="btn pri sm" onclick="approve()">К следующей</button>`);
+ const sel=S.sel.size;return g('','→',sel?`Проверьте кадры и нажмите «Подтвердить комплект»`:`Выберите кадры кликом или клавишей Пробел`,`Осталось секций: ${left}. ★ — кадры из ведомости, «авто» — предложила программа. Двойной клик — посмотреть крупно.`)}
+function coach(){try{if(localStorage.getItem('fobox.coach')==='1'||localStorage.getItem('fobox.guide.off')==='1')return}catch(e){return}const b=$('#apbtn');if(!b||$('.coach'))return;const r=b.getBoundingClientRect();
+ const c=document.createElement('div');c.className='coach';c.innerHTML='Кадры уже предложены программой. Проверьте, поправьте кликом и нажмите здесь — выбор сохраняется сам.<br><button>Понятно</button>';
+ c.style.right=(innerWidth-r.right)+'px';c.style.bottom=(innerHeight-r.top+10)+'px';c.querySelector('button').onclick=()=>{try{localStorage.setItem('fobox.coach','1')}catch(e){}c.remove()};document.body.append(c)}
 function prevURL(p,sz){return `/api/preview?s=${S.sid}&p=${encodeURIComponent(p)}&size=${sz}`}
 function tile(f,must,sug,other,i){const sec=curSec();
  if(other!==undefined){const o=S.sess.sections[other];const om=o.mandatory[f.path];
@@ -349,7 +496,7 @@ function gridCols(){const ts=[...document.querySelectorAll('#grid .tile')];if(!t
 async function pickSec(i){await flush();if(i<0||i>=S.sess.sections.length)return;S.sec=i;loadSec();drawShoot();$('#grid').scrollTop=0}
 async function approve(){await flush();const s=curSec();try{await api('/api/review',{session:S.sid,section:s.id,selected:[...S.sel],approved:true});S.sess.selected[s.id]=[...S.sel];S.sess.approved[s.id]=true;
  const d=S.sess;const nx=d.sections.findIndex((x,i)=>i>S.sec&&!d.approved[x.id]);const any=nx<0?d.sections.findIndex(x=>!d.approved[x.id]):nx;
- if(any>=0){toast('Подтверждено: '+s.title+' · '+s.subtitle);S.sec=any;loadSec();S.tab=S.tab==='bad'?'all':S.tab}else toast('Все секции подтверждены — можно экспортировать');drawShoot();api('/api/stats').then(x=>S.stats=x)}catch(e){toast(e.message,1)}}
+ if(any>=0){toast('Подтверждено: '+s.title+' · '+s.subtitle);S.sec=any;loadSec();S.tab=S.tab==='bad'?'all':S.tab;document.querySelector('.coach')?.remove()}else toast('Все секции подтверждены — можно экспортировать');drawShoot();api('/api/stats').then(x=>S.stats=x)}catch(e){toast(e.message,1)}}
 // ---------- role menu
 function roleMenu(btn){const el=btn.closest('.tile');roleMenuAt(el.dataset.p,btn.getBoundingClientRect())}
 function roleMenuAt(p,r){const s=curSec(),cur=s.mandatory[p];closeMenu();const m=document.createElement('div');m.className='menu';m.id='rmenu';

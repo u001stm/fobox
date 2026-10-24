@@ -44,6 +44,8 @@ DEFAULT_SETTINGS = {
     'accent': '#7738FF',
     'theme': 'dark',
     'workspace': 'Моя студия',
+    'date_format': 'dd.mm.yyyy',   # how dates are shown in the interface
+    'compare_to': 'prev',          # overview comparison: previous period or same period last year
 }
 
 SCHEMA = """
@@ -90,7 +92,8 @@ MIGRATIONS = {
               'analyzed': 'INTEGER DEFAULT 0', 'orient': 'INTEGER'},
     'students': {'role': "TEXT DEFAULT 'student'", 'anchors': 'TEXT'},
     'selection_events': {'section_id': 'TEXT'},
-    'profiles': {'email': 'TEXT', 'phone': 'TEXT', 'city': 'TEXT', 'avatar': 'TEXT'},
+    'profiles': {'email': 'TEXT', 'phone': 'TEXT', 'city': 'TEXT', 'avatar': 'TEXT', 'site': 'TEXT',
+                 'telegram': 'TEXT', 'vk': 'TEXT', 'instagram': 'TEXT', 'youtube': 'TEXT', 'role': 'TEXT'},
 }
 SCHEMA_VERSION = 2
 
@@ -462,10 +465,17 @@ class Engine:
             return dict(c.execute("SELECT * FROM profiles WHERE id='me'").fetchone())
 
     def save_profile(self, data):
-        fields = ['name', 'studio', 'email', 'phone', 'city']
+        fields = ['name', 'studio', 'email', 'phone', 'city', 'site', 'telegram', 'vk', 'instagram', 'youtube', 'role']
+        fields = [f for f in fields if f in data]
         with self.conn() as c:
-            c.execute('UPDATE profiles SET ' + ','.join(f'{f}=?' for f in fields) + " WHERE id='me'",
-                      [str(data.get(f, ''))[:200] for f in fields])
+            if fields:
+                c.execute('UPDATE profiles SET ' + ','.join(f'{f}=?' for f in fields) + " WHERE id='me'",
+                          [str(data.get(f, ''))[:200] for f in fields])
+            if 'avatar' in data:
+                av = str(data['avatar'] or '')
+                if av and (not av.startswith('data:image/') or len(av) > 400_000):
+                    raise ValueError('Фото профиля: изображение до 300 КБ')
+                c.execute("UPDATE profiles SET avatar=? WHERE id='me'", (av,))
 
     def event(self, c, sid, stage, ev):
         c.execute('INSERT INTO workflow_events(session_id,stage,event,at) VALUES(?,?,?,?)', (sid, stage, ev, now()))
@@ -1155,74 +1165,108 @@ class Engine:
 
     # -------------------------------------------------------- statistics
     def stats(self):
+        """Everything the dashboards need, per shoot, so the interface can filter by any period."""
+        fmt = '%Y-%m-%d %H:%M:%S'
         with self.conn() as c:
             sessions = [dict(r) for r in c.execute('SELECT * FROM sessions ORDER BY first_capture DESC')]
-            per_day = [dict(r) for r in c.execute('SELECT substr(capture_at,1,10) d, COUNT(*) n, session_id FROM files GROUP BY d, session_id')]
-            flags = Counter()
-            analyzed = 0
-            for r in c.execute('SELECT flags, analyzed FROM files'):
-                analyzed += r['analyzed'] or 0
-                for fl in (r['flags'] or '').split(','):
-                    if fl:
-                        flags[fl] += 1
-            nfiles = c.execute('SELECT COUNT(*) FROM files').fetchone()[0]
-            nraw = c.execute("SELECT COUNT(*) FROM files WHERE kind='raw'").fetchone()[0]
-            sugg = c.execute('SELECT COUNT(*) FROM ai_suggestions').fetchone()[0]
-            # suggestions still selected in approved sections = accepted
-            accepted = c.execute('''SELECT COUNT(*) FROM ai_suggestions a JOIN selections s USING(session_id,section_id,file_path)
-                                    JOIN approvals p ON p.session_id=a.session_id AND p.section_id=a.section_id AND p.approved=1''').fetchone()[0]
-            rejected = c.execute('''SELECT COUNT(*) FROM ai_suggestions a JOIN approvals p ON p.session_id=a.session_id
-                                    AND p.section_id=a.section_id AND p.approved=1
-                                    WHERE NOT EXISTS(SELECT 1 FROM selections s WHERE s.session_id=a.session_id
-                                    AND s.section_id=a.section_id AND s.file_path=a.file_path)''').fetchone()[0]
-            manual_add = c.execute('''SELECT COUNT(*) FROM selections s JOIN approvals p ON p.session_id=s.session_id
-                                      AND p.section_id=s.section_id AND p.approved=1
-                                      WHERE s.file_path NOT IN (SELECT file_path FROM ai_suggestions a WHERE a.session_id=s.session_id AND a.section_id=s.section_id)
-                                      AND NOT EXISTS(SELECT 1 FROM selection_events e WHERE e.session_id=s.session_id AND e.section_id=s.section_id
-                                      AND e.file_path=s.file_path AND e.actor='worksheet')''').fetchone()[0]
-            approved_secs = c.execute('SELECT session_id, section_id FROM approvals WHERE approved=1').fetchall()
-            untouched = 0
-            for a in approved_secs:
-                ev = c.execute("SELECT COUNT(*) FROM selection_events WHERE session_id=? AND section_id=? AND actor='user'", (a[0], a[1])).fetchone()[0]
-                untouched += ev == 0
+            per = {s['id']: s for s in sessions}
+            for s in sessions:
+                s.update(frames=0, raw=0, analyzed=0, flags={}, students=0, kits=0, selected=0, sections=0, approved=0,
+                         suggested=0, accepted=0, replaced=0, manual_added=0, untouched=0, durations={}, cover=None, hours=None)
+            for r in c.execute("SELECT session_id, COUNT(*) n, SUM(kind='raw') nr, SUM(analyzed) na FROM files GROUP BY session_id"):
+                if r['session_id'] in per:
+                    per[r['session_id']].update(frames=r['n'], raw=r['nr'] or 0, analyzed=r['na'] or 0)
+            for r in c.execute('SELECT session_id, flags FROM files WHERE flags IS NOT NULL'):
+                fl = per.get(r['session_id'], {}).get('flags')
+                if fl is not None:
+                    for f in r['flags'].split(','):
+                        fl[f] = fl.get(f, 0) + 1
+            days, day_hours = defaultdict(int), defaultdict(float)
+            for r in c.execute('SELECT substr(capture_at,1,10) d, COUNT(*) n FROM files GROUP BY d'):
+                days[r['d']] += r['n']
+            for r in c.execute("SELECT session_id, COUNT(*) n FROM students WHERE role='student' GROUP BY session_id"):
+                if r['session_id'] in per:
+                    per[r['session_id']]['students'] = r['n']
+            for r in c.execute('SELECT session_id, COUNT(DISTINCT file_path) n FROM selections GROUP BY session_id'):
+                if r['session_id'] in per:
+                    per[r['session_id']]['selected'] = r['n']
+            for r in c.execute('SELECT session_id, COUNT(*) n, SUM(approved) a FROM approvals GROUP BY session_id'):
+                if r['session_id'] in per:
+                    per[r['session_id']]['approved'] = r['a'] or 0
+            for r in c.execute('SELECT session_id, COUNT(*) n FROM ai_suggestions GROUP BY session_id'):
+                if r['session_id'] in per:
+                    per[r['session_id']]['suggested'] = r['n']
+            for r in c.execute('''SELECT a.session_id, COUNT(*) n FROM ai_suggestions a JOIN selections s USING(session_id,section_id,file_path)
+                                JOIN approvals p ON p.session_id=a.session_id AND p.section_id=a.section_id AND p.approved=1
+                                GROUP BY a.session_id'''):
+                if r['session_id'] in per:
+                    per[r['session_id']]['accepted'] = r['n']
+            for r in c.execute('''SELECT a.session_id, COUNT(*) n FROM ai_suggestions a JOIN approvals p ON p.session_id=a.session_id
+                                AND p.section_id=a.section_id AND p.approved=1
+                                WHERE NOT EXISTS(SELECT 1 FROM selections s WHERE s.session_id=a.session_id
+                                AND s.section_id=a.section_id AND s.file_path=a.file_path) GROUP BY a.session_id'''):
+                if r['session_id'] in per:
+                    per[r['session_id']]['replaced'] = r['n']
+            for r in c.execute('''SELECT s.session_id, COUNT(*) n FROM selections s JOIN approvals p ON p.session_id=s.session_id
+                                AND p.section_id=s.section_id AND p.approved=1
+                                WHERE s.file_path NOT IN (SELECT file_path FROM ai_suggestions a WHERE a.session_id=s.session_id AND a.section_id=s.section_id)
+                                AND NOT EXISTS(SELECT 1 FROM selection_events e WHERE e.session_id=s.session_id AND e.section_id=s.section_id
+                                AND e.file_path=s.file_path AND e.actor='worksheet') GROUP BY s.session_id'''):
+                if r['session_id'] in per:
+                    per[r['session_id']]['manual_added'] = r['n']
+            for r in c.execute('''SELECT p.session_id, COUNT(*) n FROM approvals p WHERE p.approved=1 AND NOT EXISTS(
+                                SELECT 1 FROM selection_events e WHERE e.session_id=p.session_id AND e.section_id=p.section_id AND e.actor='user')
+                                GROUP BY p.session_id'''):
+                if r['session_id'] in per:
+                    per[r['session_id']]['untouched'] = r['n']
             wf = [dict(r) for r in c.execute('SELECT session_id,stage,event,at FROM workflow_events ORDER BY id')]
-            people = {r['session_id']: r['n'] for r in c.execute("SELECT session_id, COUNT(*) n FROM students WHERE role='student' GROUP BY session_id")}
-            kits = c.execute('''SELECT COUNT(*) FROM students st WHERE role='student' AND
-                                (SELECT COUNT(*) FROM approvals a WHERE a.session_id=st.session_id AND a.approved=1
-                                 AND a.section_id IN (st.student_id||'p', st.student_id||'f'))=2''').fetchone()[0]
-        fmt = '%Y-%m-%d %H:%M:%S'
+            for s in sessions:
+                cov = c.execute('''SELECT e.file_path FROM selection_events e JOIN files f ON f.session_id=e.session_id AND f.path=e.file_path
+                                    WHERE e.session_id=? AND e.actor='worksheet' AND f.preview IS NOT NULL LIMIT 1''', (s['id'],)).fetchone() or \
+                      c.execute('SELECT path FROM files WHERE session_id=? AND preview IS NOT NULL AND flags IS NULL ORDER BY capture_at LIMIT 1 OFFSET 3', (s['id'],)).fetchone() or \
+                      c.execute('SELECT path FROM files WHERE session_id=? AND preview IS NOT NULL LIMIT 1', (s['id'],)).fetchone()
+                s['cover'] = cov[0] if cov else None
+                secs = self.sections(s['id'])[0] if s['frames'] else []
+                s['sections'] = len(secs)
+                ok = {r[0] for r in c.execute('SELECT section_id FROM approvals WHERE session_id=? AND approved=1', (s['id'],))}
+                people = defaultdict(list)
+                for x in secs:
+                    if x['person'] and x['kind'] != 'teacher':
+                        people[x['person']].append(x['id'] in ok)
+                s['kits'] = sum(1 for v in people.values() if all(v))   # a child is ready when all its sections are confirmed
         for s in sessions:
-            s['frames'] = sum(d['n'] for d in per_day if d['session_id'] == s['id'])
-            s['students'] = people.get(s['id'], 0)
-            s['hours'] = None
             if s['first_capture'] and s['last_capture']:
                 s['hours'] = round((datetime.strptime(s['last_capture'], fmt) - datetime.strptime(s['first_capture'], fmt)).total_seconds() / 3600, 2)
-        days = defaultdict(int)
-        for d in per_day:
-            days[d['d']] += d['n']
+                if s['shoot_date']:
+                    day_hours[s['shoot_date'][:10]] += s['hours']
+        # workflow: start/end pairs per stage; review = time between consecutive confirmations (pauses > 30 min ignored)
+        opened, appr = {}, defaultdict(list)
+        for e in wf:
+            s = per.get(e['session_id'])
+            if not s:
+                continue
+            k = (e['session_id'], e['stage'])
+            t = datetime.strptime(e['at'], fmt)
+            if e['event'] == 'start':
+                opened[k] = t
+            elif e['event'] == 'end' and k in opened:
+                s['durations'][e['stage']] = s['durations'].get(e['stage'], 0) + (t - opened.pop(k)).total_seconds()
+            elif e['stage'] == 'review' and e['event'].startswith('approve:'):
+                appr[e['session_id']].append(t)
+        for sid, ts in appr.items():
+            ts.sort()
+            gaps = [(b - a).total_seconds() for a, b in zip(ts, ts[1:]) if (b - a).total_seconds() < 1800]
+            per[sid]['durations']['review'] = sum(gaps)
+            per[sid]['durations']['review_per_section'] = round(sum(gaps) / len(gaps), 1) if gaps else None
         months = defaultdict(lambda: {'frames': 0, 'sessions': 0})
         for d, n in days.items():
             months[d[:7]]['frames'] += n
         for s in sessions:
             if s['shoot_date']:
                 months[s['shoot_date'][:7]]['sessions'] += 1
-        # workflow durations (pairs start/end per stage)
-        dur = defaultdict(list)
-        opened = {}
-        for e in wf:
-            k = (e['session_id'], e['stage'])
-            if e['event'] == 'start':
-                opened[k] = e['at']
-            elif e['event'] == 'end' and k in opened:
-                dur[e['stage']].append((datetime.strptime(e['at'], fmt) - datetime.strptime(opened.pop(k), fmt)).total_seconds())
-        review_times = defaultdict(list)
-        for e in wf:
-            if e['stage'] == 'review' and e['event'].startswith('approve:'):
-                review_times[e['session_id']].append(datetime.strptime(e['at'], fmt))
-        per_section = []
-        for ts in review_times.values():
-            ts.sort()
-            per_section += [(b - a).total_seconds() for a, b in zip(ts, ts[1:]) if (b - a).total_seconds() < 1800]
+        flags = Counter()
+        for s in sessions:
+            flags.update(s['flags'])
         records = {}
         with_hours = [s for s in sessions if s['hours'] is not None]
         if with_hours:
@@ -1234,20 +1278,25 @@ class Engine:
         if months:
             m = max(months, key=lambda k: months[k]['frames'])
             records['active_month'] = {'value': months[m]['frames'], 'month': m}
-        if people:
-            sid = max(people, key=people.get)
-            t = next((s for s in sessions if s['id'] == sid), None)
-            if t:
-                records['biggest_class'] = {'value': people[sid], 'title': t['title'], 'date': t['shoot_date']}
-        total_hours = sum(s['hours'] for s in with_hours) if with_hours else None
+        big = [s for s in sessions if s['students']]
+        if big:
+            x = max(big, key=lambda s: s['students'])
+            records['biggest_class'] = {'value': x['students'], 'title': x['title'], 'date': x['shoot_date']}
+        tot = lambda k: sum(s[k] for s in sessions)
+        durs = defaultdict(list)
+        for s in sessions:
+            for k, v in s['durations'].items():
+                if v is not None:
+                    durs[k].append(v)
         avg = lambda v: round(sum(v) / len(v), 1) if v else None
         return {
-            'sessions': sessions, 'files': nfiles, 'raw': nraw, 'analyzed': analyzed, 'flags': dict(flags),
-            'hours': round(total_hours, 1) if total_hours is not None else None, 'kits': kits,
-            'days': dict(days), 'months': {k: months[k] for k in sorted(months)},
-            'selection': {'suggested': sugg, 'accepted': accepted, 'replaced': rejected, 'manual_added': manual_add,
-                          'sections_untouched': untouched, 'sections_approved': len(approved_secs)},
-            'workflow': {'import_sec': avg(dur['import']), 'analysis_sec': avg(dur['analysis']),
-                         'export_sec': avg(dur['export']), 'review_per_section_sec': avg(per_section)},
+            'sessions': sessions, 'files': tot('frames'), 'raw': tot('raw'), 'analyzed': tot('analyzed'), 'flags': dict(flags),
+            'hours': round(sum(s['hours'] for s in with_hours), 1) if with_hours else None, 'kits': tot('kits'),
+            'days': dict(days), 'day_hours': {k: round(v, 2) for k, v in day_hours.items()},
+            'months': {k: months[k] for k in sorted(months)},
+            'selection': {'suggested': tot('suggested'), 'accepted': tot('accepted'), 'replaced': tot('replaced'),
+                          'manual_added': tot('manual_added'), 'sections_untouched': tot('untouched'), 'sections_approved': tot('approved')},
+            'workflow': {'import_sec': avg(durs['import']), 'analysis_sec': avg(durs['analysis']),
+                         'export_sec': avg(durs['export']), 'review_per_section_sec': avg(durs['review_per_section'])},
             'records': records, 'pillow': Image is not None,
         }
