@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlparse
 from engine import Engine
 
 UI = Path(__file__).with_name('ui.html')
+APP_VERSION = '4.0a2.7'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
@@ -77,7 +78,7 @@ def make_handler(engine):
                 elif u.path == '/api/stats':
                     self.send(200, engine.stats())
                 elif u.path == '/api/settings':
-                    self.send(200, {'settings': engine.settings(), 'profile': engine.profile()})
+                    self.send(200, {'settings': engine.settings(), 'profile': engine.profile(), 'version': APP_VERSION})
                 elif u.path == '/api/session':
                     self.send(200, engine.session(q.get('id', '')))
                 elif u.path == '/api/job':
@@ -146,7 +147,7 @@ def make_handler(engine):
                 elif p == '/api/pick':
                     out = {'path': pick_path(b.get('kind', 'dir'))}
                 else:
-                    return self.send(404, {'error': 'Не найдено'})
+                    return self.send(404, {'error': 'Команда не найдена — перезапустите программу (Ctrl+C и снова py fobox4.py)', 'code': 'no_route'})
                 self.send(200, out)
             except (ValueError, KeyError, OSError, json.JSONDecodeError) as e:
                 self.send(400, {'error': str(e)})

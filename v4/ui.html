@@ -225,10 +225,13 @@ function side(){const p=S.cfg?.profile||{};
  <nav><button class="nb new" title="Новая съёмка" onclick="importDlg()">${ico('plus')}<span>Новая съёмка</span></button>${PAGES.map(([k,t,i])=>`<button class="nb ${S.page===k?'on':''}" title="${t}" onclick="go('${k}')">${ico(i)}<span>${t}</span></button>`).join('')}</nav>
  <div class="sp"></div><button class="nb me" title="Профиль фотографа" onclick="go('settings','Профиль')"><span class="av" ${avatarStyle(p)}>${esc(initials(p.name))}</span><span>${esc(p.name||'Профиль фотографа')}</span></button>`}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
+const UI_VERSION='4.0a2.7';
+async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;document.documentElement.style.setProperty('--accent',s.accent);document.documentElement.style.setProperty('--c1',s.accent);document.documentElement.style.setProperty('--accent-soft',s.accent+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
 function render(){document.querySelector('.coach')?.remove();const m=$('#main');if(S.page==='shoot')return renderShoot();const f={overview,analytics,history,settings}[S.page]||overview;m.innerHTML='<div class="page">'+f()+'</div>';if(S.page==='settings')bindSettings();hydrate()}
 function hydrate(){document.querySelectorAll('[data-bg]').forEach(el=>{const im=new Image();im.onload=()=>el.style.backgroundImage=`url('${el.dataset.bg}')`;im.src=el.dataset.bg})}
+function staleBanner(){if($('#stale'))return;const d=document.createElement('div');d.id='stale';d.className='toast';d.style.cssText='left:50%;right:auto;transform:translateX(-50%);top:16px;bottom:auto;border-color:var(--warn);max-width:560px';
+ d.innerHTML='<b>Программа обновилась — перезапустите её.</b><br><span class="mut">В окне PowerShell нажмите Ctrl+C, снова запустите <kbd>py -3 fobox4.py</kbd> и обновите страницу.</span>';document.body.append(d)}
 const empty=t=>`<div class="empty">${t}</div>`;
 const head=(t,sub)=>`<div class="top"><div><h1>${t}</h1>${sub?`<div class="mut">${sub}</div>`:''}</div></div>`;
 const NODATA='Нет данных за этот период';
