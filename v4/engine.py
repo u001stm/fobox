@@ -247,7 +247,7 @@ def hamming(a, b):
 # ---------------------------------------------------------------- worksheets (Excel / CSV)
 def _norm(h):
     h = re.sub(r'\(.*?\)', '', str(h or ''))  # 'Портрет 1 (ЛР)' -> 'Портрет 1'
-    return re.sub(r'[\s._\-№#:]+', '', h.strip().casefold()).replace('ё', 'е')
+    return re.sub(r'[\s._\-№#:,;/]+', '', h.strip().casefold()).replace('ё', 'е')
 
 
 # accepted column titles -> canonical key (compared without spaces, case, dots)
@@ -283,47 +283,70 @@ def _cell(v):
     return v
 
 
-def _xlsx_rows(path):
+def _col_index(ref):
+    col = 0
+    for ch in re.match(r'([A-Z]+)', ref)[1]:
+        col = col * 26 + ord(ch) - 64
+    return col - 1
+
+
+def _xlsx_book(path):
+    """All sheets of an .xlsx as [(sheet name, rows, comments)] without external libraries.
+    rows[i] is Excel row i+1 (empty rows kept, so comments can be matched); comments: {(row, col): text}."""
+    import posixpath
     import zipfile
     import xml.etree.ElementTree as ET
-    ns = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
-    rel_ns = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id'
+    M = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+    ns = {'m': M}
+    rid = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id'
+
+    def rels_of(z, part):
+        d, b = posixpath.split(part)
+        rp = posixpath.join(d, '_rels', b + '.rels')
+        if rp not in z.namelist():
+            return {}
+        return {r.get('Id'): (r.get('Type', ''), posixpath.normpath(posixpath.join(d, r.get('Target'))) if not r.get('Target', '').startswith('/') else r.get('Target').lstrip('/'))
+                for r in ET.fromstring(z.read(rp))}
     with zipfile.ZipFile(path) as z:
         shared = []
         if 'xl/sharedStrings.xml' in z.namelist():
             for si in ET.fromstring(z.read('xl/sharedStrings.xml')).findall('m:si', ns):
-                shared.append(''.join(t.text or '' for t in si.iter('{%s}t' % ns['m'])))
-        # first sheet in workbook order
-        sheet = 'xl/worksheets/sheet1.xml'
-        try:
-            wb = ET.fromstring(z.read('xl/workbook.xml'))
-            first = wb.find('m:sheets/m:sheet', ns)
-            rels = ET.fromstring(z.read('xl/_rels/workbook.xml.rels'))
-            for r in rels:
-                if r.get('Id') == first.get(rel_ns):
-                    t = r.get('Target').lstrip('/')
-                    sheet = t if t.startswith('xl/') else 'xl/' + t
-        except (KeyError, AttributeError, ET.ParseError):
-            pass
-        rows = []
-        for row in ET.fromstring(z.read(sheet)).iter('{%s}row' % ns['m']):
-            vals = {}
-            for cell in row.findall('m:c', ns):
-                ref = re.match(r'([A-Z]+)', cell.get('r', 'A'))[1]
-                col = 0
-                for ch in ref:
-                    col = col * 26 + ord(ch) - 64
-                typ, v = cell.get('t'), cell.find('m:v', ns)
-                if typ == 's' and v is not None:
-                    val = shared[int(v.text)]
-                elif typ == 'inlineStr':
-                    val = ''.join(t.text or '' for t in cell.iter('{%s}t' % ns['m']))
-                else:
-                    val = v.text if v is not None else ''
-                vals[col - 1] = val
-            if vals:
-                rows.append([vals.get(i, '') for i in range(max(vals) + 1)])
-        return rows
+                shared.append(''.join(t.text or '' for t in si.iter('{%s}t' % M)))
+        wbrels = rels_of(z, 'xl/workbook.xml')
+        sheets = []
+        for sh in ET.fromstring(z.read('xl/workbook.xml')).iterfind('m:sheets/m:sheet', ns):
+            part = wbrels.get(sh.get(rid), ('', ''))[1]
+            if not part or part not in z.namelist():
+                continue
+            rows = {}
+            for row in ET.fromstring(z.read(part)).iter('{%s}row' % M):
+                vals = {}
+                for cell in row.findall('m:c', ns):
+                    typ, v = cell.get('t'), cell.find('m:v', ns)
+                    if typ == 's' and v is not None:
+                        val = shared[int(v.text)]
+                    elif typ == 'inlineStr':
+                        val = ''.join(t.text or '' for t in cell.iter('{%s}t' % M))
+                    else:
+                        val = v.text if v is not None else ''
+                    vals[_col_index(cell.get('r', 'A'))] = val
+                if vals:
+                    rows[int(row.get('r')) - 1] = [vals.get(k, '') for k in range(max(vals) + 1)]
+            dense = [rows.get(k, []) for k in range(max(rows) + 1)] if rows else []
+            comments = {}
+            for typ, target in rels_of(z, part).values():
+                if typ.endswith('/comments') and target in z.namelist():
+                    for cm in ET.fromstring(z.read(target)).iter('{%s}comment' % M):
+                        ref = cm.get('ref', 'A1')
+                        txt = ''.join(t.text or '' for t in cm.iter('{%s}t' % M)).strip()
+                        comments[(int(re.search(r'(\d+)', ref)[1]) - 1, _col_index(ref))] = txt
+            sheets.append((sh.get('name', ''), dense, comments))
+        return sheets
+
+
+def _xlsx_rows(path):
+    book = _xlsx_book(path)
+    return book[0][1] if book else []
 
 
 def _csv_rows(path):
@@ -344,29 +367,52 @@ def _looks_like_name(v):
     return bool(re.search(r'[A-Za-zА-Яа-яЁё]{2,}', v)) and not re.fullmatch(r'[A-Za-z]{2,5}\d+(\.\w+)?', v)
 
 
-def read_worksheet(path, columns, optional=None):
-    """Read an Excel (.xlsx) or CSV worksheet.
-    * The header row is searched in the first 15 rows; Russian/English titles are accepted.
-    * A CSV opened in Excel without splitting (all text in column A with ';') is split.
-    * Without a recognisable header the layout is taken by position:
-      [type;] name; V; P1; P2; D1; D2 [; teacher photo]."""
-    p = Path(str(path).strip().strip('"')).expanduser()
-    if not p.is_file():
-        raise ValueError('Не найдена ведомость: ' + str(p))
+META_LABELS = {'order': ['договор', 'заказ', 'номерзаказа'], 'school': ['учебноезаведение', 'школа', 'учреждение', 'заведение', 'садик', 'детскийсад'],
+               'class_name': ['класс', 'группа', 'классгруппа'], 'date': ['дата', 'датасъемки']}
+SKIP_ROW = re.compile(r'(?i)(договор|заведени|учрежден|класс|групп|дата|школа|заказ|ведомост|выделен|итого|примечан)')
+TEACHER_COLS2 = {'Name': ['name', 'фио', 'учитель', 'педагог', 'фамилияимя', 'фамилияимяотчество', 'имя'],
+                 'T': ['фото', 'фотоучителя', 'кадр', 'кадры', 'номер', 'номера', 'снимок', 'фотография', 'номеркадра']}
+TEACHER_OPT = {'Role': ['role', 'должность', 'роль', 'предмет'], 'Start': ['start', 'начало', 'первыйкадр', 'от'],
+               'End': ['end', 'конец', 'последнийкадр', 'до']}
+
+
+def _load_rows(p):
+    """[(sheet name, rows, comments)] for .xlsx/.csv; a CSV pasted into one Excel column is split."""
     ext = p.suffix.lower()
     if ext in ('.xlsx', '.xlsm'):
-        rows = _xlsx_rows(p)
+        book = _xlsx_book(p)
     elif ext == '.xls':
         raise ValueError('Старый формат .xls: откройте файл в Excel и сохраните как .xlsx')
     else:
-        rows = _csv_rows(p)
-    # CSV pasted into one Excel column: "ученики;Акимова Мария;1750;..."
-    filled = [r for r in rows if any(str(x).strip() for x in r)]
-    if filled and sum(1 for r in filled if len([x for x in r if str(x).strip()]) == 1 and ';' in str(next(x for x in r if str(x).strip()))) > len(filled) * 0.6:
-        rows = [str(next((x for x in r if str(x).strip()), '')).split(';') for r in rows]
-    optional = optional or {}
-    allcols = {**columns, **optional}
-    alias = {_norm(a): key for key, names in allcols.items() for a in names + [key]}
+        book = [('', _csv_rows(p), {})]
+    out = []
+    for name, rows, comments in book:
+        filled = [r for r in rows if any(str(x).strip() for x in r)]
+        if filled and sum(1 for r in filled if len([x for x in r if str(x).strip()]) == 1 and ';' in str(next(x for x in r if str(x).strip()))) > len(filled) * 0.6:
+            rows = [str(next((x for x in r if str(x).strip()), '')).split(';') for r in rows]
+        out.append((name, rows, comments))
+    return out
+
+
+def _sheet_meta(rows):
+    meta = {}
+    for r in rows[:12]:
+        cells = [str(x).strip() for x in r]
+        for i, c in enumerate(cells):
+            n = _norm(c)
+            for key, labels in META_LABELS.items():
+                if key not in meta and n and any(n == l or n.startswith(l) for l in labels):
+                    val = next((v for v in cells[i + 1:] if v), '')
+                    if val and not _norm(val) in sum(META_LABELS.values(), []):
+                        meta[key] = _cell(val)
+    return meta
+
+
+def _parse_rows(rows, columns, optional=None, comments=None, positional=None):
+    """Records from one sheet. Header row is searched in the first 15 rows; without it, the layout is
+    taken by position (name, then the frame numbers in `positional` order)."""
+    optional, comments = optional or {}, comments or {}
+    alias = {_norm(a): key for key, names in {**columns, **optional}.items() for a in names + [key]}
     mapping, hi = None, -1
     for i, row in enumerate(rows[:15]):
         m = {}
@@ -379,29 +425,91 @@ def read_worksheet(path, columns, optional=None):
             break
     out = []
     if mapping is not None:
-        for row in rows[hi + 1:]:
+        for ri in range(hi + 1, len(rows)):
+            row = rows[ri]
             rec = {key: _cell(row[i]) if i < len(row) else '' for i, key in mapping.items()}
-            if rec.get('Name'):
+            if rec.get('Name') and not SKIP_ROW.match(rec['Name']):
+                unsure = {key: comments[(ri, i)] for i, key in mapping.items() if (ri, i) in comments}
+                if unsure:
+                    rec['_unsure'] = unsure
                 out.append(rec)
         return out
-    if 'V' not in columns:
+    if not positional:
+        return None
+    for ri, row in enumerate(rows):
+        cells = [_cell(x) for x in row]
+        idx = next((i for i, v in enumerate(cells) if _looks_like_name(v) and not re.match(r'(?i)(ученик|учител|тип|фамил|фио|name|№)', v)), None)
+        if idx is None or SKIP_ROW.match(cells[idx]):
+            continue
+        rest = cells[idx + 1:]
+        if not any(re.fullmatch(r'[A-Za-z_]*\d+[\w.]*(\s+[A-Za-z_]*\d+[\w.]*)*', v) for v in rest[:len(positional)]):
+            continue  # a title or label row, not a person
+        rec = {'Name': cells[idx], 'Type': next((v for v in cells[:idx] if v and not v.isdigit()), '')}
+        for k, v in zip(positional, rest):
+            rec[k] = v if v not in ('—', '-', '–') else ''
+        unsure = {k: comments[(ri, idx + 1 + n)] for n, k in enumerate(positional) if (ri, idx + 1 + n) in comments}
+        if (ri, idx) in comments:
+            unsure['Name'] = comments[(ri, idx)]
+        if unsure:
+            rec['_unsure'] = unsure
+        out.append(rec)
+    return out
+
+
+def read_worksheet(path, columns, optional=None):
+    """Read the first sheet of an Excel (.xlsx) or CSV worksheet (kept for compatibility)."""
+    p = Path(str(path).strip().strip('"')).expanduser()
+    if not p.is_file():
+        raise ValueError('Не найдена ведомость: ' + str(p))
+    name, rows, comments = _load_rows(p)[0]
+    out = _parse_rows(rows, columns, optional, comments, ['V', 'P1', 'P2', 'D1', 'D2', 'T'] if 'V' in columns else None)
+    if out is None:
         expected = ', '.join(names[1] if len(names) > 1 else names[0] for names in columns.values())
         raise ValueError(f'{p.name}: не найдена строка заголовков. Нужны колонки: {expected}')
-    # no header: name in the first text cell, then five frame columns in order
-    order = ['V', 'P1', 'P2', 'D1', 'D2', 'T']
-    for row in rows:
-        cells = [_cell(x) for x in row]
-        idx = next((i for i, v in enumerate(cells) if _looks_like_name(v) and not re.match(r'(?i)(ученик|учител|тип|фамил|фио|name)', v)), None)
-        if idx is None:
-            continue
-        rec = {'Name': cells[idx], 'Type': next((v for v in cells[:idx] if v), '')}
-        for k, v in zip(order, cells[idx + 1:]):
-            rec[k] = v
-        if any(rec.get(k) for k in order):
-            out.append(rec)
     if not out:
         raise ValueError(f'{p.name}: не удалось прочитать. Нужно: Фамилия Имя и 5 номеров (Виньетка, ЛР, ЛС, Друг 1, Друг 2)')
     return out
+
+
+def read_workbook(path):
+    """The whole worksheet: students (first non-teacher sheet), teachers (sheet named «Учителя…»
+    or rows typed «учителя»), and header facts like contract number, school and class."""
+    p = Path(str(path).strip().strip('"')).expanduser()
+    if not p.is_file():
+        raise ValueError('Не найдена ведомость: ' + str(p))
+    book = _load_rows(p)
+    students, teachers, meta = [], [], {}
+    for name, rows, comments in book:
+        is_teacher_sheet = bool(re.match(r'(?i)\s*(учит|педаг|teach)', name))
+        if is_teacher_sheet:
+            recs = _parse_rows(rows, TEACHER_COLS2, TEACHER_OPT, comments)
+            if recs is None:
+                recs = _parse_rows(rows, {'Name': TEACHER_COLS2['Name'], 'Start': TEACHER_OPT['Start']}, {'End': TEACHER_OPT['End'], 'Role': TEACHER_OPT['Role']}, comments)
+            if recs is None:
+                recs = _parse_rows(rows, {'Name': ['__none__']}, None, comments, ['T'])
+            for r in recs or []:
+                r['Type'] = 'учителя'
+            teachers += recs or []
+            continue
+        if students:
+            continue  # only the first students sheet is used
+        meta.update(_sheet_meta(rows))
+        recs = _parse_rows(rows, STUDENT_COLS, EXTRA_COLS, comments, ['V', 'P1', 'P2', 'D1', 'D2', 'T'])
+        students = recs or []
+    if not students and not teachers:
+        raise ValueError(f'{p.name}: не удалось прочитать. Нужно: Фамилия Имя и 5 номеров (Виньетка, ЛР, ЛС, Друг 1, Друг 2)')
+    return {'students': students, 'teachers': teachers, 'meta': meta, 'sheets': [b[0] for b in book]}
+
+
+def worksheet_summary(path):
+    """What the import dialog shows right after a worksheet is chosen."""
+    wb = read_workbook(path)
+    st = [r for r in wb['students'] if not str(r.get('Type', '')).casefold().startswith(('учит', 'педаг'))]
+    te = wb['teachers'] + [r for r in wb['students'] if str(r.get('Type', '')).casefold().startswith(('учит', 'педаг'))]
+    unsure = sum(len(r.get('_unsure', {})) for r in wb['students'] + wb['teachers'])
+    empty = sum(1 for r in st if not any(r.get(k) for k in ('V', 'P1', 'P2', 'D1', 'D2')))
+    return {'students': len(st), 'teachers': len(te), 'unsure': unsure, 'no_numbers': empty, 'meta': wb['meta'],
+            'sheets': wb['sheets'], 'sample': [r['Name'] for r in st[:3]]}
 
 
 class Engine:
@@ -543,6 +651,12 @@ class Engine:
             raise ValueError('В папке нет RAW или JPEG')
         job.update(stage='Чтение EXIF', total=len(items), done=0)
         mode = 'school' if opts.get('students') else 'general'
+        if mode == 'school':
+            # contract number, school and class from the worksheet header fill empty fields
+            meta = read_workbook(opts['students'])['meta']
+            opts = {**opts, **{k: v for k, v in meta.items() if not str(opts.get(k) or '').strip()}}
+            if not (opts.get('title') or '').strip() and (opts.get('school') or opts.get('class_name')):
+                opts['title'] = ', '.join(x for x in (opts.get('school'), opts.get('class_name')) if x)
         title = (opts.get('title') or '').strip() or src.name
         with self.conn() as c:
             self.event(c, sid, 'import', 'start')
@@ -604,13 +718,18 @@ class Engine:
     def _load_people(self, c, sid, students_file, teachers_file):
         c.execute('DELETE FROM students WHERE session_id=?', (sid,))
         ns = nt = 0
-        rows = read_worksheet(students_file, STUDENT_COLS, EXTRA_COLS) if students_file else []
-        for r in rows:
+        wb = read_workbook(students_file) if students_file else {'students': [], 'teachers': []}
+        for r in wb['students'] + wb['teachers']:
             typ = (r.get('Type') or '').casefold()
+            unsure = r.get('_unsure') or {}
             is_teacher = typ.startswith(('учит', 'педаг', 'teach')) or \
                 (r.get('T') and not any(r.get(k) for k in ('V', 'P1', 'P2', 'D1', 'D2')))
             if is_teacher:
-                anchors = {'Role': r.get('Role', ''), 'T': r.get('T') or ' '.join(r.get(k, '') for k in ('V', 'P1', 'P2', 'D1', 'D2')).strip()}
+                if r.get('Start') and not r.get('T'):
+                    anchors = {'Role': r.get('Role', ''), 'Start': r.get('Start', ''), 'End': r.get('End', '')}
+                else:
+                    anchors = {'Role': r.get('Role', ''), 'T': r.get('T') or ' '.join(r.get(k, '') for k in ('V', 'P1', 'P2', 'D1', 'D2')).strip()}
+                anchors['unsure'] = unsure
                 c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
                           (sid, f't{nt}', safe_name(' '.join(r['Name'].split())), 'teacher', json.dumps(anchors, ensure_ascii=False)))
                 nt += 1
@@ -618,6 +737,7 @@ class Engine:
             if typ and not typ.startswith(('учен', 'дет', 'реб', 'stud', 'kid')):
                 continue  # other categories (документы, общая …) are not personal pages
             anchors = {k: r.get(k, '') for k in ('V', 'P1', 'P2', 'D1', 'D2')}
+            anchors['unsure'] = unsure
             c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
                       (sid, f's{ns}', safe_name(' '.join(r['Name'].split()[:2])), 'student', json.dumps(anchors, ensure_ascii=False)))
             ns += 1
@@ -817,7 +937,8 @@ class Engine:
                         out.append({'id': p['student_id'] + suffix, 'title': p['name'], 'subtitle': label,
                                     'kind': 'portrait' if suffix == 'p' else 'friends', 'person': p['student_id'],
                                     'files': [f['path'] for f in near], 'mandatory': must, 'limit': None,
-                                    'roles': cols, 'overridden': bool(o)})
+                                    'roles': cols, 'overridden': bool(o),
+                                    'unsure': {k: v for k, v in (a.get('unsure') or {}).items() if k in cols or (k == 'Name' and suffix == 'p')}})
                 elif a.get('T'):
                     # teacher given by photo number(s): those frames are mandatory, neighbours shown for choice
                     o = {k: v for k, v in ov[p['student_id']].items() if k == 'T'}
@@ -830,7 +951,7 @@ class Engine:
                     out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': a.get('Role') or 'Учитель',
                                 'kind': 'teacher', 'person': p['student_id'],
                                 'files': [f['path'] for f in near], 'mandatory': must, 'limit': 5,
-                                'roles': ['T'], 'overridden': bool(o)})
+                                'roles': ['T'], 'overridden': bool(o), 'unsure': a.get('unsure') or {}})
                 else:
                     s0 = self._resolve(files, a.get('Start'), conflicts, p['name'] + ', начало: ')
                     s1 = self._resolve(files, a.get('End'), conflicts, p['name'] + ', конец: ')
@@ -839,6 +960,15 @@ class Engine:
                                 'kind': 'teacher', 'person': p['student_id'],
                                 'files': [f['path'] for f in frames if lo <= f['frame'] <= hi], 'mandatory': {}, 'limit': 5,
                                 'roles': [], 'overridden': False})
+            # a teacher's set never offers another teacher's worksheet photo
+            tmand = {}
+            for x in out:
+                if x['kind'] == 'teacher':
+                    for p in x['mandatory']:
+                        tmand[p] = x['id']
+            for x in out:
+                if x['kind'] == 'teacher':
+                    x['files'] = [p for p in x['files'] if tmand.get(p, x['id']) == x['id']]
         else:
             by = defaultdict(list)
             for f in files:
@@ -1037,7 +1167,7 @@ class Engine:
             prefix = {'V': '{n}_', 'P1': 'ЛР_{n}_', 'P2': 'ЛС_{n}_', 'D1': 'Друг1_', 'D2': 'Друг2_', 'T': ''}
             # portraits and friends of one student are merged: a frame inside both windows is copied once
             by_person, subs = defaultdict(set), {}
-            mand, roles = {}, {}
+            mand, roles, teacher_done = {}, {}, set()
             for sec in st['sections']:
                 key = (sec['person'], sec['kind'] == 'teacher', sec['title'])
                 subs[key] = sec['subtitle']
@@ -1048,10 +1178,20 @@ class Engine:
                     roles[(sec['person'], p)] = ROLE_NAMES.get(k, k)
             for (person, is_teacher, name), paths in by_person.items():
                 sub = subs[(person, is_teacher, name)]
+                # teacher: the worksheet photo is named «Фамилия Имя Отчество должность»; other poses keep
+                # their camera names. Without a worksheet photo, a single chosen frame gets the name.
+                main = None
+                if is_teacher:
+                    marked = sorted(p for p in paths if (person, p) in mand)
+                    main = marked[0] if marked else (next(iter(paths)) if len(paths) == 1 else None)
                 for p in sorted(paths):
                     nm = files[p]['name']
+                    if is_teacher and p != main and p in teacher_done:
+                        continue  # the same extra pose chosen for two teachers is copied once
                     if is_teacher:
-                        rel = root / CATS[5] / (nm if len(paths) > 1 else safe_name(name if sub == 'Учитель' else f'{name} {sub}') + Path(nm).suffix)
+                        teacher_done.add(p)
+                        title = safe_name(name if sub in ('Учитель', '') else f'{name} {sub}')
+                        rel = root / CATS[5] / (title + Path(nm).suffix if p == main else nm)
                     else:
                         rel = root / CATS[4] / name / (mand.get((person, p), '') + nm)
                     add(p, rel, name, 'Учитель' if is_teacher else 'Ученик', roles.get((person, p), ''))

@@ -324,6 +324,40 @@ class EngineTest(unittest.TestCase):
         self.e.save_profile({'avatar': 'data:image/jpeg;base64,AAAA'})
         self.assertTrue(self.e.profile()['avatar'].startswith('data:image/'))
 
+    def test_teacher_worksheet_photo_named_extra_poses_kept(self):
+        try:
+            import openpyxl
+        except ImportError:
+            self.skipTest('openpyxl not installed')
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Ученики'
+        ws.append(['№ договора', None, 7425])
+        ws.append(['Учебное заведение', None, 1363])
+        ws.append(['Класс / группа', None, 4])
+        ws.append([])
+        ws.append(['№', 'Фамилия, имя', 'Виньетка', 'Портрет 1', 'Портрет 2', 'Друг 1', 'Друг 2', 'Заказ'])
+        ws.append([1, 'Иванов Иван', 110, 111, 112, 125, None, '—'])
+        t = wb.create_sheet('Учителя')
+        t.append(['№', 'ФИО', 'Должность', 'Фото'])
+        t.append([1, 'Петрова Анна Сергеевна', 'учитель английского языка', 135])
+        xlsx = self.tmp / 'ведомость.xlsx'
+        wb.save(xlsx)
+        sid = self.e.import_folder(self.src, {'students': str(xlsx)})
+        st = self.e.session(sid)
+        self.assertEqual((st['session']['order_no'], st['session']['school'], st['session']['class_name']), ('7425', '1363', '4'))
+        tsec = next(x for x in st['sections'] if x['kind'] == 'teacher')
+        extra = [p for p in tsec['files'] if p not in tsec['mandatory']][:3]
+        st2 = st
+        for s in st2['sections']:
+            sel = list(s['mandatory']) + (extra if s is tsec else [])
+            self.e.review(sid, {'section': s['id'], 'selected': sel, 'approved': True})
+        root = Path(self.e.export(sid, self.tmp / 'out')['root'])
+        names = {x.name for x in (root / '06_УЧИТЕЛЯ').iterdir()}
+        self.assertIn('Петрова Анна Сергеевна учитель английского языка.ARW', names)
+        self.assertEqual(len(names), 4)                      # worksheet photo + 3 other poses
+        self.assertTrue({Path(p).name for p in extra} <= names)
+
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'
         f.write_bytes('ФИО;В;П1;П2;Д1;Д2\r\nИванов Иван;110;111;112;125;126\r\n'.encode('cp1251'))

@@ -144,6 +144,7 @@ td .tt{display:flex;align-items:center;gap:10px}td .th{width:36px;height:36px;bo
 .chk{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;border:2px solid #ffffffb0;background:#0006;display:grid;place-items:center}
 .tile.on .chk{background:var(--accent);border-color:#fff}.tile.on .chk:after{content:'';width:9px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
 .star{position:absolute;top:7px;left:8px;width:22px;height:22px;border-radius:6px;background:#0008;color:var(--gold);font-size:14px;display:grid;place-items:center}
+.star.uns{background:var(--warn);color:#2a1b00;font-weight:800}
 .sug{position:absolute;top:9px;left:8px;background:#4db5ffe6;color:#04121f;border-radius:6px;font-size:10.5px;padding:2px 7px;font-weight:600}
 .flag{position:absolute;bottom:38px;left:8px;background:#ff5d70e6;color:#fff;font-size:10.5px;border-radius:6px;padding:2px 7px}
 .other{position:absolute;bottom:38px;left:8px;background:#000b;color:#fff;font-size:10.5px;border-radius:6px;padding:2px 7px}
@@ -393,11 +394,20 @@ function importDlg(){S.imode=S.imode||'general';const school=S.imode==='school';
  $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Новая съёмка</h2>
  <div class="segw"><button class="${school?'':'on'}" onclick="S.imode='general';importDlg()">Обычная съёмка</button><button class="${school?'on':''}" onclick="S.imode='school';importDlg()">Школьный заказ</button></div>
  ${f('i_src','Папка с исходниками (RAW и/или JPEG)','D:\\DCIM\\100MSDCF','dir')}${f('i_title','Название','Например: Свадьба Анны и Ильи')}
- ${school?`${f('i_students','Ведомость учеников — Excel или CSV (ФИО, Виньетка, Портрет 1, Портрет 2, Друг 1, Друг 2)','','csv')}${f('i_teachers','Учителя — Excel или CSV (ФИО, Должность, Начало, Конец), необязательно','','csv')}<div class="two">${f('i_order','Номер заказа')}${f('i_school','Школа')}${f('i_date','Дата','09.10.2026')}${f('i_class','Класс','9Л')}</div>`:f('i_loc','Локация — необязательно')}
+ ${school?`${f('i_students','Ведомость — Excel или CSV: фамилия, имя и 5 номеров. Учителя — строками «учителя» или на листе «Учителя»','','csv')}<div id="i_ws"></div>${f('i_teachers','Отдельный файл учителей — только если учителей нет в ведомости','','csv')}<div class="two">${f('i_order','Номер заказа')}${f('i_school','Школа')}${f('i_date','Дата','09.10.2026')}${f('i_class','Класс','9Л')}</div>`:f('i_loc','Локация — необязательно')}
  <p class="mut">${school?'Номера из ведомости подставятся сами: у каждого ребёнка две секции (портреты и друзья), 5 кадров отмечены ★. При экспорте они переименуются: «Фамилия Имя_», «ЛР_», «ЛС_», «Друг1_», «Друг2_».':'Кадры разобьются на серии по паузам между снимками. Программа отметит брак и предложит лучшие кадры каждой серии.'} Исходные файлы не изменяются.</p>
  <div id="i_prog"></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn ghost" onclick="closeL()">Отмена</button><button class="btn pri" id="i_go" onclick="doImport()">Импортировать</button></div></div></div>`;
- const keep=S.ivals||{};Object.entries(keep).forEach(([k,v])=>{const e=$('#'+k);if(e)e.value=v});document.querySelectorAll('.dlg input').forEach(i=>i.oninput=()=>{(S.ivals=S.ivals||{})[i.id]=i.value})}
-async function pick(id,kind){try{const r=await api('/api/pick',{kind});if(r.path){$('#'+id).value=r.path;(S.ivals=S.ivals||{})[id]=r.path}}catch(e){toast(e.message,1)}}
+ const keep=S.ivals||{};Object.entries(keep).forEach(([k,v])=>{const e=$('#'+k);if(e)e.value=v});document.querySelectorAll('.dlg input').forEach(i=>i.oninput=()=>{(S.ivals=S.ivals||{})[i.id]=i.value});const ws=$('#i_students');if(ws){ws.onchange=wsCheck;if(ws.value)wsCheck()}}
+async function pick(id,kind){try{const r=await api('/api/pick',{kind});if(r.path){$('#'+id).value=r.path;(S.ivals=S.ivals||{})[id]=r.path;if(id==='i_students')wsCheck()}}catch(e){toast(e.message,1)}}
+async function wsCheck(){const el=$('#i_ws'),path=($('#i_students')?.value||'').trim();if(!el)return;if(!path){el.innerHTML='';return}
+ el.innerHTML='<div class="mut" style="margin:-4px 0 12px">Читаю ведомость…</div>';
+ try{const r=await api('/api/worksheet',{path});const m=r.meta||{};const fill=[['i_order',m.order],['i_school',m.school],['i_class',m.class_name],['i_date',m.date]];
+  const filled=[];fill.forEach(([id,v])=>{const e=$('#'+id);if(e&&v&&!e.value.trim()){e.value=v;(S.ivals=S.ivals||{})[id]=v;filled.push(id)}});
+  el.innerHTML=`<div class="warn okb" style="margin:-4px 0 12px;line-height:1.55"><b>Найдено: ${r.students} учеников${r.teachers?`, ${r.teachers} учителей`:''}</b>${r.sheets.length>1?` · листы: ${r.sheets.map(esc).join(', ')}`:''}<br>
+  ${r.sample.length?`<span style="color:var(--muted)">${r.sample.map(esc).join(', ')}…</span><br>`:''}
+  ${filled.length?`<span style="color:var(--muted)">Из шапки подставлено: ${[m.order&&'договор '+esc(m.order),m.school&&'учреждение '+esc(m.school),m.class_name&&'класс '+esc(m.class_name)].filter(Boolean).join(', ')}</span><br>`:''}
+  ${r.unsure?`<span style="color:var(--warn)">Ячеек с пометкой «неуверенно»: ${r.unsure} — программа покажет их при отборе</span>`:''}${r.no_numbers?`<br><span style="color:var(--muted)">Без номеров: ${r.no_numbers} (будут пропущены)</span>`:''}</div>`}
+ catch(e){el.innerHTML=`<div class="warn err" style="margin:-4px 0 12px">${esc(e.message)}</div>`}}
 const closeL=()=>{$('#layer').innerHTML='';S.pal=null};
 async function doImport(){const v=id=>($('#'+id)?.value||'').trim();const body={source:v('i_src'),title:v('i_title'),location:v('i_loc')};
  if(S.imode==='school')Object.assign(body,{students:v('i_students'),teachers:v('i_teachers'),order:v('i_order'),school:v('i_school'),date:v('i_date'),class_name:v('i_class')});
@@ -422,7 +432,9 @@ async function flush(){clearTimeout(S.saveT);const p=S.pending;if(!p)return;S.pe
 function pushUndo(){const s=curSec();(S.undo=S.undo||[]).push({id:s.id,sel:[...S.sel]});if(S.undo.length>200)S.undo.shift()}
 async function undo(){const u=(S.undo||[]).pop();if(!u)return toast('Нечего отменять');await flush();const i=S.sess.sections.findIndex(x=>x.id===u.id);if(i<0)return;
  if(i!==S.sec){S.sec=i}S.sel=new Set(u.sel);scheduleSave();drawShoot();toast('Отменено')}
+const UNS={V:'Виньетка',P1:'ЛР',P2:'ЛС',D1:'Друг 1',D2:'Друг 2',T:'Фото',Name:'Имя'};
 function secIssues(x){const d=S.sess,out=[];if(x.person){const pre=x.title+', ';const c=d.conflicts.filter(t=>t.startsWith(pre));if(c.length)out.push(...c)}
+ Object.entries(x.unsure||{}).forEach(([k,t])=>out.push(`${UNS[k]||k} в ведомости прочитан неуверенно${t?': «'+t+'»':''} — сверьте с листком`));
  Object.entries(x.mandatory).forEach(([p,k])=>{const f=S.fmap[p];if(f&&f.flags)out.push(`${ALAB[k]||k}: ${f.flags.split(',').map(y=>d.flag_names[y]).join(', ')}`)});return out}
 function kitList(d,s){const out=[...s.files.filter(p=>S.sel.has(p)).map(p=>({f:S.fmap[p],o:null}))];const seen=new Set(out.map(x=>x.f.path));
  if(s.person)d.sections.forEach((x,i)=>{if(x.person===s.person&&x.id!==s.id)(d.selected[x.id]||[]).forEach(p=>{if(!seen.has(p)&&S.fmap[p]){seen.add(p);out.push({f:S.fmap[p],o:i})}})});return out}
@@ -485,7 +497,7 @@ function tile(f,must,sug,other,i){const sec=curSec();
   return `<div class="tile on" tabindex="-1" data-i="${i}" data-p="${esc(f.path)}" title="Из секции «${esc(o.subtitle)}» — клик откроет её" onclick="pickSec(${other})"><div class="im" data-src="${prevURL(f.path,480)}"></div>${om?'<span class="star">★</span>':''}<span class="other">${esc(o.subtitle)}</span><span class="chk"></span><div class="cap"><b>${esc(f.name)}</b><span>${om?ALAB[om]||om:f.capture_at.slice(11,19)}</span></div></div>`}
  const on=S.sel.has(f.path),m=must[f.path];const fl=f.flags?f.flags.split(',').map(x=>S.sess.flag_names[x]).join(', '):'';
  return `<div class="tile ${on?'on':'ctx'} ${i===S.fi?'fc':''}" tabindex="-1" data-i="${i}" data-p="${esc(f.path)}" onclick="S.fi=${i};tog(this)" ondblclick="openViewer(${i})">${(sec.roles||[]).length?`<button class="more ${m?'show':''}" title="Роль кадра / не тот человек" onclick="event.stopPropagation();roleMenu(this)">⋯</button>`:''}<div class="im" ${f.has_preview?`data-src="${prevURL(f.path,480)}"`:''}>${f.has_preview?'':'Нет превью'}</div>
- ${m?`<span class="star" title="Из ведомости: ${ALAB[m]||m}">★</span>`:''}${sug.has(f.path)&&!m?'<span class="sug" title="Предложено автоотбором">авто</span>':''}${fl?`<span class="flag">${esc(fl)}</span>`:''}<span class="chk"></span>
+ ${m?`<span class="star ${(sec.unsure||{})[m]!==undefined?'uns':''}" title="Из ведомости: ${ALAB[m]||m}${(sec.unsure||{})[m]!==undefined?' — прочитан неуверенно: '+esc(sec.unsure[m]):''}">${(sec.unsure||{})[m]!==undefined?'?':'★'}</span>`:''}${sug.has(f.path)&&!m?'<span class="sug" title="Предложено автоотбором">авто</span>':''}${fl?`<span class="flag">${esc(fl)}</span>`:''}<span class="chk"></span>
  <div class="cap"><b>${esc(f.name)}</b><span class="${m?'role':''}">${m?ALAB[m]||m:f.capture_at.slice(11,19)}</span></div></div>`}
 function togPath(p){const s=curSec();if(!s.files.includes(p))return false;if(s.mandatory[p]){toast('Кадр из ведомости. Если на нём другой человек — «⋯» → «Не тот человек»');return false}
  if(!S.sel.has(p)&&s.limit&&S.sel.size>=s.limit){toast('Максимум '+s.limit+' кадров');return false}
@@ -544,6 +556,7 @@ function helpDlg(){const rows=[['Сетка',[['← ↑ → ↓','перейти
 // ---------- quality, export with preflight
 async function reanalyze(){await flush();$('#layer').innerHTML=`<div class="modal"><div class="dlg"><h2>Проверка качества</h2><div id="ra"></div></div></div>`;try{await api('/api/reanalyze',{session:S.sid});await watchJob(S.sid,'#ra');closeL();S.sess=null;await load()}catch(e){closeL();toast(e.message,1)}}
 function preflight(){const d=S.sess;const un=d.sections.map((x,i)=>[x,i]).filter(([x])=>!d.approved[x.id]);const items=[];
+ d.sections.forEach((x,i)=>Object.entries(x.unsure||{}).forEach(([k,t])=>{if(!d.approved[x.id])items.push({lvl:'info',t:`${x.title}: ${UNS[k]||k} прочитан неуверенно${t?' («'+t+'»)':''}`,i})}));
  d.conflicts.forEach(t=>{const i=d.sections.findIndex(x=>x.person&&t.startsWith(x.title+', '));items.push({lvl:'bad',t,i})});
  un.forEach(([x,i])=>items.push({lvl:'warn',t:`Не подтверждено: ${x.title} — ${x.subtitle}`,i}));
  d.sections.forEach((x,i)=>Object.entries(x.mandatory).forEach(([p,k])=>{const f=S.fmap[p];if(f&&f.flags)items.push({lvl:'info',t:`${x.title}: ${ALAB[k]} помечен «${f.flags.split(',').map(y=>d.flag_names[y]).join(', ')}» — проверьте`,i})}));

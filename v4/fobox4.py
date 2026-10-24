@@ -140,6 +140,9 @@ def make_handler(engine):
                         job['finished'] = True
                     threading.Thread(target=run, daemon=True).start()
                     out = {'session': sid}
+                elif p == '/api/worksheet':
+                    from engine import worksheet_summary
+                    out = worksheet_summary(b.get('path', ''))
                 elif p == '/api/pick':
                     out = {'path': pick_path(b.get('kind', 'dir'))}
                 else:
