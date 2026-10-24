@@ -432,9 +432,10 @@ async function flush(){clearTimeout(S.saveT);const p=S.pending;if(!p)return;S.pe
 function pushUndo(){const s=curSec();(S.undo=S.undo||[]).push({id:s.id,sel:[...S.sel]});if(S.undo.length>200)S.undo.shift()}
 async function undo(){const u=(S.undo||[]).pop();if(!u)return toast('Нечего отменять');await flush();const i=S.sess.sections.findIndex(x=>x.id===u.id);if(i<0)return;
  if(i!==S.sec){S.sec=i}S.sel=new Set(u.sel);scheduleSave();drawShoot();toast('Отменено')}
-const UNS={V:'Виньетка',P1:'ЛР',P2:'ЛС',D1:'Друг 1',D2:'Друг 2',T:'Фото',Name:'Имя'};
+const UNS={V:'Виньетка',P1:'ЛР',P2:'ЛС',D1:'Друг 1',D2:'Друг 2',T:'Номер портрета',Name:'ФИО',Role:'Должность'};
+const unsMsg=(k,t)=>k==='Note'?`Примечание в ведомости: «${t}»`:`${UNS[k]||k} в ведомости прочитан неуверенно${t?': «'+t+'»':''} — сверьте с листком`;
 function secIssues(x){const d=S.sess,out=[];if(x.person){const pre=x.title+', ';const c=d.conflicts.filter(t=>t.startsWith(pre));if(c.length)out.push(...c)}
- Object.entries(x.unsure||{}).forEach(([k,t])=>out.push(`${UNS[k]||k} в ведомости прочитан неуверенно${t?': «'+t+'»':''} — сверьте с листком`));
+ Object.entries(x.unsure||{}).forEach(([k,t])=>out.push(unsMsg(k,t)));
  Object.entries(x.mandatory).forEach(([p,k])=>{const f=S.fmap[p];if(f&&f.flags)out.push(`${ALAB[k]||k}: ${f.flags.split(',').map(y=>d.flag_names[y]).join(', ')}`)});return out}
 function kitList(d,s){const out=[...s.files.filter(p=>S.sel.has(p)).map(p=>({f:S.fmap[p],o:null}))];const seen=new Set(out.map(x=>x.f.path));
  if(s.person)d.sections.forEach((x,i)=>{if(x.person===s.person&&x.id!==s.id)(d.selected[x.id]||[]).forEach(p=>{if(!seen.has(p)&&S.fmap[p]){seen.add(p);out.push({f:S.fmap[p],o:i})}})});return out}
@@ -556,7 +557,7 @@ function helpDlg(){const rows=[['Сетка',[['← ↑ → ↓','перейти
 // ---------- quality, export with preflight
 async function reanalyze(){await flush();$('#layer').innerHTML=`<div class="modal"><div class="dlg"><h2>Проверка качества</h2><div id="ra"></div></div></div>`;try{await api('/api/reanalyze',{session:S.sid});await watchJob(S.sid,'#ra');closeL();S.sess=null;await load()}catch(e){closeL();toast(e.message,1)}}
 function preflight(){const d=S.sess;const un=d.sections.map((x,i)=>[x,i]).filter(([x])=>!d.approved[x.id]);const items=[];
- d.sections.forEach((x,i)=>Object.entries(x.unsure||{}).forEach(([k,t])=>{if(!d.approved[x.id])items.push({lvl:'info',t:`${x.title}: ${UNS[k]||k} прочитан неуверенно${t?' («'+t+'»)':''}`,i})}));
+ d.sections.forEach((x,i)=>Object.entries(x.unsure||{}).forEach(([k,t])=>{if(!d.approved[x.id])items.push({lvl:'info',t:`${x.title}: ${unsMsg(k,t)}`,i})}));
  d.conflicts.forEach(t=>{const i=d.sections.findIndex(x=>x.person&&t.startsWith(x.title+', '));items.push({lvl:'bad',t,i})});
  un.forEach(([x,i])=>items.push({lvl:'warn',t:`Не подтверждено: ${x.title} — ${x.subtitle}`,i}));
  d.sections.forEach((x,i)=>Object.entries(x.mandatory).forEach(([p,k])=>{const f=S.fmap[p];if(f&&f.flags)items.push({lvl:'info',t:`${x.title}: ${ALAB[k]} помечен «${f.flags.split(',').map(y=>d.flag_names[y]).join(', ')}» — проверьте`,i})}));

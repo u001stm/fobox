@@ -283,6 +283,35 @@ def _cell(v):
     return v
 
 
+SUBJECTS = {
+    'физкультура': 'физкультуры', 'физическаякультура': 'физической культуры', 'математика': 'математики',
+    'алгебра': 'алгебры', 'геометрия': 'геометрии', 'физика': 'физики', 'химия': 'химии', 'биология': 'биологии',
+    'история': 'истории', 'литература': 'литературы', 'чтение': 'чтения', 'литературноечтение': 'литературного чтения',
+    'география': 'географии', 'информатика': 'информатики', 'музыка': 'музыки', 'изо': 'ИЗО', 'технология': 'технологии',
+    'труд': 'труда', 'обществознание': 'обществознания', 'обж': 'ОБЖ', 'астрономия': 'астрономии', 'экономика': 'экономики',
+    'право': 'права', 'окружающиймир': 'окружающего мира', 'начальныеклассы': 'начальных классов', 'ритмика': 'ритмики',
+    'хореография': 'хореографии', 'черчение': 'черчения', 'мхк': 'МХК', 'естествознание': 'естествознания',
+}
+
+
+def teacher_title(role):
+    """'Физкультура' -> 'учитель физкультуры', 'Английский язык' -> 'учитель английского языка';
+    a position ('Логопед', 'Классный руководитель') is kept, written in lower case."""
+    r = ' '.join(str(role or '').split())
+    if not r:
+        return ''
+    low = r[0].lower() + r[1:] if not r[:2].isupper() else r
+    n = _norm(r)
+    if n.startswith(('учитель', 'преподаватель', 'педагог')):
+        return low
+    if n in SUBJECTS:
+        return 'учитель ' + SUBJECTS[n]
+    m = re.fullmatch(r'(?i)([а-яё]+)(ий|ый|ой)\s+язык', r)
+    if m:  # английский язык -> английского языка
+        return f'учитель {m.group(1).lower()}ого языка'
+    return low
+
+
 def _col_index(ref):
     col = 0
     for ch in re.match(r'([A-Z]+)', ref)[1]:
@@ -371,8 +400,8 @@ META_LABELS = {'order': ['договор', 'заказ', 'номерзаказа
                'class_name': ['класс', 'группа', 'классгруппа'], 'date': ['дата', 'датасъемки']}
 SKIP_ROW = re.compile(r'(?i)(договор|заведени|учрежден|класс|групп|дата|школа|заказ|ведомост|выделен|итого|примечан)')
 TEACHER_COLS2 = {'Name': ['name', 'фио', 'учитель', 'педагог', 'фамилияимя', 'фамилияимяотчество', 'имя'],
-                 'T': ['фото', 'фотоучителя', 'кадр', 'кадры', 'номер', 'номера', 'снимок', 'фотография', 'номеркадра']}
-TEACHER_OPT = {'Role': ['role', 'должность', 'роль', 'предмет'], 'Start': ['start', 'начало', 'первыйкадр', 'от'],
+                 'T': ['фото', 'фотоучителя', 'кадр', 'кадры', 'номер', 'номера', 'снимок', 'фотография', 'номеркадра', 'портрет', 'номерпортрета']}
+TEACHER_OPT = {'Note': ['примечание', 'комментарий', 'заметка', 'note'], 'Role': ['role', 'должность', 'роль', 'предмет', 'дисциплина'], 'Start': ['start', 'начало', 'первыйкадр', 'от'],
                'End': ['end', 'конец', 'последнийкадр', 'до']}
 
 
@@ -482,13 +511,17 @@ def read_workbook(path):
     for name, rows, comments in book:
         is_teacher_sheet = bool(re.match(r'(?i)\s*(учит|педаг|teach)', name))
         if is_teacher_sheet:
+            for k, v in _sheet_meta(rows).items():
+                meta.setdefault(k, v)
             recs = _parse_rows(rows, TEACHER_COLS2, TEACHER_OPT, comments)
             if recs is None:
-                recs = _parse_rows(rows, {'Name': TEACHER_COLS2['Name'], 'Start': TEACHER_OPT['Start']}, {'End': TEACHER_OPT['End'], 'Role': TEACHER_OPT['Role']}, comments)
+                recs = _parse_rows(rows, {'Name': TEACHER_COLS2['Name'], 'Start': TEACHER_OPT['Start']}, {'End': TEACHER_OPT['End'], 'Role': TEACHER_OPT['Role'], 'Note': TEACHER_OPT['Note']}, comments)
             if recs is None:
                 recs = _parse_rows(rows, {'Name': ['__none__']}, None, comments, ['T'])
             for r in recs or []:
                 r['Type'] = 'учителя'
+                if r.get('Note'):  # a remark in the worksheet is something to check
+                    r.setdefault('_unsure', {})['Note'] = r['Note']
             teachers += recs or []
             continue
         if students:
@@ -948,7 +981,7 @@ class Engine:
                     near = [f for f in frames if nums and min(abs(f['frame'] - n) for n in nums) <= max(3, radius // 2)]
                     if not must and not o:
                         continue
-                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': a.get('Role') or 'Учитель',
+                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель',
                                 'kind': 'teacher', 'person': p['student_id'],
                                 'files': [f['path'] for f in near], 'mandatory': must, 'limit': 5,
                                 'roles': ['T'], 'overridden': bool(o), 'unsure': a.get('unsure') or {}})
@@ -956,7 +989,7 @@ class Engine:
                     s0 = self._resolve(files, a.get('Start'), conflicts, p['name'] + ', начало: ')
                     s1 = self._resolve(files, a.get('End'), conflicts, p['name'] + ', конец: ')
                     lo, hi = sorted([s0['frame'], s1['frame']]) if s0 and s1 else (0, -1)
-                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': a.get('Role') or 'Учитель',
+                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель',
                                 'kind': 'teacher', 'person': p['student_id'],
                                 'files': [f['path'] for f in frames if lo <= f['frame'] <= hi], 'mandatory': {}, 'limit': 5,
                                 'roles': [], 'overridden': False})
@@ -1190,7 +1223,7 @@ class Engine:
                         continue  # the same extra pose chosen for two teachers is copied once
                     if is_teacher:
                         teacher_done.add(p)
-                        title = safe_name(name if sub in ('Учитель', '') else f'{name} {sub}')
+                        title = safe_name(' '.join(x for x in (name, teacher_title(sub) if sub != 'Учитель' else '') if x))
                         rel = root / CATS[5] / (title + Path(nm).suffix if p == main else nm)
                     else:
                         rel = root / CATS[4] / name / (mand.get((person, p), '') + nm)

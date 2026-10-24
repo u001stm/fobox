@@ -358,6 +358,42 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len(names), 4)                      # worksheet photo + 3 other poses
         self.assertTrue({Path(p).name for p in extra} <= names)
 
+    def test_teacher_sheet_with_portrait_column_and_subject_titles(self):
+        try:
+            import openpyxl
+            from openpyxl.comments import Comment
+        except ImportError:
+            self.skipTest('openpyxl not installed')
+        from engine import teacher_title
+        self.assertEqual(teacher_title('Физкультура'), 'учитель физкультуры')
+        self.assertEqual(teacher_title('Английский язык'), 'учитель английского языка')
+        self.assertEqual(teacher_title('Классный руководитель'), 'классный руководитель')
+        wb = openpyxl.Workbook()
+        wb.active.title = 'Ученики'
+        wb.active.append(['Фамилия, имя', 'Виньетка', 'Портрет 1', 'Портрет 2', 'Друг 1', 'Друг 2'])
+        wb.active.append(['Иванов Иван', 110, 111, 112, 125, 126])
+        t = wb.create_sheet('Учителя')
+        t.append(['Ведомость выбора фотографий учителей'])
+        t.append(['№ договора', None, None, 7425])
+        t.append([])
+        t.append(['№', 'Фамилия, имя, отчество', 'Должность', 'Портрет', 'Примечание'])
+        t.append([1, 'Яковлева Ангелина Федоровна', 'Физкультура', 130, None])
+        t.append([2, 'Курашова Вероника Анатольевна', 'Классный руководитель', 136, 'пометка у номера'])
+        t['D6'].comment = Comment('136 или 135', 'OCR')
+        xlsx = self.tmp / 'v.xlsx'
+        wb.save(xlsx)
+        sid = self.e.import_folder(self.src, {'students': str(xlsx)})
+        st = self.e.session(sid)
+        self.assertEqual(st['session']['order_no'], '7425')
+        te = [x for x in st['sections'] if x['kind'] == 'teacher']
+        self.assertEqual([x['subtitle'] for x in te], ['учитель физкультуры', 'классный руководитель'])
+        self.assertEqual(te[1]['unsure'], {'T': '136 или 135', 'Note': 'пометка у номера'})
+        self.approve_all(sid)
+        root = Path(self.e.export(sid, self.tmp / 'out')['root'])
+        names = {x.name for x in (root / '06_УЧИТЕЛЯ').iterdir()}
+        self.assertIn('Яковлева Ангелина Федоровна учитель физкультуры.ARW', names)
+        self.assertIn('Курашова Вероника Анатольевна классный руководитель.ARW', names)
+
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'
         f.write_bytes('ФИО;В;П1;П2;Д1;Д2\r\nИванов Иван;110;111;112;125;126\r\n'.encode('cp1251'))
