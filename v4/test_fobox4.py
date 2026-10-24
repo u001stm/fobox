@@ -162,7 +162,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual([n for n in nb if n < 130], [119])               # Вера: the misread 119 alone, nothing around it
         self.assertIn('проверьте номер', b['unsure'].get('P1', ''))
 
-    def test_kit_assembled_automatically_15_to_22_different_frames(self):
+    def test_kit_assembled_automatically_15_to_20_different_frames(self):
         """Child series of 25 frames in varied poses between pauses; neighbours before and after."""
         from PIL import ImageDraw
         d = self.tmp / 'card4'
@@ -189,7 +189,7 @@ class EngineTest(unittest.TestCase):
         g = next(x for x in st['sections'] if x['title'] == 'Горбо Михаил')
         sel = st['selected'][g['id']]
         nums = sorted(int(Path(p).stem[3:]) for p in sel)
-        self.assertTrue(15 <= len(sel) <= 22, nums)
+        self.assertTrue(15 <= len(sel) <= 20, nums)
         self.assertTrue(all(110 <= n <= 134 for n in nums), nums)    # only Горбо's own block
         self.assertTrue(set(g['mandatory']) <= set(sel))
 

@@ -39,7 +39,7 @@ DEFAULT_SETTINGS = {
     'radius': '12',                # school mode: frames around worksheet anchors
     'target_per_student': '18',    # school mode: kit size goal incl. the 5 worksheet frames
     'kit_min': '15',               # automatic kit: at least this many frames when the series has them
-    'kit_max': '22',               # automatic kit: never more than this
+    'kit_max': '20',               # automatic kit: never more than this (15–20 incl. the 5 worksheet frames)
     'blur_threshold': '20',        # strongest-edge level below -> "blur"
     'dup_distance': '5',           # dHash Hamming distance for near-duplicates
     'clip_threshold': '0.25',      # share of clipped pixels for over/under
@@ -599,6 +599,7 @@ class Engine:
                 c.execute('INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)', (k, v))
             c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),))
             c.execute("INSERT OR IGNORE INTO profiles(id,name,studio) VALUES('me','','')")
+            c.execute("UPDATE settings SET value='20' WHERE key='kit_max' AND value='22'")   # earlier default
             for r in c.execute('SELECT id, shoot_date FROM sessions').fetchall():   # older catalogs: 16.10.2026 -> ISO
                 if r['shoot_date'] and iso_date(r['shoot_date']) != r['shoot_date']:
                     c.execute('UPDATE sessions SET shoot_date=? WHERE id=?', (iso_date(r['shoot_date']), r['id']))
@@ -1156,7 +1157,7 @@ class Engine:
         return picks
 
     def suggest(self, sid):
-        """Assemble kits automatically. A child gets 15–22 frames in total: the worksheet frames first,
+        """Assemble kits automatically. A child gets 15–20 frames in total: the worksheet frames first,
         then sharp frames without defects that differ from each other (portraits and group photos).
         A teacher gets 3–5 different poses. Sections the photographer already edited are left alone."""
         secs, _ = self.sections(sid)
