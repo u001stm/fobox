@@ -157,22 +157,64 @@ def make_handler(engine):
     return Handler
 
 
+class Server(ThreadingHTTPServer):
+    # Windows lets a second program take a busy port when address reuse is on; then requests
+    # keep going to the old copy. Exclusive bind makes a busy port an explicit error.
+    allow_reuse_address = False
+    daemon_threads = True
+
+
+def running_version(port):
+    """Version of a FoboX already answering on this port: None = nothing there, '' = an old copy."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/settings', timeout=1.5) as r:
+            return json.loads(r.read() or b'{}').get('version', '')
+    except Exception as e:
+        if getattr(e, 'code', None):      # something answers with an HTTP error: an old copy or another app
+            return ''
+        return None
+
+
+def bind(port):
+    """Start on `port`; if an old FoboX (or anything else) holds it, use the next free port."""
+    for p in range(port, port + 20):
+        ver = running_version(p)
+        if ver == APP_VERSION:
+            return None, p                # this version already runs: just open it
+        if ver is not None:
+            print(f'! На порту {p} работает старая копия FoboX — её окно можно закрыть. '
+                  'Эта версия запустится на следующем свободном порту.', flush=True)
+            continue
+        try:
+            return Server(('127.0.0.1', p), None), p
+        except OSError:
+            continue
+    raise SystemExit('Не удалось найти свободный порт 8766–8785')
+
+
 def main():
-    ap = argparse.ArgumentParser(description='FOBOX 4.0 alpha.2')
+    ap = argparse.ArgumentParser(description='FoboX 4.0')
     ap.add_argument('--port', type=int, default=8766)
     ap.add_argument('--db', default=str(Path.home() / '.fobox' / 'fobox4.sqlite3'))
     ap.add_argument('--no-browser', action='store_true')
     a = ap.parse_args()
+    server, port = bind(a.port)
+    url = f'http://127.0.0.1:{port}/'
+    if server is None:
+        print('FoboX', APP_VERSION, 'уже запущен:', url, flush=True)
+        if not a.no_browser:
+            webbrowser.open(url)
+        return
     engine = Engine(Path(a.db).expanduser())
-    server = ThreadingHTTPServer(('127.0.0.1', a.port), make_handler(engine))
-    url = f'http://127.0.0.1:{a.port}/'
-    print('FOBOX 4.0 alpha.2:', url, '| база:', a.db, '| Ctrl+C — остановить', flush=True)
+    server.RequestHandlerClass = make_handler(engine)
+    print(f'FoboX {APP_VERSION}: {url} | база: {a.db} | Ctrl+C — остановить', flush=True)
     if not a.no_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     try:
-        server.serve_forever()
+        server.serve_forever(poll_interval=0.3)
     except KeyboardInterrupt:
-        pass
+        print('Остановлено.', flush=True)
     finally:
         server.server_close()
 
