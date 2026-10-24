@@ -150,6 +150,55 @@ class EngineTest(unittest.TestCase):
         self.assertTrue({'Иванов Иван_ABC0110.ARW', 'ЛР_Иванов Иван_ABC0111.ARW', 'ЛС_Иванов Иван_ABC0112.ARW',
                          'Друг1_ABC0125.ARW', 'Друг2_ABC0126.ARW'} <= names)
 
+    def test_combined_worksheet_pasted_in_one_excel_column(self):
+        """The real-life layout: CSV text in column A, type column, teachers in the same file,
+        empty cells, two numbers in one cell, a frame shared by two children."""
+        try:
+            import openpyxl
+        except ImportError:
+            self.skipTest('openpyxl not installed')
+        lines = ['Тип;Фамилия Имя;Виньетка;ЛР;ЛС;Друг1;Друг2;Фото учителя;Прочее',
+                 'ученики;Иванов Иван;110;111;112;125;126;;',
+                 'ученики;Петрова Анна;;114;115;125;127 128;;',
+                 'учителя;Сидорова Мария;;;;;;135;']
+        wb = openpyxl.Workbook()
+        for l in lines:
+            wb.active.append([l])
+        xlsx = self.tmp / 'список.xlsx'
+        wb.save(xlsx)
+        sid = self.e.import_folder(self.src, {'students': str(xlsx), 'order': '1', 'school': 'Ш', 'class_name': '1А'})
+        st = self.e.session(sid)
+        self.assertEqual(st['conflicts'], [])
+        secs = {s['id']: s for s in st['sections']}
+        self.assertEqual(len(secs['s1f']['mandatory']), 3)       # 125 + "127 128"
+        self.assertEqual(len(secs['s1p']['mandatory']), 2)       # empty vignette is allowed
+        self.assertEqual(secs['t0']['title'], 'Сидорова Мария')
+        self.assertEqual(len(secs['t0']['mandatory']), 1)
+        self.approve_all(sid)
+        root = Path(self.e.export(sid, self.tmp / 'out')['root'])
+        anna = {x.name for x in (root / '05_УЧЕНИКИ' / 'Петрова Анна').iterdir()}
+        self.assertTrue({'ЛР_Петрова Анна_ABC0114.ARW', 'Друг1_ABC0125.ARW', 'Друг2_ABC0127.ARW', 'Друг2_ABC0128.ARW'} <= anna)
+        self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
+        self.assertTrue(any((root / '06_УЧИТЕЛЯ').iterdir()))
+
+    def test_missing_number_is_reported_with_child_name(self):
+        f = self.tmp / 'v.csv'
+        f.write_text('Иванов Иван;110;111;112;125;999\n', encoding='utf-8')   # no header at all
+        sid = self.e.import_folder(self.src, {'students': str(f)})
+        c = self.e.session(sid)['conflicts']
+        self.assertEqual(c, ['Иванов Иван, Друг 2: 999 — нет в папке'])
+
+    def test_empty_cells_and_absent_child_do_not_block_export(self):
+        f = self.tmp / 'v.csv'
+        f.write_text('ФИО;В;ЛР;ЛС;Друг1;Друг2\nИванов Иван;110;111;112;;\nОтсутствующий Пётр;;;;;\n', encoding='utf-8')
+        sid = self.e.import_folder(self.src, {'students': str(f)})
+        st = self.e.session(sid)
+        self.assertEqual([s['id'] for s in st['sections']], ['s0p'])   # no friends section, nothing for the absent child
+        self.assertEqual(st['absent'], ['Отсутствующий Пётр'])
+        self.assertEqual(st['conflicts'], [])
+        self.approve_all(sid)
+        self.assertEqual(self.e.export(sid, self.tmp / 'out', dry_run=True)['files'] >= 3, True)
+
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'
         f.write_bytes('ФИО;В;П1;П2;Д1;Д2\r\nИванов Иван;110;111;112;125;126\r\n'.encode('cp1251'))

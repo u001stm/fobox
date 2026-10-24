@@ -251,6 +251,13 @@ STUDENT_COLS = {
     'D1': ['d1', 'д1', 'друг1', 'друзья1', 'сдругом1'],
     'D2': ['d2', 'д2', 'друг2', 'друзья2', 'сдругом2'],
 }
+# optional columns of the combined worksheet (students and teachers in one file)
+EXTRA_COLS = {
+    'Type': ['type', 'тип', 'категория', 'кто'],
+    'T': ['фотоучителя', 'учитель', 'фотоучитель', 'teacher', 'кадручителя'],
+    'Role': ['role', 'должность', 'роль', 'предмет'],
+}
+ANCHOR_LABELS = {'V': 'Виньетка', 'P1': 'ЛР', 'P2': 'ЛС', 'D1': 'Друг 1', 'D2': 'Друг 2', 'T': 'Фото учителя'}
 TEACHER_COLS = {
     'Name': ['name', 'фио', 'учитель', 'педагог', 'имя'],
     'Role': ['role', 'должность', 'роль', 'предмет'],
@@ -323,9 +330,17 @@ def _csv_rows(path):
     return list(csv.reader(io.StringIO(text), delimiter=delim))
 
 
-def read_worksheet(path, columns):
-    """Read an Excel (.xlsx) or CSV worksheet. Finds the header row (it may not be the first),
-    maps Russian/English column titles to canonical keys and skips empty rows."""
+def _looks_like_name(v):
+    v = str(v or '').strip()
+    return bool(re.search(r'[A-Za-zА-Яа-яЁё]{2,}', v)) and not re.fullmatch(r'[A-Za-z]{2,5}\d+(\.\w+)?', v)
+
+
+def read_worksheet(path, columns, optional=None):
+    """Read an Excel (.xlsx) or CSV worksheet.
+    * The header row is searched in the first 15 rows; Russian/English titles are accepted.
+    * A CSV opened in Excel without splitting (all text in column A with ';') is split.
+    * Without a recognisable header the layout is taken by position:
+      [type;] name; V; P1; P2; D1; D2 [; teacher photo]."""
     p = Path(str(path).strip().strip('"')).expanduser()
     if not p.is_file():
         raise ValueError('Не найдена ведомость: ' + str(p))
@@ -336,23 +351,47 @@ def read_worksheet(path, columns):
         raise ValueError('Старый формат .xls: откройте файл в Excel и сохраните как .xlsx')
     else:
         rows = _csv_rows(p)
-    alias = {_norm(a): key for key, names in columns.items() for a in names + [key]}
-    for hi, row in enumerate(rows[:15]):
-        mapping = {}
-        for i, h in enumerate(row):
+    # CSV pasted into one Excel column: "ученики;Акимова Мария;1750;..."
+    filled = [r for r in rows if any(str(x).strip() for x in r)]
+    if filled and sum(1 for r in filled if len([x for x in r if str(x).strip()]) == 1 and ';' in str(next(x for x in r if str(x).strip()))) > len(filled) * 0.6:
+        rows = [str(next((x for x in r if str(x).strip()), '')).split(';') for r in rows]
+    optional = optional or {}
+    allcols = {**columns, **optional}
+    alias = {_norm(a): key for key, names in allcols.items() for a in names + [key]}
+    mapping, hi = None, -1
+    for i, row in enumerate(rows[:15]):
+        m = {}
+        for j, h in enumerate(row):
             key = alias.get(_norm(h))
-            if key and key not in mapping.values():
-                mapping[i] = key
-        if set(mapping.values()) >= set(columns):
+            if key and key not in m.values():
+                m[j] = key
+        if set(m.values()) >= set(columns):
+            mapping, hi = m, i
             break
-    else:
-        expected = ', '.join(f'{k} ({names[1] if len(names) > 1 else names[0]})' for k, names in columns.items())
-        raise ValueError(f'{p.name}: не найдена строка заголовков. Нужны колонки: {expected}')
     out = []
-    for row in rows[hi + 1:]:
-        rec = {key: _cell(row[i]) if i < len(row) else '' for i, key in mapping.items()}
-        if rec.get('Name'):
+    if mapping is not None:
+        for row in rows[hi + 1:]:
+            rec = {key: _cell(row[i]) if i < len(row) else '' for i, key in mapping.items()}
+            if rec.get('Name'):
+                out.append(rec)
+        return out
+    if 'V' not in columns:
+        expected = ', '.join(names[1] if len(names) > 1 else names[0] for names in columns.values())
+        raise ValueError(f'{p.name}: не найдена строка заголовков. Нужны колонки: {expected}')
+    # no header: name in the first text cell, then five frame columns in order
+    order = ['V', 'P1', 'P2', 'D1', 'D2', 'T']
+    for row in rows:
+        cells = [_cell(x) for x in row]
+        idx = next((i for i, v in enumerate(cells) if _looks_like_name(v) and not re.match(r'(?i)(ученик|учител|тип|фамил|фио|name)', v)), None)
+        if idx is None:
+            continue
+        rec = {'Name': cells[idx], 'Type': next((v for v in cells[:idx] if v), '')}
+        for k, v in zip(order, cells[idx + 1:]):
+            rec[k] = v
+        if any(rec.get(k) for k in order):
             out.append(rec)
+    if not out:
+        raise ValueError(f'{p.name}: не удалось прочитать. Нужно: Фамилия Имя и 5 номеров (Виньетка, ЛР, ЛС, Друг 1, Друг 2)')
     return out
 
 
@@ -536,19 +575,31 @@ class Engine:
 
     def _load_people(self, c, sid, students_file, teachers_file):
         c.execute('DELETE FROM students WHERE session_id=?', (sid,))
-        n = 0
-        for r in read_worksheet(students_file, STUDENT_COLS) if students_file else []:
-            name = safe_name(' '.join(r['Name'].split()[:2]))
+        ns = nt = 0
+        rows = read_worksheet(students_file, STUDENT_COLS, EXTRA_COLS) if students_file else []
+        for r in rows:
+            typ = (r.get('Type') or '').casefold()
+            is_teacher = typ.startswith(('учит', 'педаг', 'teach')) or \
+                (r.get('T') and not any(r.get(k) for k in ('V', 'P1', 'P2', 'D1', 'D2')))
+            if is_teacher:
+                anchors = {'Role': r.get('Role', ''), 'T': r.get('T') or ' '.join(r.get(k, '') for k in ('V', 'P1', 'P2', 'D1', 'D2')).strip()}
+                c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
+                          (sid, f't{nt}', safe_name(' '.join(r['Name'].split())), 'teacher', json.dumps(anchors, ensure_ascii=False)))
+                nt += 1
+                continue
+            if typ and not typ.startswith(('учен', 'дет', 'реб', 'stud', 'kid')):
+                continue  # other categories (документы, общая …) are not personal pages
             anchors = {k: r.get(k, '') for k in ('V', 'P1', 'P2', 'D1', 'D2')}
             c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
-                      (sid, f's{n}', name, 'student', json.dumps(anchors, ensure_ascii=False)))
-            n += 1
-        if students_file and not n:
+                      (sid, f's{ns}', safe_name(' '.join(r['Name'].split()[:2])), 'student', json.dumps(anchors, ensure_ascii=False)))
+            ns += 1
+        if students_file and not (ns or nt):
             raise ValueError('В ведомости не найдено ни одного ученика')
-        for i, r in enumerate(read_worksheet(teachers_file, TEACHER_COLS) if teachers_file else []):
+        for r in read_worksheet(teachers_file, TEACHER_COLS) if teachers_file else []:
             anchors = {'Role': r.get('Role', ''), 'Start': r.get('Start', ''), 'End': r.get('End', '')}
             c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
-                      (sid, f't{i}', safe_name(r['Name']), 'teacher', json.dumps(anchors, ensure_ascii=False)))
+                      (sid, f't{nt}', safe_name(r['Name']), 'teacher', json.dumps(anchors, ensure_ascii=False)))
+            nt += 1
 
     # -------------------------------------------------------- previews
     def preview_bytes(self, sid, path, size=640):
@@ -667,7 +718,12 @@ class Engine:
     def _files(self, c, sid):
         return [dict(r) for r in c.execute('SELECT * FROM files WHERE session_id=? ORDER BY capture_at,name', (sid,))]
 
-    def _resolve(self, files, val, conflicts):
+    @staticmethod
+    def _tokens(val):
+        """'1100 1107', '1100, 1107', '1100/1107' -> ['1100', '1107']"""
+        return [t for t in re.split(r'[\s,;/+]+', str(val or '').strip()) if t]
+
+    def _resolve(self, files, val, conflicts, ctx=''):
         val = str(val or '').strip()
         if not val:
             return None
@@ -679,8 +735,17 @@ class Engine:
         exact = [f for f in cands if f['name'].casefold() in (val.casefold(),) or Path(f['name']).stem.casefold() == Path(val).stem.casefold()]
         if len(exact) == 1:
             return exact[0]
-        conflicts.append(f'Кадр «{val}»: ' + ('не найден' if not cands else f'неоднозначен ({len(cands)} файла)'))
+        conflicts.append(f'{ctx}{val} — ' + ('нет в папке' if not cands else f'несколько файлов ({len(cands)})'))
         return None
+
+    def _anchors(self, files, a, cols, conflicts, who):
+        must = {}
+        for k in cols:
+            for t in self._tokens(a.get(k)):
+                f = self._resolve(files, t, conflicts, f'{who}, {ANCHOR_LABELS.get(k, k)}: ')
+                if f:
+                    must.setdefault(f['path'], k)
+        return must
 
     def sections(self, sid):
         """Review sections. School mode: per student portraits/friends + teachers. General: per series."""
@@ -695,17 +760,29 @@ class Engine:
                 a = json.loads(p['anchors'] or '{}')
                 if p['role'] == 'student':
                     for suffix, cols, label in (('p', ['V', 'P1', 'P2'], 'Портреты / виньетка'), ('f', ['D1', 'D2'], 'Друзья')):
-                        anchors = [self._resolve(files, a.get(k), conflicts) for k in cols]
-                        nums = [x['frame'] for x in anchors if x]
+                        must = self._anchors(files, a, cols, conflicts, p['name'])
+                        nums = [f['frame'] for f in files if f['path'] in must and f['frame'] is not None]
                         near = [f for f in frames if nums and min(abs(f['frame'] - n) for n in nums) <= radius]
-                        must = {x['path']: k for x, k in zip(anchors, cols) if x}
+                        if not must:
+                            continue  # empty cells are fine: no friends photo, child absent, etc.
                         out.append({'id': p['student_id'] + suffix, 'title': p['name'], 'subtitle': label,
                                     'kind': 'portrait' if suffix == 'p' else 'friends', 'person': p['student_id'],
                                     'files': [f['path'] for f in near], 'mandatory': must, 'limit': None})
+                elif a.get('T'):
+                    # teacher given by photo number(s): those frames are mandatory, neighbours shown for choice
+                    must = self._anchors(files, a, ['T'], conflicts, p['name'])
+                    nums = [f['frame'] for f in files if f['path'] in must and f['frame'] is not None]
+                    near = [f for f in frames if nums and min(abs(f['frame'] - n) for n in nums) <= max(3, radius // 2)]
+                    if not must:
+                        continue
+                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': a.get('Role') or 'Учитель',
+                                'kind': 'teacher', 'person': p['student_id'],
+                                'files': [f['path'] for f in near], 'mandatory': must, 'limit': 5})
                 else:
-                    s0, s1 = self._resolve(files, a.get('Start'), conflicts), self._resolve(files, a.get('End'), conflicts)
+                    s0 = self._resolve(files, a.get('Start'), conflicts, p['name'] + ', начало: ')
+                    s1 = self._resolve(files, a.get('End'), conflicts, p['name'] + ', конец: ')
                     lo, hi = sorted([s0['frame'], s1['frame']]) if s0 and s1 else (0, -1)
-                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': a.get('Role', ''),
+                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': a.get('Role') or 'Учитель',
                                 'kind': 'teacher', 'person': p['student_id'],
                                 'files': [f['path'] for f in frames if lo <= f['frame'] <= hi], 'mandatory': {}, 'limit': 5})
         else:
@@ -772,10 +849,14 @@ class Engine:
             for r in c.execute('SELECT section_id,file_path FROM ai_suggestions WHERE session_id=?', (sid,)):
                 sugg[r['section_id']].append(r['file_path'])
         secs, conflicts = self.sections(sid)
+        with self.conn() as c:
+            people = c.execute("SELECT student_id, name FROM students WHERE session_id=? ORDER BY rowid", (sid,)).fetchall()
+        present = {x['person'] for x in secs}
+        absent = [r['name'] for r in people if r['student_id'] not in present]
         slim = [{k: f[k] for k in ('path', 'name', 'capture_at', 'kind', 'frame', 'series', 'flags', 'sharpness', 'brightness', 'analyzed')}
                 | {'has_preview': bool(f['preview'])} for f in files]
         return {'session': dict(s), 'files': slim, 'sections': secs, 'conflicts': conflicts,
-                'selected': sel, 'approved': appr, 'suggested': sugg, 'pillow': Image is not None,
+                'selected': sel, 'approved': appr, 'absent': absent, 'suggested': sugg, 'pillow': Image is not None,
                 'flag_names': FLAG_NAMES}
 
     def review(self, sid, body):
@@ -851,7 +932,7 @@ class Engine:
             ops.append((p, rel))
         if s['mode'] == 'school':
             root = Path(*[safe_name(x or '—') for x in (s['order_no'], s['school'], s['shoot_date'], s['class_name'])])
-            prefix = {'V': '{n}_', 'P1': 'ЛР_{n}_', 'P2': 'ЛС_{n}_', 'D1': 'Друг1_', 'D2': 'Друг2_'}
+            prefix = {'V': '{n}_', 'P1': 'ЛР_{n}_', 'P2': 'ЛС_{n}_', 'D1': 'Друг1_', 'D2': 'Друг2_', 'T': ''}
             # portraits and friends of one student are merged: a frame inside both windows is copied once
             by_person, subs = defaultdict(set), {}
             mand = {}
@@ -867,7 +948,7 @@ class Engine:
                 for p in sorted(paths):
                     nm = files[p]['name']
                     if is_teacher:
-                        rel = root / CATS[5] / (nm if len(paths) > 1 else safe_name(f'{name} {sub}') + Path(nm).suffix)
+                        rel = root / CATS[5] / (nm if len(paths) > 1 else safe_name(name if sub == 'Учитель' else f'{name} {sub}') + Path(nm).suffix)
                     else:
                         rel = root / CATS[4] / name / (mand.get((person, p), '') + nm)
                     add(p, rel)
