@@ -86,6 +86,8 @@ def make_handler(engine):
                     out = engine.start_import(b)
                 elif p == '/api/review':
                     out = engine.review(b['session'], b)
+                elif p == '/api/role':
+                    out = engine.set_role(b['session'], b)
                 elif p == '/api/meta':
                     out = engine.set_meta(b['session'], b)
                 elif p == '/api/export':

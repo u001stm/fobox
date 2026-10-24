@@ -70,6 +70,12 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--card2)}
 .star{position:absolute;top:6px;left:8px;color:var(--gold);font-size:17px;text-shadow:0 1px 3px #000}
 .sug{position:absolute;top:8px;left:8px;background:#4db5ffdd;color:#04121f;border-radius:5px;font-size:10.5px;padding:1px 6px;font-weight:600}
 .star+.sug{left:30px}
+.more{position:absolute;right:7px;bottom:34px;width:26px;height:22px;border-radius:6px;border:0;background:#000a;color:#fff;cursor:pointer;font-size:15px;line-height:1;opacity:0;transition:opacity .1s}
+.tile:hover .more,.tile:focus-within .more,.tile .more.show{opacity:1}
+.menu{position:fixed;z-index:80;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px;min-width:230px;box-shadow:0 10px 30px #0008}
+.menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:7px;cursor:pointer}
+.menu button:hover{background:var(--card2)}.menu .bad{color:var(--bad)}.menu .h{color:var(--muted);font-size:12px;padding:6px 10px 4px}
+.other{position:absolute;bottom:34px;left:8px;background:#000b;color:#fff;font-size:10.5px;border-radius:5px;padding:1px 6px}
 .flag{position:absolute;bottom:34px;left:8px;background:#ef5d6bdd;color:#fff;font-size:10.5px;border-radius:5px;padding:1px 6px}
 .foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .warn{background:#f0b14a1f;color:var(--warn);border-radius:8px;padding:9px 12px;font-size:12.5px;margin:10px 18px 0}
@@ -208,9 +214,14 @@ async function renderShoot(){const m=$('#main');if(!S.sid){m.innerHTML='<div cla
  drawShoot()}
 function loadSec(){const s=S.sess.sections[S.sec];S.sel=new Set(S.sess.selected[s.id]||[]);S.dirty=false}
 function secState(s){if(S.sess.approved[s.id])return'ok';return (S.sess.selected[s.id]||[]).length?'part':''}
+function kitList(d,s){/* whole set of the child: this section + the person's other sections (friends/portraits) */
+ const out=[...s.files.filter(p=>S.sel.has(p)).map(p=>({f:S.fmap[p],o:null}))];const seen=new Set(out.map(x=>x.f.path));
+ if(s.person)d.sections.forEach((x,i)=>{if(x.person===s.person&&x.id!==s.id)(d.selected[x.id]||[]).forEach(p=>{if(!seen.has(p)&&S.fmap[p]){seen.add(p);out.push({f:S.fmap[p],o:i})}})});return out}
 function drawShoot(){const d=S.sess,ss=d.session,s=d.sections[S.sec];const done=d.sections.filter(x=>d.approved[x.id]).length;const school=ss.mode==='school';
  const files=s.files.map(p=>S.fmap[p]).filter(Boolean);const flagged=files.filter(f=>f.flags);
- const list=S.tab==='kit'?files.filter(f=>S.sel.has(f.path)):S.tab==='bad'?flagged:files;
+ const kit=kitList(d,s);
+ const list=S.tab==='kit'?kit.map(x=>x.f):S.tab==='bad'?flagged:files;const otherOf=Object.fromEntries(kit.filter(x=>x.o!==null).map(x=>[x.f.path,x.o]));
+ const missing=(s.roles||[]).filter(k=>!Object.values(s.mandatory).includes(k));
  const must=s.mandatory,sug=new Set(d.suggested[s.id]||[]);
  $('#main').innerHTML=`<div class="rv"><div class="rv-side"><div class="rv-head"><div style="font-weight:600">${esc(ss.title)}</div><div class="mut">${school?`Заказ ${esc(ss.order_no||'—')} · ${esc(ss.class_name||'')} · `:''}${fmt(d.files.length)} кадров</div>
  <div class="meter" style="margin:10px 0 4px"><span style="width:${done/d.sections.length*100}%"></span></div><div class="mut">Подтверждено ${done} из ${d.sections.length}</div>
@@ -218,21 +229,36 @@ function drawShoot(){const d=S.sess,ss=d.session,s=d.sections[S.sec];const done=
  <div class="secs">${d.sections.map((x,i)=>`<button class="sec ${i===S.sec?'on':''}" onclick="pickSec(${i})"><div class="t"><span style="display:flex"><span class="dot ${secState(x)}"></span>${esc(x.title)}</span><span class="mut">${(d.selected[x.id]||[]).length}</span></div><div class="s" style="padding-left:15px">${esc(x.subtitle)}</div></button>`).join('')}</div>
  <div style="padding:10px;border-top:1px solid var(--line);display:grid;gap:6px"><button class="btn pri" onclick="exportDlg()">Экспорт заказа…</button><button class="btn" onclick="reanalyze()">Перепроверить качество</button></div></div>
  <div class="rv-main"><div class="bar"><div><div style="font-size:18px;font-weight:600">${esc(s.title)} <span class="mut" style="font-size:14px;font-weight:400">${esc(s.subtitle)}</span></div><div class="mut">${S.sel.size} выбрано из ${files.length}${Object.keys(must).length?' · ★ обязательные из ведомости':''}${s.limit?` · максимум ${s.limit}`:''}</div></div>
- <div class="row"><div class="tabs">${[['kit','Комплект',S.sel.size],['all','Все кадры',files.length],['bad','На проверку',flagged.length]].map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';drawShoot()">${t} ${n}</button>`).join('')}</div>
+ <div class="row"><div class="tabs">${[['kit',s.person&&s.kind!=='teacher'?'Комплект ученика':'Комплект',kit.length],['all','Все кадры',files.length],['bad','На проверку',flagged.length]].map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';drawShoot()">${t} ${n}</button>`).join('')}</div>
  <select title="Размер плиток" onchange="document.documentElement.style.setProperty('--tile',this.value)"><option value="150px">S</option><option value="190px" selected>M</option><option value="260px">L</option></select></div></div>
- ${d.conflicts.length?`<div class="warn">Ведомость: ${esc(d.conflicts.slice(0,4).join('; '))}${d.conflicts.length>4?'…':''}. Экспорт заблокирован, пока ведомость не исправлена и съёмка не импортирована заново.</div>`:''}
+ ${d.conflicts.length?`<div class="warn">Ведомость: ${esc(d.conflicts.slice(0,4).join('; '))}${d.conflicts.length>4?'…':''}. Экспорт заблокирован: исправьте ведомость и импортируйте заново, или назначьте нужную роль кадру через «⋯».</div>`:''}
+ ${missing.length?`<div class="warn" style="background:var(--card2);color:var(--muted)">Не назначено: ${missing.map(k=>ALAB[k]).join(', ')}. Наведите на нужный кадр и нажмите «⋯» → «Сделать …». Если кадра нет — оставьте пустым.</div>`:''}
+ ${s.overridden?`<div class="warn" style="background:var(--accent-soft);color:var(--text)">Роли в этой секции исправлены вручную. <button class="btn" style="padding:3px 10px;margin-left:8px" onclick="setRole(null,null,true)">Вернуть как в ведомости</button></div>`:''}
  ${d.absent&&d.absent.length?`<div class="warn" style="background:var(--card2);color:var(--muted)">Без номеров в ведомости (пропущены, экспорт не мешают): ${esc(d.absent.join(', '))}</div>`:''}
  ${!d.pillow?'<div class="warn">Проверка качества выключена — установите Pillow: <kbd>py -m pip install pillow</kbd></div>':''}
  ${files.filter(f=>must[f.path]&&f.flags).map(f=>`<div class="warn">Обязательный кадр ${esc(f.name)} (${ALAB[must[f.path]]||must[f.path]}) помечен как «${esc(f.flags.split(',').map(x=>d.flag_names[x]).join(', '))}». Проверьте ведомость.</div>`).join('')}
- <div class="grid" id="grid">${list.length?list.map(f=>tile(f,must,sug)).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div>
+ <div class="grid" id="grid">${list.length?list.map(f=>tile(f,must,sug,otherOf[f.path])).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div>
  <div class="foot"><div class="mut">Клик — выбрать · двойной клик — крупно · <kbd>←</kbd><kbd>→</kbd> секции · <kbd>Enter</kbd> подтвердить</div><div class="row">${S.dirty?'<span class="mut">Есть несохранённые изменения</span>':''}<button class="btn" onclick="save(false)">Сохранить</button><button class="btn pri" onclick="save(true)">${d.approved[s.id]&&!S.dirty?'Подтверждено ✓':'Подтвердить и дальше'}</button></div></div></div></div>`}
-function tile(f,must,sug){const on=S.sel.has(f.path),m=must[f.path];const fl=f.flags?f.flags.split(',').map(x=>S.sess.flag_names[x]).join(', '):'';
- return `<div class="tile ${on?'on':'ctx'}" tabindex="0" data-p="${esc(f.path)}" onclick="tog(this)" ondblclick="lightbox(this.dataset.p)"><div class="im" style="${f.has_preview?`background-image:url('/api/preview?s=${S.sid}&p=${encodeURIComponent(f.path)}&size=480')`:''}">${f.has_preview?'':'Нет превью'}</div>
+function tile(f,must,sug,other){const sec=S.sess.sections[S.sec];
+ if(other!==undefined){const o=S.sess.sections[other];const om=o.mandatory[f.path];
+  return `<div class="tile on" tabindex="0" title="Открыть секцию «${esc(o.subtitle)}»" onclick="pickSec(${other})" data-p="${esc(f.path)}" ondblclick="event.stopPropagation();lightbox(this.dataset.p)"><div class="im" style="${f.has_preview?`background-image:url('/api/preview?s=${S.sid}&p=${encodeURIComponent(f.path)}&size=480')`:''}"></div>${om?'<span class="star">★</span>':''}<span class="other">${esc(o.subtitle)}</span><span class="chk"></span><div class="cap"><b>${esc(f.name)}</b><span>${om?ALAB[om]||om:f.capture_at.slice(11,19)}</span></div></div>`}
+ const on=S.sel.has(f.path),m=must[f.path];const fl=f.flags?f.flags.split(',').map(x=>S.sess.flag_names[x]).join(', '):'';
+ return `<div class="tile ${on?'on':'ctx'}" tabindex="0" data-p="${esc(f.path)}" onclick="tog(this)" ondblclick="lightbox(this.dataset.p)">${(sec.roles||[]).length?`<button class="more ${m?'show':''}" title="Роль кадра / не тот человек" onclick="event.stopPropagation();roleMenu(this)">⋯</button>`:''}<div class="im" style="${f.has_preview?`background-image:url('/api/preview?s=${S.sid}&p=${encodeURIComponent(f.path)}&size=480')`:''}">${f.has_preview?'':'Нет превью'}</div>
  ${m?`<span class="star" title="Обязательный: ${ALAB[m]||m}">★</span>`:''}${sug.has(f.path)?'<span class="sug" title="Предложено автоотбором">авто</span>':''}${fl?`<span class="flag">${esc(fl)}</span>`:''}<span class="chk"></span>
  <div class="cap"><b>${esc(f.name)}</b><span>${m?ALAB[m]||m:f.capture_at.slice(11,19)}</span></div></div>`}
-function tog(el){const p=el.dataset.p,s=S.sess.sections[S.sec];if(s.mandatory[p]){toast('Обязательный кадр из ведомости — его нельзя снять');return}
+function tog(el){const p=el.dataset.p,s=S.sess.sections[S.sec];if(!s.files.includes(p))return;if(s.mandatory[p]){toast('Это кадр из ведомости. Если на нём другой человек — нажмите «⋯» → «Не тот человек»');return}
  if(S.sel.has(p))S.sel.delete(p);else{if(s.limit&&S.sel.size>=s.limit)return toast('Максимум '+s.limit+' кадров');S.sel.add(p)}
  S.dirty=true;el.classList.toggle('on',S.sel.has(p));el.classList.toggle('ctx',!S.sel.has(p));if(S.tab==='kit')drawShoot();else{const b=$('.bar .mut');if(b)b.firstChild.textContent=S.sel.size+' выбрано из '+s.files.length}}
+function roleMenu(btn){const el=btn.closest('.tile'),p=el.dataset.p,s=S.sess.sections[S.sec],cur=s.mandatory[p];closeMenu();
+ const m=document.createElement('div');m.className='menu';m.id='rmenu';
+ m.innerHTML=`<div class="h">${esc(S.fmap[p].name)}</div>`+s.roles.filter(k=>k!==cur).map(k=>`<button data-r="${k}">Сделать: ${ALAB[k]}${Object.values(s.mandatory).includes(k)?' <span class="mut">(заменить)</span>':''}</button>`).join('')+(cur?`<button class="bad" data-r="">Не тот человек — снять ${ALAB[cur]}</button>`:'');
+ m.querySelectorAll('button').forEach(b=>b.onclick=()=>{closeMenu();setRole(p,b.dataset.r||null)});document.body.append(m);
+ const r=btn.getBoundingClientRect();m.style.left=Math.min(r.left,innerWidth-m.offsetWidth-10)+'px';m.style.top=Math.min(r.bottom+4,innerHeight-m.offsetHeight-10)+'px';
+ setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
+function closeMenu(){const m=$('#rmenu');if(m)m.remove()}
+async function setRole(path,role,reset){const s=S.sess.sections[S.sec];try{if(S.dirty)await api('/api/review',{session:S.sid,section:s.id,selected:[...S.sel],approved:false});
+ await api('/api/role',{session:S.sid,section:s.id,path,role,reset:!!reset});const id=s.id;S.sess=await api('/api/session?id='+S.sid);S.fmap=Object.fromEntries(S.sess.files.map(f=>[f.path,f]));
+ S.sec=Math.max(0,S.sess.sections.findIndex(x=>x.id===id));loadSec();drawShoot();toast(reset?'Роли как в ведомости':role?'Назначено: '+ALAB[role]:'Снято. Назначьте правильный кадр через «⋯» или оставьте пустым')}catch(e){toast(e.message,1)}}
 function pickSec(i){if(S.dirty&&!confirm('Есть несохранённые изменения. Перейти без сохранения?'))return;S.sec=i;loadSec();drawShoot();$('#grid').scrollTop=0}
 async function save(approved){const s=S.sess.sections[S.sec];try{await api('/api/review',{session:S.sid,section:s.id,selected:[...S.sel],approved});S.sess.selected[s.id]=[...S.sel];S.sess.approved[s.id]=approved;S.dirty=false;
  if(approved){toast('Подтверждено: '+s.title);const nx=S.sess.sections.findIndex((x,i)=>i>S.sec&&!S.sess.approved[x.id]);const any=nx<0?S.sess.sections.findIndex(x=>!S.sess.approved[x.id]):nx;if(any>=0){S.sec=any;loadSec()}else toast('Все секции подтверждены — можно экспортировать')}else toast('Сохранено');drawShoot();S.stats=await api('/api/stats')}catch(e){toast(e.message,1)}}

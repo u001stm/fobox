@@ -72,6 +72,9 @@ CREATE TABLE IF NOT EXISTS ai_suggestions (
 CREATE TABLE IF NOT EXISTS selections (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, file_path TEXT NOT NULL,
  PRIMARY KEY(session_id, section_id, file_path));
+CREATE TABLE IF NOT EXISTS anchor_overrides (
+ session_id TEXT NOT NULL, person TEXT NOT NULL, key TEXT NOT NULL, file_path TEXT NOT NULL,
+ at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(session_id, person, key));
 CREATE TABLE IF NOT EXISTS approvals (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, approved INTEGER NOT NULL,
  at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(session_id, section_id));
@@ -84,7 +87,7 @@ MIGRATIONS = {
     'files': {'name': 'TEXT', 'frame': 'INTEGER', 'preview': 'TEXT', 'camera': 'TEXT',
               'series': 'INTEGER', 'brightness': 'REAL', 'sharpness': 'REAL',
               'clip_hi': 'REAL', 'clip_lo': 'REAL', 'dhash': 'TEXT', 'flags': 'TEXT',
-              'analyzed': 'INTEGER DEFAULT 0'},
+              'analyzed': 'INTEGER DEFAULT 0', 'orient': 'INTEGER'},
     'students': {'role': "TEXT DEFAULT 'student'", 'anchors': 'TEXT'},
     'selection_events': {'section_id': 'TEXT'},
     'profiles': {'email': 'TEXT', 'phone': 'TEXT', 'city': 'TEXT', 'avatar': 'TEXT'},
@@ -155,7 +158,7 @@ def _tiff_ifds(buf, base=0):
 
 def read_meta(path):
     """Return dict(capture_at, camera, jpeg=(offset,length)) without external libraries."""
-    out = {'capture_at': None, 'camera': None, 'jpeg': None}
+    out = {'capture_at': None, 'camera': None, 'jpeg': None, 'orient': None}
     try:
         with open(path, 'rb') as f:
             mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
@@ -178,6 +181,8 @@ def read_meta(path):
                     dt = tags.get(0x9003) or tags.get(0x0132)
                     if dt and (out['capture_at'] is None or tags.get(0x9003)):
                         out['capture_at'] = dt
+                    if isinstance(tags.get(0x0112), int) and out['orient'] is None and 1 <= tags[0x0112] <= 8:
+                        out['orient'] = tags[0x0112]  # first (main) IFD: how the camera was held
                     if tags.get(0x0110) and not out['camera']:
                         out['camera'] = ' '.join(filter(None, [tags.get(0x010F, ''), tags[0x0110]])).strip()
                     o, ln = tags.get(0x0201), tags.get(0x0202)
@@ -502,11 +507,20 @@ class Engine:
                 raws.append(p)
             elif ext in IMG_EXT:
                 imgs[(str(p.parent), p.stem.casefold())].append(p)
-        # a "photo" is a RAW (with optional sidecar) or a standalone JPEG/PNG
+        # a "photo" is a RAW (with optional JPEG twin) or a standalone JPEG/PNG.
+        # The twin is looked up in the same folder first, then anywhere on the card by name
+        # (cameras/copy tools often keep RAW and JPEG in separate folders).
+        by_stem = defaultdict(list)
+        for (_, stem), group in imgs.items():
+            by_stem[stem].extend(x for x in group if x.suffix.lower() in PREVIEWABLE)
+        raw_stems = Counter(r.stem.casefold() for r in raws)
         items = []
         used = set()
         for r in raws:
-            side = next((x for x in imgs.get((str(r.parent), r.stem.casefold()), []) if x.suffix.lower() in PREVIEWABLE), None)
+            st = r.stem.casefold()
+            side = next((x for x in imgs.get((str(r.parent), st), []) if x.suffix.lower() in PREVIEWABLE), None)
+            if side is None and raw_stems[st] == 1 and len(by_stem[st]) == 1:
+                side = by_stem[st][0]
             if side:
                 used.add(side)
             items.append((r, 'raw', side))
@@ -540,11 +554,14 @@ class Engine:
                 preview = str(side) if side else (f"embedded:{meta['jpeg'][0]}:{meta['jpeg'][1]}" if meta.get('jpeg') else None)
                 key = str(p)
                 present.add(key)
-                c.execute('''INSERT INTO files(session_id,path,capture_at,bytes,kind,name,frame,preview,camera)
-                             VALUES(?,?,?,?,?,?,?,?,?)
+                orient = meta.get('orient') if not side else None
+                if kind == 'raw' and not side:
+                    orient = read_meta(p).get('orient')
+                c.execute('''INSERT INTO files(session_id,path,capture_at,bytes,kind,name,frame,preview,camera,orient)
+                             VALUES(?,?,?,?,?,?,?,?,?,?)
                              ON CONFLICT(session_id,path) DO UPDATE SET capture_at=excluded.capture_at,
-                             bytes=excluded.bytes, preview=excluded.preview, camera=excluded.camera''',
-                          (sid, key, cap, p.stat().st_size, kind, p.name, frame_number(p.stem), preview, meta['camera']))
+                             bytes=excluded.bytes, preview=excluded.preview, camera=excluded.camera, orient=excluded.orient''',
+                          (sid, key, cap, p.stat().st_size, kind, p.name, frame_number(p.stem), preview, meta['camera'], orient))
                 job['done'] = i + 1
             # files that disappeared from the source are dropped from the catalog (never from disk)
             for r in c.execute('SELECT path FROM files WHERE session_id=?', (sid,)).fetchall():
@@ -604,10 +621,10 @@ class Engine:
     # -------------------------------------------------------- previews
     def preview_bytes(self, sid, path, size=640):
         with self.conn() as c:
-            r = c.execute('SELECT preview FROM files WHERE session_id=? AND path=?', (sid, path)).fetchone()
+            r = c.execute('SELECT preview, orient FROM files WHERE session_id=? AND path=?', (sid, path)).fetchone()
         if not r or not r['preview']:
             return None
-        key = hashlib.sha1(f'{r["preview"]}|{size}'.encode()).hexdigest()
+        key = hashlib.sha1(f'{r["preview"]}|{size}|o{r["orient"]}|v2'.encode()).hexdigest()
         cached = self.cache / f'{key}.jpg'
         if cached.exists():
             return cached.read_bytes()
@@ -617,7 +634,12 @@ class Engine:
         if Image is not None:
             try:
                 im = Image.open(io.BytesIO(data))
+                own = im.getexif().get(0x0112)
                 im = self._orient(im)
+                # previews embedded in RAW carry no orientation; use the RAW's own tag
+                if not own and r['orient'] in (3, 6, 8):
+                    im = im.transpose({3: Image.Transpose.ROTATE_180, 6: Image.Transpose.ROTATE_270,
+                                       8: Image.Transpose.ROTATE_90}[r['orient']])
                 im.thumbnail((size, size))
                 buf = io.BytesIO()
                 im.convert('RGB').save(buf, 'JPEG', quality=82)
@@ -738,9 +760,16 @@ class Engine:
         conflicts.append(f'{ctx}{val} — ' + ('нет в папке' if not cands else f'несколько файлов ({len(cands)})'))
         return None
 
-    def _anchors(self, files, a, cols, conflicts, who):
+    def _anchors(self, files, a, cols, conflicts, who, overrides=None):
+        """Mandatory frames of a section: worksheet numbers, replaced by roles the operator
+        reassigned in the app (overrides: key -> path, '' = removed as a wrong frame)."""
         must = {}
+        overrides = overrides or {}
         for k in cols:
+            if k in overrides:
+                if overrides[k] and any(f['path'] == overrides[k] for f in files):
+                    must.setdefault(overrides[k], k)
+                continue
             for t in self._tokens(a.get(k)):
                 f = self._resolve(files, t, conflicts, f'{who}, {ANCHOR_LABELS.get(k, k)}: ')
                 if f:
@@ -752,7 +781,13 @@ class Engine:
         with self.conn() as c:
             files = self._files(c, sid)
             people = [dict(r) for r in c.execute('SELECT * FROM students WHERE session_id=? ORDER BY rowid', (sid,))]
+            ov = defaultdict(dict)
+            for r in c.execute('SELECT person,key,file_path FROM anchor_overrides WHERE session_id=?', (sid,)):
+                ov[r['person']][r['key']] = r['file_path']
         radius = self.setting('radius', int)
+        # when the card has RAW files, standalone JPEGs are not offered for orders (RAW only)
+        if any(f['kind'] == 'raw' for f in files):
+            files = [f for f in files if f['kind'] == 'raw']
         out, conflicts = [], []
         if people:
             frames = [f for f in files if f['frame'] is not None]
@@ -760,31 +795,39 @@ class Engine:
                 a = json.loads(p['anchors'] or '{}')
                 if p['role'] == 'student':
                     for suffix, cols, label in (('p', ['V', 'P1', 'P2'], 'Портреты / виньетка'), ('f', ['D1', 'D2'], 'Друзья')):
-                        must = self._anchors(files, a, cols, conflicts, p['name'])
-                        nums = [f['frame'] for f in files if f['path'] in must and f['frame'] is not None]
+                        o = {k: v for k, v in ov[p['student_id']].items() if k in cols}
+                        must = self._anchors(files, a, cols, conflicts, p['name'], o)
+                        # the window stays around the worksheet numbers even if a frame was reassigned
+                        sheet = self._anchors(files, a, cols, [], p['name'])
+                        nums = [f['frame'] for f in files if (f['path'] in must or f['path'] in sheet) and f['frame'] is not None]
                         near = [f for f in frames if nums and min(abs(f['frame'] - n) for n in nums) <= radius]
-                        if not must:
+                        if not must and not o:
                             continue  # empty cells are fine: no friends photo, child absent, etc.
                         out.append({'id': p['student_id'] + suffix, 'title': p['name'], 'subtitle': label,
                                     'kind': 'portrait' if suffix == 'p' else 'friends', 'person': p['student_id'],
-                                    'files': [f['path'] for f in near], 'mandatory': must, 'limit': None})
+                                    'files': [f['path'] for f in near], 'mandatory': must, 'limit': None,
+                                    'roles': cols, 'overridden': bool(o)})
                 elif a.get('T'):
                     # teacher given by photo number(s): those frames are mandatory, neighbours shown for choice
-                    must = self._anchors(files, a, ['T'], conflicts, p['name'])
-                    nums = [f['frame'] for f in files if f['path'] in must and f['frame'] is not None]
+                    o = {k: v for k, v in ov[p['student_id']].items() if k == 'T'}
+                    must = self._anchors(files, a, ['T'], conflicts, p['name'], o)
+                    sheet = self._anchors(files, a, ['T'], [], p['name'])
+                    nums = [f['frame'] for f in files if (f['path'] in must or f['path'] in sheet) and f['frame'] is not None]
                     near = [f for f in frames if nums and min(abs(f['frame'] - n) for n in nums) <= max(3, radius // 2)]
-                    if not must:
+                    if not must and not o:
                         continue
                     out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': a.get('Role') or 'Учитель',
                                 'kind': 'teacher', 'person': p['student_id'],
-                                'files': [f['path'] for f in near], 'mandatory': must, 'limit': 5})
+                                'files': [f['path'] for f in near], 'mandatory': must, 'limit': 5,
+                                'roles': ['T'], 'overridden': bool(o)})
                 else:
                     s0 = self._resolve(files, a.get('Start'), conflicts, p['name'] + ', начало: ')
                     s1 = self._resolve(files, a.get('End'), conflicts, p['name'] + ', конец: ')
                     lo, hi = sorted([s0['frame'], s1['frame']]) if s0 and s1 else (0, -1)
                     out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': a.get('Role') or 'Учитель',
                                 'kind': 'teacher', 'person': p['student_id'],
-                                'files': [f['path'] for f in frames if lo <= f['frame'] <= hi], 'mandatory': {}, 'limit': 5})
+                                'files': [f['path'] for f in frames if lo <= f['frame'] <= hi], 'mandatory': {}, 'limit': 5,
+                                'roles': [], 'overridden': False})
         else:
             by = defaultdict(list)
             for f in files:
@@ -792,7 +835,8 @@ class Engine:
             for s, fs in sorted(by.items()):
                 t0, t1 = fs[0]['capture_at'][11:16], fs[-1]['capture_at'][11:16]
                 out.append({'id': f'g{s}', 'title': f'Серия {s}', 'subtitle': f'{t0}–{t1} · {len(fs)} кадр.',
-                            'kind': 'series', 'person': None, 'files': [f['path'] for f in fs], 'mandatory': {}, 'limit': None})
+                            'kind': 'series', 'person': None, 'files': [f['path'] for f in fs], 'mandatory': {}, 'limit': None,
+                            'roles': [], 'overridden': False})
         return out, conflicts
 
     # -------------------------------------------------------- automatic suggestions
@@ -890,6 +934,53 @@ class Engine:
                     c.execute("UPDATE sessions SET status='reviewed' WHERE id=? AND status!='exported'", (sid,))
         return {'ok': True}
 
+    def set_role(self, sid, body):
+        """Fix a worksheet mistake inside the app.
+        role=None on a mandatory frame: 'not this person' -> the role becomes empty and the frame is unselected.
+        role='V'/'P1'/...: this frame takes the role; the frame that had it is unselected.
+        reset=True: forget all fixes of this section and use the worksheet again."""
+        secs, _ = self.sections(sid)
+        s = next((x for x in secs if x['id'] == body.get('section')), None)
+        if not s or not s['person'] or not s['roles']:
+            raise ValueError('Роли можно менять только у учеников и учителей из ведомости')
+        path, role = body.get('path'), body.get('role')
+        with self.conn() as c:
+            if body.get('reset'):
+                c.executemany('DELETE FROM anchor_overrides WHERE session_id=? AND person=? AND key=?',
+                              [(sid, s['person'], k) for k in s['roles']])
+                self.event(c, sid, 'review', 'reset-roles:' + s['id'])
+            else:
+                if path not in s['files']:
+                    raise ValueError('Кадр не из этой секции')
+                if role is None:
+                    key = s['mandatory'].get(path)
+                    if not key:
+                        raise ValueError('Этот кадр не обязательный — его можно просто снять кликом')
+                    c.execute('INSERT OR REPLACE INTO anchor_overrides(session_id,person,key,file_path,at) VALUES(?,?,?,?,?)',
+                              (sid, s['person'], key, '', now()))
+                    drop = [path]
+                else:
+                    if role not in s['roles']:
+                        raise ValueError('Эта роль не относится к секции')
+                    drop = [p for p, k in s['mandatory'].items() if k == role and p != path]
+                    # the frame loses any other role it had in this section
+                    old = s['mandatory'].get(path)
+                    if old and old != role:
+                        c.execute('INSERT OR REPLACE INTO anchor_overrides(session_id,person,key,file_path,at) VALUES(?,?,?,?,?)',
+                                  (sid, s['person'], old, '', now()))
+                    c.execute('INSERT OR REPLACE INTO anchor_overrides(session_id,person,key,file_path,at) VALUES(?,?,?,?,?)',
+                              (sid, s['person'], role, path, now()))
+                    c.execute('INSERT OR IGNORE INTO selections VALUES(?,?,?)', (sid, s['id'], path))
+                    c.execute('INSERT INTO selection_events(session_id,file_path,actor,action,section_id,at) VALUES(?,?,?,?,?,?)',
+                              (sid, path, 'user', 'role:' + role, s['id'], now()))
+                for p in drop:
+                    c.execute('DELETE FROM selections WHERE session_id=? AND section_id=? AND file_path=?', (sid, s['id'], p))
+                    c.execute('INSERT INTO selection_events(session_id,file_path,actor,action,section_id,at) VALUES(?,?,?,?,?,?)',
+                              (sid, p, 'user', 'not-this-person', s['id'], now()))
+                self.event(c, sid, 'review', f'role:{s["id"]}:{role}')
+            c.execute('DELETE FROM approvals WHERE session_id=? AND section_id=?', (sid, s['id']))
+        return {'ok': True}
+
     def set_meta(self, sid, body):
         meta = {}
         with self.conn() as c:
@@ -939,7 +1030,7 @@ class Engine:
             for sec in st['sections']:
                 key = (sec['person'], sec['kind'] == 'teacher', sec['title'])
                 subs[key] = sec['subtitle']
-                for p in st['selected'].get(sec['id'], []):
+                for p in [x for x in st['selected'].get(sec['id'], []) if x in sec['files'] or x in sec['mandatory']]:
                     by_person[key].add(p)
                 for p, k in sec['mandatory'].items():
                     mand[(sec['person'], p)] = prefix[k].format(n=sec['title'])
@@ -958,7 +1049,7 @@ class Engine:
         else:
             root = Path(safe_name(s['title']))
             for sec in st['sections']:
-                for p in st['selected'].get(sec['id'], []):
+                for p in [x for x in st['selected'].get(sec['id'], []) if x in sec['files'] or x in sec['mandatory']]:
                     add(p, root / safe_name(sec['title']) / files[p]['name'])
         if not ops:
             raise ValueError('Не выбрано ни одного кадра')
@@ -994,7 +1085,7 @@ class Engine:
     def delete_session(self, sid):
         """Removes the session from the catalog only. Source files are not touched."""
         with self.conn() as c:
-            for t in ('files', 'students', 'selection_events', 'workflow_events', 'ai_suggestions', 'selections', 'approvals'):
+            for t in ('files', 'students', 'selection_events', 'workflow_events', 'ai_suggestions', 'selections', 'approvals', 'anchor_overrides'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             c.execute('DELETE FROM sessions WHERE id=?', (sid,))
 

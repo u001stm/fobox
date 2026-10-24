@@ -199,6 +199,67 @@ class EngineTest(unittest.TestCase):
         self.approve_all(sid)
         self.assertEqual(self.e.export(sid, self.tmp / 'out', dry_run=True)['files'] >= 3, True)
 
+    def test_wrong_worksheet_frame_can_be_replaced_in_app(self):
+        sid = self.school()
+        st = self.e.session(sid)
+        p = st['sections'][0]
+        wrong = next(x for x, k in p['mandatory'].items() if k == 'P1')
+        right = next(x for x in p['files'] if x not in p['mandatory'])
+        self.e.set_role(sid, {'section': p['id'], 'path': wrong, 'role': None})       # "not this person"
+        st = self.e.session(sid)
+        p = st['sections'][0]
+        self.assertNotIn(wrong, p['mandatory'])
+        self.assertNotIn(wrong, st['selected'][p['id']])
+        self.e.set_role(sid, {'section': p['id'], 'path': right, 'role': 'P1'})
+        self.approve_all(sid)
+        r = self.e.export(sid, self.tmp / 'out')
+        names = {x.name for x in (Path(r['root']) / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()}
+        self.assertIn('ЛР_Иванов Иван_' + Path(right).name, names)
+        self.assertNotIn('ЛР_Иванов Иван_ABC0111.ARW', names)
+        self.e.set_role(sid, {'section': p['id'], 'reset': True})                     # back to the worksheet
+        self.assertEqual(self.e.session(sid)['sections'][0]['mandatory'].get(wrong), 'P1')
+
+    def test_raw_and_jpeg_in_different_folders_are_paired(self):
+        d = self.tmp / 'split'
+        (d / 'RAW').mkdir(parents=True)
+        (d / 'JPG').mkdir()
+        for n in (1, 2, 3):
+            (d / 'RAW' / f'ABC0000{n}.ARW').write_bytes(b'RAW' + bytes([n]))
+            (d / 'JPG' / f'ABC0000{n}.JPG').write_bytes(jpeg((90, 90, 90), datetime(2026, 1, 1, 10, 0, n)))
+        sid = self.e.import_folder(d)
+        files = self.e.session(sid)['files']
+        self.assertEqual(len(files), 3)
+        self.assertTrue(all(f['kind'] == 'raw' and f['has_preview'] for f in files))
+
+    def test_standalone_jpeg_hidden_when_card_has_raw(self):
+        (self.src / 'Полянская Зина.JPG').write_bytes(jpeg((90, 90, 90), datetime(2026, 10, 9, 9, 0, 30)))
+        sid = self.e.import_folder(self.src)
+        st = self.e.session(sid)
+        offered = {p for s in st['sections'] for p in s['files']}
+        self.assertFalse(any(p.endswith('.JPG') for p in offered))
+
+    def test_vertical_raw_preview_is_rotated(self):
+        d = self.tmp / 'vert'
+        d.mkdir()
+        raw = bytearray(fake_tiff_raw(jpeg((10, 120, 200), datetime(2026, 5, 1, 12))))
+        # add Orientation=6 (camera held vertically) to IFD0: patch entry count and append an entry
+        n = struct.unpack_from('<H', raw, 8)[0]
+        entries = [raw[10 + i * 12:22 + i * 12] for i in range(n)] + [struct.pack('<HHII', 0x0112, 3, 1, 6)]
+        shift = 12
+        fixed = []
+        for e in entries:
+            tag, typ, cnt, val = struct.unpack('<HHII', e)
+            if tag in (0x0201, 0x0132):
+                val += shift
+            fixed.append(struct.pack('<HHII', tag, typ, cnt, val))
+        body = raw[10 + n * 12:]
+        raw = raw[:8] + struct.pack('<H', n + 1) + b''.join(sorted(fixed)) + body
+        (d / 'DSC_0002.ARW').write_bytes(bytes(raw))
+        sid = self.e.import_folder(d)
+        data = self.e.preview_bytes(sid, str(d / 'DSC_0002.ARW'))
+        w, h = Image.open(io.BytesIO(data)).size
+        self.assertGreater(h, w)                 # 300x200 landscape preview shown upright as portrait
+
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'
         f.write_bytes('ФИО;В;П1;П2;Д1;Д2\r\nИванов Иван;110;111;112;125;126\r\n'.encode('cp1251'))
