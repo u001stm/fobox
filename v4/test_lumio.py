@@ -368,6 +368,38 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(all(wide[p] == 1 for p in fr['files']))
         self.assertTrue(all(wide[p] == 0 for p in st['selected'][por['id']]))
 
+    def test_faces_keep_only_this_child_and_flag_wrong_number(self):
+        """Face data (normally from the local face models) cleans a child's series; injected here directly."""
+        import json as js
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('numpy not installed')
+        sid = self.school()
+        st = self.e.session(sid)
+        por = next(x for x in st['sections'] if x['kind'] == 'portrait')
+        ivan, other = np.zeros(512, 'float32'), np.zeros(512, 'float32')
+        ivan[0], other[1] = 1, 1
+        byname = {Path(p).name: p for p in por['files']}
+        rows = []
+        for name, p in byname.items():
+            n = int(name[3:7])
+            emb, eye = (other, 0.3) if n in (113, 114) else (ivan, 0.05 if n == 115 else 0.3)
+            if n == 111:
+                emb = other                              # ЛР number points at someone else
+            rows.append((sid, p, 1, js.dumps([{'box': [0, 0, 10, 10], 'h': 0.3, 'eye': eye, 'eye2': eye, 'g': 'm', 'age': 10, 'score': 0.9}]),
+                         emb.astype('float16').tobytes()))
+        with self.e.conn() as c:
+            c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', rows)
+        st = self.e.session(sid)
+        por = next(x for x in st['sections'] if x['kind'] == 'portrait')
+        names = {Path(p).name for p in por['files']}
+        self.assertFalse({'ABC0113.ARW', 'ABC0114.ARW'} & names)           # another child: removed
+        self.assertIn('ABC0111.ARW', names)                                # a worksheet frame is never removed…
+        self.assertIn('другой человек', por['unsure'].get('P1', ''))        # …but flagged
+        self.assertIn(byname['ABC0115.ARW'], por['closed'])                # closed eyes: marked only
+        self.assertEqual(por['strangers'], 2)
+
     def test_scenes_split_by_pause_and_picture(self):
         from engine import Engine
         f = lambda n, t, h: {'name': f'A{n}', 'capture_at': f'2026-10-16 09:{t}', 'dhash': h}

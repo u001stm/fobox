@@ -20,13 +20,13 @@ from urllib.parse import parse_qs, urlparse
 from engine import Engine
 
 UI = Path(__file__).with_name('ui.html')
-CODE = [Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).with_name('yadisk.py')]
+CODE = [Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).with_name('yadisk.py'), Path(__file__).with_name('faces.py')]
 
 
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.11.1'  # bump together with UI_VERSION in ui.html
+APP_VERSION = '4.12.0'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
@@ -156,6 +156,12 @@ def make_handler(engine):
                     out = engine.rename_person(b['session'], b['person'], b.get('name'), b.get('role'))
                 elif p == '/api/set-common':
                     out = engine.set_common(b['session'], b['path'], bool(b.get('scene')))
+                elif p == '/api/faces':
+                    out = engine.faces_status()
+                elif p == '/api/faces-install':
+                    out = engine.install_faces()
+                elif p == '/api/faces-run':
+                    out = engine.start_faces(b['session'], bool(b.get('force')))
                 elif p == '/api/reset':
                     out = engine.reset_session(b['session'])
                 elif p == '/api/delete':
@@ -170,6 +176,7 @@ def make_handler(engine):
                         try:
                             engine.analyze(sid, job)
                             engine.suggest(sid)
+                            engine._faces_auto(sid)
                         except Exception as e:
                             job['error'] = str(e)
                         job['finished'] = True

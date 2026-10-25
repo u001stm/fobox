@@ -15,6 +15,7 @@ import re
 import shutil
 import sqlite3
 import struct
+import sys
 import tempfile
 import threading
 from contextlib import contextmanager
@@ -55,6 +56,7 @@ DEFAULT_SETTINGS = {
     'teacher_gap_sec': '30',       # teacher series ends at a longer pause between frames
     'person_gap_sec': '45',        # a child's series ends at a longer pause between frames
     'current_company': 'vypusk',   # the environment the app is switched to (top of the sidebar)
+    'faces_auto': '1',             # look for faces right after import when the face module is installed
     'yandex_token': '',            # OAuth token for Яндекс.Диск uploads
     'yandex_client_id': '',        # ID of the photographer's app at oauth.yandex.ru (to get a token)
     'date_format': 'dd.mm.yyyy',   # how dates are shown in the interface
@@ -95,6 +97,9 @@ CREATE TABLE IF NOT EXISTS marks (
  PRIMARY KEY(session_id, section_id, file_path));
 CREATE TABLE IF NOT EXISTS dividers (
  session_id TEXT NOT NULL, file_path TEXT NOT NULL, cat TEXT NOT NULL, PRIMARY KEY(session_id, file_path));
+CREATE TABLE IF NOT EXISTS faces (
+ session_id TEXT NOT NULL, path TEXT NOT NULL, n INTEGER NOT NULL, meta TEXT, emb BLOB,
+ PRIMARY KEY(session_id, path));
 CREATE TABLE IF NOT EXISTS renames (
  session_id TEXT NOT NULL, original TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', role TEXT,
  PRIMARY KEY(session_id, original));
@@ -702,6 +707,7 @@ class Engine:
         self.cache.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         self.jobs = {}
+        self._fcache = {}
         self._migrate()
 
     # -------------------------------------------------------- db helpers
@@ -878,11 +884,51 @@ class Engine:
 
     def _import_job(self, src, opts, job):
         try:
-            self.import_folder(src, opts, job)
+            sid = self.import_folder(src, opts, job)
+            self._faces_auto(sid)
         except Exception as e:  # report to UI instead of dying silently
             job['error'] = str(e)
         finally:
             job['finished'] = True
+
+    def _faces_auto(self, sid):
+        """Faces are looked for in the background right after import, when the face module is installed."""
+        try:
+            if self.setting('faces_auto') != '0' and self.faces_status()['ready']:
+                self.start_faces(sid)
+        except Exception:
+            pass
+
+    def install_faces(self):
+        """One click: install onnxruntime + numpy for this Python and download the face models if missing."""
+        jid = 'faces:install'
+        job = {'session': '', 'stage': 'Установка', 'done': 0, 'total': 0, 'error': None, 'finished': False}
+        self.jobs[jid] = job
+
+        def run():
+            import importlib
+            import subprocess
+            try:
+                import faces as fm
+                if fm.np is None or fm.ort is None:
+                    job['stage'] = 'Установка onnxruntime и numpy (1–3 минуты)'
+                    r = subprocess.run([sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check', 'onnxruntime', 'numpy'],
+                                       capture_output=True, text=True)
+                    if r.returncode != 0:
+                        raise RuntimeError('pip: ' + (r.stderr or r.stdout).strip().splitlines()[-1][:300])
+                    importlib.invalidate_caches()
+                    fm = importlib.reload(fm)
+                if fm.status().get('missing') == 'models':
+                    fm.download_models(job)
+                st = fm.status()
+                if not st['ready']:
+                    raise RuntimeError(st['text'])
+                job['stage'] = 'Готово'
+            except Exception as e:
+                job['error'] = str(e)
+            job['finished'] = True
+        threading.Thread(target=run, daemon=True).start()
+        return {'job': jid}
 
     def import_folder(self, src, opts=None, job=None):
         opts = opts or {}
@@ -1067,6 +1113,165 @@ class Engine:
             self._apply_renames(c, sid)
             self.event(c, sid, 'review', f'rename:{person}')
         return {'ok': True, 'name': new}
+
+    # -------------------------------------------------------- faces (optional, local)
+    FACE_SAME = 0.4          # ArcFace similarity: same person above (same child ≈0.85–0.97, others <0.2)
+    EYES_CLOSED = 0.12       # eye height/width of the more open eye below this -> «closed eyes?»
+
+    def faces_status(self):
+        import faces as fm
+        return fm.status()
+
+    def start_faces(self, sid, force=False):
+        """Find faces on every frame in the background (once; later imports only do new frames)."""
+        import faces as fm
+        jid = sid + ':faces'
+        if jid in self.jobs and not self.jobs[jid].get('finished'):
+            return {'job': jid}
+        st = fm.status()
+        if not st['ready']:
+            raise ValueError(st['text'] + ' — Настройки → Отбор и качество → «Распознавание лиц»')
+        job = {'session': sid, 'stage': 'Поиск лиц', 'done': 0, 'total': 0, 'error': None, 'finished': False}
+        self.jobs[jid] = job
+
+        def run():
+            try:
+                eng = fm.FaceEngine()
+                with self.conn() as c:
+                    if force:
+                        c.execute('DELETE FROM faces WHERE session_id=?', (sid,))
+                    have = {r[0] for r in c.execute('SELECT path FROM faces WHERE session_id=?', (sid,))}
+                    rows = [r['path'] for r in c.execute('SELECT path FROM files WHERE session_id=? ORDER BY capture_at,name', (sid,))]
+                todo = [p for p in rows if p not in have]
+                job['total'] = len(todo)
+                batch = []
+                for p in todo:
+                    data = self.preview_bytes(sid, p, 1280)
+                    fs = []
+                    if data:
+                        try:
+                            fs = eng.analyze(Image.open(io.BytesIO(data)))
+                        except Exception:
+                            fs = []
+                    meta = [{k: f[k] for k in ('box', 'h', 'eye', 'eye2', 'g', 'age', 'score')} for f in fs]
+                    emb = b''.join(f['emb'].astype('float16').tobytes() for f in fs)
+                    batch.append((sid, p, len(fs), json.dumps(meta), emb))
+                    job['done'] += 1
+                    if len(batch) >= 20:
+                        with self.conn() as c:
+                            c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', batch)
+                        batch = []
+                if batch:
+                    with self.conn() as c:
+                        c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', batch)
+                self._fcache.pop(sid, None)
+                job['stage'] = 'Сборка по лицам'
+                self.suggest(sid)                    # kits not touched by hand are assembled again with faces
+                job['stage'] = 'Готово'
+            except Exception as e:
+                job['error'] = str(e)
+            job['finished'] = True
+        threading.Thread(target=run, daemon=True).start()
+        return {'job': jid}
+
+    def _faces(self, sid):
+        """{path: [face, …]} biggest face first; face = meta + 'emb' (numpy). Empty when not analysed."""
+        try:
+            import numpy as np
+        except ImportError:
+            return {}
+        with self.conn() as c:
+            n = c.execute('SELECT COUNT(*), COALESCE(SUM(n),0) FROM faces WHERE session_id=?', (sid,)).fetchone()
+            key = (n[0], n[1])
+            hit = self._fcache.get(sid)
+            if hit and hit[0] == key:
+                return hit[1]
+            out = {}
+            for r in c.execute('SELECT path, n, meta, emb FROM faces WHERE session_id=?', (sid,)):
+                meta = json.loads(r['meta'] or '[]')
+                em = np.frombuffer(r['emb'] or b'', dtype='float16').astype('float32').reshape(-1, 512) if r['n'] else []
+                for i, m in enumerate(meta):
+                    m['emb'] = em[i]
+                out[r['path']] = meta
+        self._fcache[sid] = (key, out)
+        return out
+
+    def _face_refine(self, sid, out, files):
+        """With faces known: a child's (teacher's) set keeps only frames where this person is; worksheet frames
+        showing someone else are flagged; frames with closed eyes are marked (never removed)."""
+        F = self._faces(sid)
+        if not F:
+            return
+        import numpy as np
+        same, shut = self.FACE_SAME, self.EYES_CLOSED
+        main = lambda p: (F.get(p) or [None])[0]
+
+        def reference(paths, series):
+            """The person's face: the worksheet face that most frames of the series agree with
+            (a wrong worksheet number — someone else's frame — loses the vote)."""
+            embs = [main(p)['emb'] for p in paths if main(p)]
+            if not embs:
+                return None
+            pool = [main(q)['emb'] for q in series if main(q)]
+            support = lambda e: sum(1 for v in pool if float(np.dot(e, v)) >= same) + sum(1 for v in embs if float(np.dot(e, v)) >= same)
+            best = max(embs, key=support)
+            agree = [e for e in embs if float(np.dot(best, e)) >= same] or [best]
+            r = np.mean(agree, axis=0)
+            return r / (np.linalg.norm(r) + 1e-9)
+        refs = {}
+        for x in out:
+            if x['kind'] in ('portrait', 'teacher') and x['mandatory']:
+                r = reference(list(x['mandatory']), x['files'])
+                if r is not None:
+                    refs[x['person']] = r
+        for x in out:
+            if x['kind'] not in ('portrait', 'friends', 'teacher'):
+                continue
+            ref = refs.get(x['person'])
+            if ref is None:
+                continue
+            def who(p):        # this person's face on the frame, or None
+                best = max(F.get(p) or [], key=lambda f: float(np.dot(f['emb'], ref)), default=None)
+                return best if best is not None and float(np.dot(best['emb'], ref)) >= same else None
+            keep, closed, gone = [], [], 0
+            for q in x['files']:
+                if q not in F:
+                    keep.append(q)                       # not analysed yet
+                    continue
+                f = who(q)
+                if q in x['mandatory']:
+                    keep.append(q)
+                    if f is None and F[q]:
+                        k = x['mandatory'][q]
+                        prev_ = x.setdefault('unsure', {}).get(k)
+                        x['unsure'][k] = ((prev_ + '; ') if prev_ else '') + 'на кадре, похоже, другой человек — проверьте номер'
+                elif f is not None or (not F[q] and x['kind'] != 'friends'):
+                    keep.append(q)                       # this person — or nobody's face visible (portrait from the side)
+                else:
+                    gone += 1
+                    continue
+                if f is not None and f.get('eye2', 1) < shut:
+                    closed.append(q)
+            x['files'] = keep
+            x['closed'] = closed
+            x['strangers'] = gone
+
+    def _faces_info(self, sid, total):
+        with self.conn() as c:
+            done = c.execute('SELECT COUNT(*) FROM faces WHERE session_id=?', (sid,)).fetchone()[0]
+        j = self.jobs.get(sid + ':faces')
+        try:
+            ready = self.faces_status()['ready']
+        except Exception:
+            ready = False
+        return {'done': done, 'total': total, 'ready': ready, 'running': bool(j and not j.get('finished')),
+                'job': sid + ':faces' if j else None, 'error': (j or {}).get('error')}
+
+    def _face_summary(self, sid):
+        """Per frame: number of clearly visible faces and of those with closed eyes."""
+        F = self._faces(sid)
+        return {p: (sum(1 for f in fs if f['h'] > 0.02), sum(1 for f in fs if f['h'] > 0.02 and f.get('eye2', 1) < self.EYES_CLOSED))
+                for p, fs in F.items()}
 
     # -------------------------------------------------------- previews
     def preview_bytes(self, sid, path, size=640):
@@ -1478,6 +1683,7 @@ class Engine:
                         need = 'вертикальный (портрет)' if w == 0 else 'горизонтальный (фото с друзьями)'
                         prev_ = x.setdefault('unsure', {}).get(k)
                         x['unsure'][k] = ((prev_ + '; ') if prev_ else '') + f'кадр {what}, а нужен {need} — проверьте номер'
+            self._face_refine(sid, out, files)
             # a teacher's set never offers another teacher's worksheet photo
             tmand = {}
             for x in out:
@@ -1723,9 +1929,15 @@ class Engine:
                 main = must[0]
                 sc = scenes[where[main['path']]] if main['path'] in where else []
             else:
-                sc = next((x for x in scenes if len(x) >= 3), max(scenes, key=len))
-                # the most typical frame of the set-up (closest to all others), sharpest on a tie
-                main = min(sc, key=lambda f: (sum(hamming(f['dhash'], g['dhash']) for g in sc), -sharp(f)))
+                med = lambda x: sorted(f.get('nf', 0) for f in x)[len(x) // 2]
+                crowd = max((x for x in scenes if len(x) >= 2), key=med, default=None)
+                if crowd is not None and med(crowd) >= 8:
+                    # with faces: the class photo is the set-up with the most people in it (earliest on a tie)
+                    sc = crowd
+                else:
+                    sc = next((x for x in scenes if len(x) >= 3), max(scenes, key=len))
+                # everybody's eyes open first, then the most typical frame of the set-up, sharpest on a tie
+                main = min(sc, key=lambda f: (f.get('nclosed', 0), sum(hamming(f['dhash'], g['dhash']) for g in sc), -sharp(f)))
             dups = nearest(main, sc, s['dup_limit'])
             return ([] if main['path'] in s['mandatory'] else [main]), dups
         clip = float(self.setting('clip_threshold') or 0.25)
@@ -1785,6 +1997,9 @@ class Engine:
         with self.conn() as c:
             info = {f['path']: f for f in self._files(c, sid)}
             c.execute('DELETE FROM ai_suggestions WHERE session_id=?', (sid,))
+            for p_, (nf, nc) in self._face_summary(sid).items():
+                if p_ in info:
+                    info[p_]['nf'], info[p_]['nclosed'] = nf, nc
             approved = {r['section_id'] for r in c.execute('SELECT section_id FROM approvals WHERE session_id=? AND approved=1', (sid,))}
             edited = {r['section_id'] for r in c.execute("SELECT DISTINCT section_id FROM selection_events WHERE session_id=? AND actor='user'", (sid,))}
             picks_by, reason = {}, {}
@@ -1817,6 +2032,11 @@ class Engine:
                     left, right = safe_side(s, -1), safe_side(s, 1)
                     pool = [f for f in pool if f['frame'] is None or sp[0] <= f['frame'] <= sp[1]
                             or (f['frame'] < sp[0] and left) or (f['frame'] > sp[1] and right)]
+                shut = set(s.get('closed') or [])
+                if shut:            # closed eyes: only when there is nothing else
+                    open_ = [f for f in pool if f['path'] not in shut]
+                    if len(open_) >= max(8, len(pool) // 2):
+                        pool = open_
                 return pool
             by_person = defaultdict(list)
             for s in sorted(secs, key=lambda x: {'group': 1, 'reportage': 2}.get(x['kind'], 0)):
@@ -1921,6 +2141,12 @@ class Engine:
             if any(x['id'] not in touched and not sel.get(x['id']) for x in secs if x['kind'] in ('timeline', 'cat')):
                 self.suggest(sid)
                 return self.session(sid)
+        # Crous time line: closed eyes are only marked (the photographer decides), never removed
+        tl = [x for x in secs if x['kind'] == 'timeline']
+        if tl:
+            F = self._faces(sid)
+            if F:
+                tl[0]['closed'] = [p for p in tl[0]['files'] if any(f['h'] > 0.05 and f.get('eye2', 1) < self.EYES_CLOSED for f in F.get(p, [])[:3])]
         # worksheet frames are always part of the kit; stale picks from an earlier import are dropped
         for x in secs:
             have = [p for p in sel.get(x['id'], []) if p in x['files'] or p in x['mandatory']]
@@ -1934,7 +2160,8 @@ class Engine:
         return {'session': dict(s), 'files': slim, 'sections': secs, 'conflicts': conflicts,
                 'selected': sel, 'approved': appr, 'absent': absent, 'reasons': reasons, 'dups': dmarks, 'suggested': sugg, 'pillow': Image is not None,
                 'flag_names': FLAG_NAMES,
-                'plan': next((self.plan_check(sid, x) for x in secs if x['kind'] == 'timeline'), [])}
+                'plan': next((self.plan_check(sid, x) for x in secs if x['kind'] == 'timeline'), []),
+                'faces': self._faces_info(sid, len(files))}
 
     def review(self, sid, body):
         secs, _ = self.sections(sid)
