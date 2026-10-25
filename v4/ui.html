@@ -280,7 +280,7 @@ function envMenu(btn){closeMenu();const m=document.createElement('div');m.classN
  const r=btn.getBoundingClientRect();m.style.left=(r.right+8)+'px';m.style.top=r.top+'px';setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
 async function switchEnv(id){if(typeof flush==='function')await flush();try{await api('/api/settings',{settings:{current_company:id}});S.sess=null;S.sid='';try{localStorage.removeItem('lumio.sid')}catch(e){}await load();toast('Среда: '+curEnv().name)}catch(e){toast(e.message,1)}}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-const UI_VERSION='4.16.0';
+const UI_VERSION='4.17.0';
 async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();
  const env=curEnv().id;S.stats.allSessions=S.stats.sessions;S.stats.sessions=S.stats.sessions.filter(x=>(x.company||'vypusk')===env);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;const a=curEnv().color||s.accent;document.documentElement.style.setProperty('--accent',a);document.documentElement.style.setProperty('--c1',a);document.documentElement.style.setProperty('--accent-soft',a+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
@@ -302,7 +302,7 @@ function agg(r){const ss=r?S.stats.sessions.filter(s=>inR(s.shoot_date,r)):[];co
  const fl={};ss.forEach(s=>Object.entries(s.flags||{}).forEach(([k,v])=>fl[k]=(fl[k]||0)+v));const hs=ss.filter(s=>s.hours!=null);
  const dd={};ss.forEach(s=>Object.entries(s.durations||{}).forEach(([k,v])=>{if(v!=null&&k!=='review_per_section'){(dd[k]=dd[k]||[]).push(v)}}));
  const days=new Set(ss.map(s=>s.shoot_date)).size;
- return{ss,n:ss.length,frames:sum('frames'),hours:hs.length?hs.reduce((a,s)=>a+s.hours,0):null,kits:sum('kits'),students:sum('students'),selected:sum('selected'),analyzed:sum('analyzed'),flags:fl,
+ return{ss,n:ss.length,frames:sum('frames'),hours:hs.length?hs.reduce((a,s)=>a+s.hours,0):null,kits:sum('kits'),students:sum('students'),teachers:sum('teachers'),selected:sum('selected'),analyzed:sum('analyzed'),flags:fl,
   suggested:sum('suggested'),accepted:sum('accepted'),replaced:sum('replaced'),manual:sum('manual_added'),untouched:sum('untouched'),approved:sum('approved'),days,
   fph:hs.length&&hs.reduce((a,s)=>a+s.hours,0)>0.05?hs.reduce((a,s)=>a+s.frames,0)/hs.reduce((a,s)=>a+s.hours,0):null,
   durations:Object.fromEntries(Object.entries(dd).map(([k,v])=>[k,v.reduce((a,b)=>a+b,0)/v.length]))}}
@@ -353,7 +353,7 @@ function guideHTML(g){if(!g)return'';try{if(localStorage.getItem('lumio.guide.of
 // ---------- overview
 function overview(){const st=S.stats;const g=guideHTML(nextStep());if(!st.sessions.length)return `<div class="top"><h1>Обзор</h1></div>${g}${onboarding()}`;
  const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?agg(pr):null;
- const cards=`<div class="kpis">${kpi(fmt(c.n),'Съёмок',delta(c.n,p&&p.n))}${kpi(fmt(c.frames),'Отснято кадров',delta(c.frames,p&&p.frames))}${kpi(c.hours==null?'—':fmt(Math.round(c.hours))+' ч','Часов съёмки (по EXIF)',delta(c.hours,p&&p.hours))}${kpi(fmt(c.kits),'Готовых комплектов',delta(c.kits,p&&p.kits))}</div>`;
+ const cards=`<div class="kpis">${kpi(fmt(c.n),'Съёмок',delta(c.n,p&&p.n))}${kpi(fmt(c.frames),'Отснято кадров',delta(c.frames,p&&p.frames))}${kpi(c.hours==null?'—':fmt(Math.round(c.hours))+' ч','Часов съёмки (по EXIF)',delta(c.hours,p&&p.hours))}${kpi(fmt(c.students+c.teachers),`Людей по ведомостям · учеников ${fmt(c.students)}, учителей ${fmt(c.teachers)}`,delta(c.students+c.teachers,p&&(p.students+p.teachers)))}</div>`;
  const recent=st.sessions.slice(0,4).map(s=>`<div class="rc" onclick="openSess('${s.id}')"><div class="th" ${s.cover?`data-bg="/api/preview?s=${s.id}&p=${encodeURIComponent(s.cover)}&size=160"`:''}></div><div style="min-width:0"><div class="mut">${fdate(s.shoot_date)}</div><div class="t">${esc(s.title)}</div><div class="row" style="gap:10px"><span class="mut">${fmt(s.frames)} кадров</span><span class="status ${s.status}">${STATUS[s.status]||''}</span></div></div></div>`).join('');
  return `<div class="top"><h1>Обзор</h1>${filters()}</div>${g}${cards}
  <div class="g2"><div class="card"><div class="ch"><h2>Кадры ${S.period==='month'?'по дням':'по месяцам'}</h2>${chartLegend()}</div>${overviewChart()}</div><div class="card"><div class="ch"><h2>Рекорды</h2></div>${records()}</div></div>
@@ -549,9 +549,11 @@ const hasDups=x=>x&&x.dup_limit!=null;
 function faceNote(P){const fa=S.sess.faces||{};const out=[];
  if(fa.running){out.push(`<div class="warn info">Ищу лица на кадрах: ${fa.done} из ${fa.total}. Комплекты, которые вы не меняли, пересоберутся по лицам сами.</div>`);setTimeout(pollFaces,2500)}
  else if(fa.error)out.push(`<div class="warn err">Лица: ${esc(fa.error)}</div>`);
- else if(fa.ready&&fa.done<fa.total&&S.sess.session.mode==='school')out.push(`<div class="warn info acc"><span>Лица на этой съёмке ещё не искали — по лицам программа уберёт из серий чужих детей и отметит закрытые глаза.</span><button class="btn sm" onclick="runFaces()">Найти лица</button></div>`);
+ else if(fa.ready&&fa.done<fa.total){if(S._fauto!==S.sid){S._fauto=S.sid;setTimeout(runFaces,50)}out.push(`<div class="warn info">Начинаю поиск лиц…</div>`)}
+ else if(!fa.ready&&S.cfg.faces_install){const j=S.cfg.faces_install;out.push(`<div class="warn info">Устанавливаю распознавание лиц (один раз): ${esc(j.stage||'')}${j.total?` · ${(j.done/1048576).toFixed(0)} из ${(j.total/1048576).toFixed(0)} МБ`:''}${j.error?` — ошибка: ${esc(j.error)}`:''}</div>`);if(!j.finished)setTimeout(pollInstall,3000)}
  const gone=P.secs.reduce((a,i)=>a+(S.sess.sections[i].strangers||0),0);if(gone)out.push(`<div class="warn info">По лицам из серии убрано чужих кадров: ${gone}.</div>`);
  return out.join('')}
+let _pi=0;async function pollInstall(){if(_pi)return;_pi=1;try{const j=await api('/api/job?id=faces:install');S.cfg.faces_install=j;if(j.finished&&!j.error){S.cfg.faces_install=null;await reloadSess(curP()?.key)}drawShoot()}catch(e){}_pi=0}
 async function runFaces(){try{await api('/api/faces-run',{session:S.sid});S.sess.faces={...S.sess.faces,running:true};drawShoot()}catch(e){toast(e.message,1)}}
 let _fp=0;async function pollFaces(){if(_fp||S.page!=='shoot')return;_fp=1;try{const j=await api('/api/job?id='+encodeURIComponent(S.sid+':faces'));if(j.finished){await reloadSess(curP()?.key);drawShoot();toast(j.error?'Лица: '+j.error:'Лица найдены — комплекты обновлены',!!j.error)}else{S.sess.faces={...S.sess.faces,done:j.done,total:j.total||S.sess.faces.total};const n=document.querySelector('.notes .warn.info');if(n&&n.textContent.startsWith('Ищу лица'))n.textContent=`Ищу лица на кадрах: ${j.done} из ${j.total}. Комплекты, которые вы не меняли, пересоберутся по лицам сами.`;setTimeout(()=>{_fp=0;pollFaces()},2500);return}}catch(e){}_fp=0}
 // «брак»: never shown among normal frames, kept in its own place to look through and bring back

@@ -2813,7 +2813,7 @@ class Engine:
             sessions = [dict(r) for r in c.execute('SELECT * FROM sessions ORDER BY first_capture DESC')]
             per = {s['id']: s for s in sessions}
             for s in sessions:
-                s.update(frames=0, raw=0, analyzed=0, flags={}, students=0, kits=0, selected=0, sections=0, approved=0,
+                s.update(frames=0, raw=0, analyzed=0, flags={}, students=0, teachers=0, kits=0, selected=0, sections=0, approved=0,
                          suggested=0, accepted=0, replaced=0, manual_added=0, untouched=0, durations={}, cover=None, hours=None)
             for r in c.execute("SELECT session_id, COUNT(*) n, SUM(kind='raw') nr, SUM(analyzed) na FROM files GROUP BY session_id"):
                 if r['session_id'] in per:
@@ -2826,9 +2826,9 @@ class Engine:
             days, day_hours = defaultdict(int), defaultdict(float)
             for r in c.execute('SELECT substr(capture_at,1,10) d, COUNT(*) n FROM files GROUP BY d'):
                 days[r['d']] += r['n']
-            for r in c.execute("SELECT session_id, COUNT(*) n FROM students WHERE role='student' GROUP BY session_id"):
+            for r in c.execute("SELECT session_id, role, COUNT(*) n FROM students WHERE role IN ('student','teacher') GROUP BY session_id, role"):
                 if r['session_id'] in per:
-                    per[r['session_id']]['students'] = r['n']
+                    per[r['session_id']]['students' if r['role'] == 'student' else 'teachers'] = r['n']
             for r in c.execute('SELECT session_id, COUNT(DISTINCT file_path) n FROM selections GROUP BY session_id'):
                 if r['session_id'] in per:
                     per[r['session_id']]['selected'] = r['n']

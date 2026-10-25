@@ -26,7 +26,7 @@ CODE = [Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).wi
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.16.0'  # bump together with UI_VERSION in ui.html
+APP_VERSION = '4.17.0'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
@@ -89,7 +89,9 @@ def make_handler(engine):
                 elif u.path == '/api/build':
                     self.send(200, {'build': build_id(), 'version': APP_VERSION})
                 elif u.path == '/api/settings':
-                    self.send(200, {'settings': engine.settings(), 'profile': engine.profile(), 'version': APP_VERSION, 'companies': engine.companies()})
+                    j = engine.jobs.get('faces:install')
+                    self.send(200, {'settings': engine.settings(), 'profile': engine.profile(), 'version': APP_VERSION, 'companies': engine.companies(),
+                                    'faces_install': ({k: j.get(k) for k in ('stage', 'done', 'total', 'error', 'finished')} if j else None)})
                 elif u.path == '/api/session':
                     self.send(200, engine.session(q.get('id', '')))
                 elif u.path == '/api/job':
@@ -282,6 +284,13 @@ def main():
     engine = Engine(Path(a.db).expanduser())
     server.RequestHandlerClass = make_handler(engine)
     print(f'LUMIO {APP_VERSION}: {url} | база: {a.db} | Ctrl+C — остановить', flush=True)
+    # face recognition is part of the normal flow: on first start it installs itself in the background
+    try:
+        if not engine.faces_status()['ready']:
+            engine.install_faces()
+            print('Устанавливаю распознавание лиц в фоне (один раз)…', flush=True)
+    except Exception as e:
+        print('Распознавание лиц:', e, flush=True)
     if not a.no_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     restart = threading.Event()
