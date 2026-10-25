@@ -23,7 +23,7 @@ from datetime import datetime
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageFilter, ImageStat
+    from PIL import Image, ImageChops, ImageFilter, ImageStat
     Image.MAX_IMAGE_PIXELS = 200_000_000
 except ImportError:  # analysis degrades gracefully
     Image = None
@@ -33,8 +33,8 @@ RAW_EXT = {'.arw', '.cr2', '.cr3', '.nef', '.nrw', '.raf', '.rw2', '.orf', '.dng
 IMG_EXT = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.tif', '.tiff'}
 PREVIEWABLE = {'.jpg', '.jpeg', '.png', '.webp'}
 CATS = ['доки', 'здание', 'общая', 'репортаж', 'ученики', 'учителя', 'фон']   # as delivered to the client, lower case
-FLAG_NAMES = {'white': 'Пустой белый', 'black': 'Пустой чёрный', 'over': 'Пересвет',
-              'under': 'Недодержка', 'blur': 'Нерезкий', 'dup': 'Дубль'}
+FLAG_NAMES = {'white': 'Пустой белый', 'black': 'Пустой чёрный', 'over': 'Слишком светлый',
+              'under': 'Слишком тёмный', 'blur': 'Нерезкий', 'odd': 'Случайный кадр', 'dup': 'Дубль'}
 
 DEFAULT_SETTINGS = {
     'series_gap_sec': '90',        # new series when pause between frames is longer
@@ -45,7 +45,7 @@ DEFAULT_SETTINGS = {
     'report_dups': '6',            # reportage: extra duplicates (5–7)
     'kit_min': '15',               # automatic kit: at least this many frames when the series has them
     'kit_max': '20',               # automatic kit: never more than this (15–20 incl. the 5 worksheet frames)
-    'blur_threshold': '20',        # strongest-edge level below -> "blur"
+    'blur_threshold': '18',        # fine-detail level below -> "blur" (also: much softer than neighbours)
     'dup_distance': '5',           # dHash Hamming distance for near-duplicates
     'clip_threshold': '0.25',      # share of clipped pixels for over/under
     'accent': '#7738FF',
@@ -113,7 +113,7 @@ MIGRATIONS = {
     'files': {'name': 'TEXT', 'frame': 'INTEGER', 'preview': 'TEXT', 'camera': 'TEXT',
               'series': 'INTEGER', 'brightness': 'REAL', 'sharpness': 'REAL',
               'clip_hi': 'REAL', 'clip_lo': 'REAL', 'dhash': 'TEXT', 'flags': 'TEXT',
-              'analyzed': 'INTEGER DEFAULT 0', 'orient': 'INTEGER', 'wide': 'INTEGER'},
+              'analyzed': 'INTEGER DEFAULT 0', 'orient': 'INTEGER', 'wide': 'INTEGER', 'detail': 'REAL'},
     'students': {'role': "TEXT DEFAULT 'student'", 'anchors': 'TEXT'},
     'selection_events': {'section_id': 'TEXT'},
     'profiles': {'email': 'TEXT', 'phone': 'TEXT', 'city': 'TEXT', 'avatar': 'TEXT', 'site': 'TEXT',
@@ -146,7 +146,7 @@ COMPANY_DEFAULTS = {
 TEMPLATE_KEYS = ('color', 'disk_parent', 'root', 'child_dir', 'worksheet_file', 'extra_file', 'teacher_dir', 'teacher_file', 'common_dir', 'report_dir',
                  'raw_dir', 'jpg_dir', 'cat_portrait', 'cat_group', 'cat_common', 'cat_teacher')
 CATEGORIES = ('portrait', 'group', 'common', 'teacher')
-DEFECTS = ('white', 'black', 'blur')     # «брак»: never in a sorted delivery unless the photographer brings it back
+DEFECTS = ('white', 'black', 'blur', 'under', 'over', 'odd')     # «брак»: never in a sorted delivery unless the photographer brings it back
 
 
 def fill(template, **kw):
@@ -298,11 +298,20 @@ def analyze_image(img):
         if acc >= need:
             sharp = i
             break
+    # detail = fine texture left after a light blur (0.5% strongest): drops sharply on motion blur and
+    # missed focus, does not saturate on contrasty frames like the edge measure above
+    hf = ImageChops.difference(g, g.filter(ImageFilter.GaussianBlur(1.2))).histogram()
+    acc, detail, need = 0, 0, sum(hf) * 0.005
+    for i in range(255, -1, -1):
+        acc += hf[i]
+        if acc >= need:
+            detail = i
+            break
     d = g.resize((9, 8)).getdata()
     px = list(d)
     bits = ''.join('1' if px[r * 9 + c] > px[r * 9 + c + 1] else '0' for r in range(8) for c in range(8))
     return {'brightness': round(mean, 2), 'std': std, 'sharpness': round(sharp, 2),
-            'clip_hi': round(clip_hi, 4), 'clip_lo': round(clip_lo, 4), 'dhash': '%016x' % int(bits, 2)}
+            'clip_hi': round(clip_hi, 4), 'clip_lo': round(clip_lo, 4), 'dhash': '%016x' % int(bits, 2), 'detail': detail}
 
 
 def hamming(a, b):
@@ -1054,12 +1063,19 @@ class Engine:
                     res = None
             results.append((r, res))
             job['done'] = i + 1
-        # sharpness is judged relative to the series median, so a soft-light series is not all "blur"
-        by_series = defaultdict(list)
-        for r, res in results:
-            if res:
-                by_series[r['series']].append(res['sharpness'])
-        med = {s: sorted(v)[len(v) // 2] for s, v in by_series.items()}
+        # «брак» is judged against the neighbouring frames (±6 by time): a frame much softer, or completely
+        # different from both neighbours, stands out; plain thresholds catch empty, too dark and too light frames
+        ok = [(r, res) for r, res in results if res]
+        detail_of = [res['detail'] for _, res in ok]
+        near_med = {}
+        for i, (r, res) in enumerate(ok):
+            win = sorted(detail_of[max(0, i - 6):i] + detail_of[i + 1:i + 7])
+            near_med[r['path']] = win[len(win) // 2] if win else res['detail']
+        odd = set()
+        for i in range(1, len(ok) - 1):
+            a_, b_ = ok[i - 1][1], ok[i + 1][1]
+            if hamming(a_['dhash'], ok[i][1]['dhash']) > 28 and hamming(ok[i][1]['dhash'], b_['dhash']) > 28:
+                odd.add(ok[i][0]['path'])
         prev = None
         with self.conn() as c:
             for r, res in results:
@@ -1072,16 +1088,18 @@ class Engine:
                 elif res['brightness'] < 12 and res['std'] < 12:
                     flags.append('black')
                 else:
-                    if res['clip_hi'] > clip_t:
+                    if res['clip_hi'] > min(clip_t, 0.08) or res['brightness'] > 185:
                         flags.append('over')
-                    if res['clip_lo'] > clip_t * 2 or res['brightness'] < 35:
+                    if res['clip_lo'] > clip_t * 2 or res['brightness'] < 40:
                         flags.append('under')
-                    m = med.get(r['series']) or 0
-                    if res['sharpness'] < blur_t or (m and res['sharpness'] < m * 0.45):
+                    m = near_med.get(r['path']) or 0
+                    if res['detail'] < blur_t or (m and res['detail'] < m * 0.6):
                         flags.append('blur')
+                    if not flags and r['path'] in odd:
+                        flags.append('odd')
                     if not flags and prev and prev[0]['series'] == r['series'] and hamming(prev[1]['dhash'], res['dhash']) <= dup_d:
                         # near-identical pair (bracketing, burst): keep the sharper one
-                        if res['sharpness'] <= prev[1]['sharpness']:
+                        if res['detail'] <= prev[1]['detail']:
                             flags.append('dup')
                         else:
                             c.execute("UPDATE files SET flags='dup' WHERE session_id=? AND path=?", (sid, prev[0]['path']))
@@ -1089,9 +1107,9 @@ class Engine:
                     elif not flags:
                         prev = (r, res)
                 c.execute('''UPDATE files SET brightness=?, sharpness=?, clip_hi=?, clip_lo=?, dhash=?,
-                             flags=?, analyzed=1, wide=? WHERE session_id=? AND path=?''',
-                          (res['brightness'], res['sharpness'], res['clip_hi'], res['clip_lo'], res['dhash'],
-                           ','.join(flags) or None, res.get('wide'), sid, r['path']))
+                             flags=?, analyzed=1, wide=?, detail=? WHERE session_id=? AND path=?''',
+                          (res['brightness'], res['detail'], res['clip_hi'], res['clip_lo'], res['dhash'],
+                           ','.join(flags) or None, res.get('wide'), res['detail'], sid, r['path']))
             c.execute("UPDATE sessions SET status=CASE WHEN status='imported' THEN 'analyzed' ELSE status END WHERE id=?", (sid,))
             self.event(c, sid, 'analysis', 'end')
 
