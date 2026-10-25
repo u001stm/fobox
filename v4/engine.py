@@ -1260,6 +1260,8 @@ class Engine:
         Worksheet rows typed «общая» / «репортаж» may give numbers ('612', '640-700', '640 641')."""
         used = {p for x in out for p in x['files']} | {p for x in out for p in x['mandatory']}
         free = [f for f in frames if f['path'] not in used]
+        if self.settings(sid)['_company'].get('layout') == 'vypusk':
+            free = [f for f in free if f.get('wide') != 0]    # Выпуск: common photo and reportage are horizontal
         # leftovers between the children's own series (other kids walking in, test shots) are neither
         # the class photo nor reportage: group set-ups are shot before or after the personal portraits
         ptimes = sorted(fp['capture_at'] for x in out if x['kind'] in ('portrait', 'friends') for fp in frames if fp['path'] in set(x['files']))
@@ -1460,6 +1462,22 @@ class Engine:
                                 'kind': 'teacher', 'person': p['student_id'],
                                 'files': [f['path'] for f in frames if lo <= f['frame'] <= hi], 'mandatory': {}, 'limit': 5,
                                 'roles': [], 'overridden': False})
+            # Выпуск: every vertical frame is a portrait (vignette, ЛР, ЛС, extra portraits, teachers), every
+            # horizontal one is a group shot (friends, common photo, reportage). Frames of the wrong
+            # orientation are not offered; a worksheet frame of the wrong orientation is flagged.
+            wmap = {f['path']: f.get('wide') for f in files}
+            want = {'portrait': 0, 'teacher': 0, 'friends': 1} if self.settings(sid)['_company'].get('layout') == 'vypusk' else {}
+            for x in out:
+                w = want.get(x['kind'])
+                if w is None:
+                    continue
+                x['files'] = [q for q in x['files'] if wmap.get(q) in (None, w) or q in x['mandatory']]
+                for q, k in x['mandatory'].items():
+                    if wmap.get(q) is not None and wmap[q] != w:
+                        what = 'горизонтальный' if wmap[q] else 'вертикальный'
+                        need = 'вертикальный (портрет)' if w == 0 else 'горизонтальный (фото с друзьями)'
+                        prev_ = x.setdefault('unsure', {}).get(k)
+                        x['unsure'][k] = ((prev_ + '; ') if prev_ else '') + f'кадр {what}, а нужен {need} — проверьте номер'
             # a teacher's set never offers another teacher's worksheet photo
             tmand = {}
             for x in out:
@@ -1509,6 +1527,8 @@ class Engine:
             if k:
                 for p in list(x['files']) + list(x['mandatory']):
                     kind_of.setdefault(p, k)
+        if not kind_of:
+            return self._plan_dividers(seq)
         guesses = []
         for fs in series:
             votes = Counter(kind_of[f['path']] for f in fs if f['path'] in kind_of)
@@ -1536,6 +1556,76 @@ class Engine:
                 last = g
         return out
 
+    def _plan_dividers(self, seq):
+        """Guess by the CROUSALBM shooting plan: first the class photo, girls, boys (the first three set-ups),
+        then 8–12 group set-ups (vertical or horizontal), then portraits (the rest of the card is vertical)."""
+        good = [f for f in seq if not any(x in DEFECTS for x in (f['flags'] or '').split(','))] or seq
+        scenes = self._scenes(good)
+        if not scenes:
+            return [(seq[0]['path'], 'portrait')]
+        n = [len(sc) for sc in scenes]
+        vert = [sum(1 for f in sc if f.get('wide') == 0) for sc in scenes]
+        start = len(scenes)                                  # first scene of the portrait block
+        for i in range(len(scenes)):
+            rest_n, rest_v = sum(n[i:]), sum(vert[i:])
+            if vert[i] * 2 > n[i] and rest_v >= 0.85 * rest_n:
+                start = i
+                break
+        out, last, commons = [], None, 0
+        for i, sc in enumerate(scenes):
+            if i >= start:
+                g = 'portrait'
+            elif commons < 3 and len(sc) >= 2:
+                g, commons = 'common', commons + 1
+            else:
+                g = 'group'
+            if g != last:
+                out.append((sc[0]['path'], g))
+                last = g
+        return out
+
+    def plan_check(self, sid, sec=None):
+        """Checklist of the CROUSALBM shooting plan over the current dividers."""
+        if sec is None:
+            sec = next((x for x in self.sections(sid)[0] if x['id'] == 'timeline'), None)
+        if not sec:
+            return []
+        with self.conn() as c:
+            info = {f['path']: f for f in self._files(c, sid)}
+        ok = lambda p: p in info and not any(x in DEFECTS for x in (info[p]['flags'] or '').split(','))
+        part = lambda k: [info[p] for p in sec['files'] if sec['cats'].get(p) == k and ok(p)]
+        res = []
+        com = self._scenes(part('common'))
+        res.append({'t': 'Общие: класс, девочки, мальчики', 'v': f'{len(com)} из 3',
+                    'ok': len(com) >= 3, 'h': 'по одной сцене на каждую общую' if len(com) < 3 else ''})
+        gr = [sc for sc in self._scenes(part('group')) if len(sc) >= 1]
+        gv = sum(1 for sc in gr if sum(1 for f in sc if f.get('wide') == 0) * 2 > len(sc))
+        gh = len(gr) - gv
+        res.append({'t': 'Групповые: 8–12 сцен', 'v': f'{len(gr)}', 'ok': 8 <= len(gr) <= 12,
+                    'h': '' if 8 <= len(gr) <= 12 else ('мало групповых сцен' if len(gr) < 8 else 'больше 12 — проверьте разделители')})
+        res.append({'t': 'Групповые: вертикальных и горизонтальных чётно', 'v': f'верт. {gv} · гор. {gh}',
+                    'ok': gv % 2 == 0 and gh % 2 == 0, 'h': '' if gv % 2 == 0 and gh % 2 == 0 else 'нужно чётное число каждой ориентации'})
+        # portraits: one child = one run of frames between pauses
+        pr = part('portrait')
+        gap = self.setting('person_gap_sec', int)
+        kids, cur, prev = [], [], None
+        for f in pr:
+            t = datetime.strptime(f['capture_at'], '%Y-%m-%d %H:%M:%S')
+            if prev and (t - prev).total_seconds() > gap and cur:
+                kids.append(cur)
+                cur = []
+            cur.append(f)
+            prev = t
+        if cur:
+            kids.append(cur)
+        few = [k for k in kids if len(k) < 12]
+        res.append({'t': 'Портреты: 12–15 кадров на ученика', 'v': f'{len(kids)} серий' + (f' · меньше 12: {len(few)}' if few else ''),
+                    'ok': bool(kids) and not few, 'h': ', '.join(f"{k[0]['name']} ({len(k)})" for k in few[:6]),
+                    'jump': few[0][0]['path'] if few else None})
+        te = part('teacher')
+        res.append({'t': 'Портреты педагогов', 'v': f'{len(te)} кадров', 'ok': bool(te), 'h': '' if te else 'нет кадров с разделителем «Педагоги»'})
+        return res
+
     def _sort_sections(self, sid, files, person_secs, cfg):
         """Sorted delivery (Crous): the whole card as one time line; dividers set the kind of everything after them."""
         seq = sorted(files, key=lambda f: (f['capture_at'], f['name']))
@@ -1559,6 +1649,7 @@ class Engine:
                  'kind': 'timeline', 'person': None, 'files': [f['path'] for f in seq], 'mandatory': {}, 'limit': None,
                  'roles': [], 'overridden': not auto, 'unsure': {}, 'dividers': [{'path': p, 'cat': k} for p, k in divs],
                  'cats': cats, 'labels': labels}]
+
 
     def set_divider(self, sid, path, cat):
         """Put a divider before this frame (cat), or remove it (cat=None). The first edit keeps the automatic guess."""
@@ -1838,11 +1929,12 @@ class Engine:
             people = c.execute("SELECT student_id, name FROM students WHERE session_id=? ORDER BY rowid", (sid,)).fetchall()
         present = {x['person'] for x in secs}
         absent = [r['name'] for r in people if r['student_id'] not in present]
-        slim = [{k: f[k] for k in ('path', 'name', 'capture_at', 'kind', 'frame', 'series', 'flags', 'sharpness', 'brightness', 'analyzed')}
+        slim = [{k: f[k] for k in ('path', 'name', 'capture_at', 'kind', 'frame', 'series', 'flags', 'sharpness', 'brightness', 'analyzed', 'wide')}
                 | {'has_preview': bool(f['preview'])} for f in files]
         return {'session': dict(s), 'files': slim, 'sections': secs, 'conflicts': conflicts,
                 'selected': sel, 'approved': appr, 'absent': absent, 'reasons': reasons, 'dups': dmarks, 'suggested': sugg, 'pillow': Image is not None,
-                'flag_names': FLAG_NAMES}
+                'flag_names': FLAG_NAMES,
+                'plan': next((self.plan_check(sid, x) for x in secs if x['kind'] == 'timeline'), [])}
 
     def review(self, sid, body):
         secs, _ = self.sections(sid)

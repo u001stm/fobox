@@ -16,8 +16,9 @@ except ImportError:
     Image = None
 
 
-def jpeg(color, when, blank=False):
-    im = Image.new('RGB', (300, 200), color)
+def jpeg(color, when, blank=False, wide=False):
+    """Portraits are vertical, group photos horizontal — as on a real school card."""
+    im = Image.new('RGB', (300, 200) if wide else (200, 300), color)
     if not blank:
         from PIL import ImageDraw
         d = ImageDraw.Draw(im)
@@ -65,7 +66,8 @@ class EngineTest(unittest.TestCase):
         for n in range(100, 140):
             t += timedelta(seconds=5 if n != 120 else 900)
             colour = (60 + n % 7 * 20, 90, 140)
-            (self.src / f'ABC0{n}.JPG').write_bytes(jpeg((252, 252, 252) if n == 105 else colour, t, blank=(n == 105)))
+            (self.src / f'ABC0{n}.JPG').write_bytes(jpeg((252, 252, 252) if n == 105 else colour, t, blank=(n == 105),
+                                                         wide=120 <= n < 128))   # group block; teachers after it
             (self.src / f'ABC0{n}.ARW').write_bytes(b'RAW' * 50 + bytes([n % 256]))
         (self.tmp / 'students.csv').write_text('Name,V,P1,P2,D1,D2\nИванов Иван Петрович,110,111,112,125,126\n', encoding='utf-8')
         self.e = Engine(self.tmp / 'db' / 'f.sqlite3')
@@ -356,6 +358,16 @@ class EngineTest(unittest.TestCase):
         self.assertIn('crs:Whites2012=', x)
         self.assertIn('crs:Blacks2012=', x)
 
+    def test_vypusk_vertical_is_portrait_horizontal_is_group(self):
+        sid = self.school()
+        st = self.e.session(sid)
+        wide = {f['path']: f['wide'] for f in st['files']}
+        por = next(x for x in st['sections'] if x['kind'] == 'portrait')
+        fr = next(x for x in st['sections'] if x['kind'] == 'friends')
+        self.assertTrue(all(wide[p] == 0 for p in por['files']))
+        self.assertTrue(all(wide[p] == 1 for p in fr['files']))
+        self.assertTrue(all(wide[p] == 0 for p in st['selected'][por['id']]))
+
     def test_scenes_split_by_pause_and_picture(self):
         from engine import Engine
         f = lambda n, t, h: {'name': f'A{n}', 'capture_at': f'2026-10-16 09:{t}', 'dhash': h}
@@ -387,7 +399,7 @@ class EngineTest(unittest.TestCase):
     def test_vertical_raw_preview_is_rotated(self):
         d = self.tmp / 'vert'
         d.mkdir()
-        raw = bytearray(fake_tiff_raw(jpeg((10, 120, 200), datetime(2026, 5, 1, 12))))
+        raw = bytearray(fake_tiff_raw(jpeg((10, 120, 200), datetime(2026, 5, 1, 12), wide=True)))
         # add Orientation=6 (camera held vertically) to IFD0: patch entry count and append an entry
         n = struct.unpack_from('<H', raw, 8)[0]
         entries = [raw[10 + i * 12:22 + i * 12] for i in range(n)] + [struct.pack('<HHII', 0x0112, 3, 1, 6)]
@@ -556,7 +568,7 @@ class EngineTest(unittest.TestCase):
         t = datetime(2026, 10, 16, 12, 0, 0)
         for n in range(100, 160):
             t += timedelta(seconds=90 if n in (110, 120, 128) else 4)
-            im = Image.new('RGB', (450, 300), (50, 70, 90))
+            im = Image.new('RGB', (300, 450) if n < 120 else (450, 300), (50, 70, 90))   # portraits vertical
             dr = ImageDraw.Draw(im)
             if 120 <= n < 128:            # group burst: same composition, tiny changes
                 for k in range(6):
@@ -607,7 +619,7 @@ class EngineTest(unittest.TestCase):
         t = datetime(2026, 10, 23, 10, 0, 0)
         def shot(n, size, draw, pause=False):
             nonlocal t
-            t += timedelta(seconds=120 if pause else 4)
+            t += timedelta(seconds=200 if pause else 4)
             im = Image.new('RGB', size, (60, 80, 100))
             draw(ImageDraw.Draw(im), n)
             ex = Image.Exif()
@@ -619,18 +631,20 @@ class EngineTest(unittest.TestCase):
         person = lambda dr, n: (dr.ellipse([60 + n % 5 * 9, 60, 140 + n % 5 * 9, 140], fill=(230, 200, 180)), dr.line([0, n * 13 % 400, 200, 0], fill=(255, 255, 255), width=5))
         crowd = lambda dr, n: [dr.ellipse([20 + k * 60, 80, 70 + k * 60, 130], fill=(230, 200, 180)) for k in range(6)]
         pair = lambda dr, n: (dr.ellipse([60 + n % 4 * 30, 60, 120 + n % 4 * 30, 120], fill=(230, 200, 180)), dr.line([0, n * 17 % 300, 450, 0], fill=(255, 255, 255), width=5))
+        # in the order of the CROUSALBM plan: class photo, group photos, then portraits
         for n in range(100, 108):
-            shot(n, (200, 300), person, pause=(n == 100))       # portraits: vertical
+            shot(n, (450, 300), crowd, pause=(n == 100))        # class photo: horizontal burst
         (d / 'ANT0103.JPG').write_bytes(jpeg((252, 252, 252), t, blank=True))   # a blank (defect) frame
         for n in range(108, 114):
-            shot(n, (450, 300), pair, pause=(n == 108))         # group photos: horizontal, varied
+            shot(n, (450, 300), pair, pause=True)               # group photos: a new set-up each
         for n in range(114, 122):
-            shot(n, (450, 300), crowd, pause=(n == 114))        # class photo: horizontal burst
+            shot(n, (200, 300), person, pause=(n == 114))       # portraits: vertical, the rest of the card
         sid = self.e.import_folder(d, {'company': 'crous', 'school': 'Школа 2044', 'date': '23.10.2026'})
         st = self.e.session(sid)
         tl = st['sections'][0]
         self.assertEqual([x['kind'] for x in st['sections']], ['timeline'])            # one time line, no worksheet
-        self.assertEqual([dv['cat'] for dv in tl['dividers']], ['portrait', 'group', 'common'])
+        self.assertEqual([dv['cat'] for dv in tl['dividers']], ['common', 'group', 'portrait'])
+        self.assertTrue(any(i['t'].startswith('Групповые: 8') and not i['ok'] for i in st['plan']))   # too few group set-ups
         self.assertNotIn(str(d / 'ANT0103.ARW'), st['selected']['timeline'])            # defect left out
         self.e.set_divider(sid, str(d / 'ANT0108.ARW'), 'teacher')                      # the photographer fixes a divider
         self.e.set_divider(sid, str(d / 'ANT0110.ARW'), 'group')
@@ -644,7 +658,8 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len(list((root / 'RAW').iterdir())), 21)                  # 22 frames − 1 defect
         self.assertEqual(sorted(x.name for x in (root / 'JPG').iterdir()), ['Общая', 'Педагоги', 'Портреты'])
         self.assertEqual(len(list((root / 'JPG' / 'Педагоги').iterdir())), 6)
-        self.assertEqual(len(list((root / 'JPG' / 'Портреты').iterdir())), 7)
+        self.assertEqual(len(list((root / 'JPG' / 'Портреты').iterdir())), 8)
+        self.assertEqual(len(list((root / 'JPG' / 'Общая').iterdir())), 7)            # 8 − the blank frame
         self.assertTrue(all(x.suffix == '.JPG' for x in (root / 'JPG' / 'Общая').iterdir()))
 
     def test_upload_to_yandex_disk_fake_server(self):
