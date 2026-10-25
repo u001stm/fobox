@@ -3,92 +3,228 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FOBOX 4.0</title>
+<title>LUMIO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-:root{--bg:#0f1218;--side:#12161e;--card:#171c25;--card2:#1d2330;--line:#262e3b;--text:#eef1f7;--muted:#8d97a8;--accent:#7738FF;--accent-soft:#7738ff26;--blue:#4DB5FF;--ok:#37c08a;--warn:#f0b14a;--bad:#ef5d6b;--gold:#ffcc4d;
- font-family:Inter,"Segoe UI",system-ui,sans-serif;font-size:14px;color:var(--text);background:var(--bg)}
-:root[data-theme=light]{--bg:#f4f5f8;--side:#fff;--card:#fff;--card2:#f0f2f6;--line:#e1e5ec;--text:#161a22;--muted:#677184}
-*{box-sizing:border-box}body{margin:0;background:var(--bg)}button,input,select{font:inherit;color:inherit}
-svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
-aside{position:fixed;inset:0 auto 0 0;width:52px;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:20;transition:width .15s;overflow:hidden}
-aside.open{width:228px;box-shadow:8px 0 30px #0006}
-aside:not(.open) .brand>span:last-child,aside:not(.open) .nb>span:last-child{opacity:0}
-.brand{height:56px;display:flex;align-items:center;gap:12px;padding:0 14px;cursor:pointer;font-weight:800;letter-spacing:.3px;white-space:nowrap}
-.logo{width:24px;height:24px;border-radius:6px;background:var(--accent);display:grid;place-items:center;color:#fff;font-size:13px;flex-shrink:0}
-nav{display:flex;flex-direction:column;gap:2px;padding:6px}
-.nb{display:flex;align-items:center;gap:14px;padding:9px 10px;border-radius:8px;border:0;background:none;color:var(--muted);cursor:pointer;white-space:nowrap;text-align:left}
+/* LUMIO. Design tokens follow the original mockup: blue-black graphite, violet #7738FF, sky #4DB5FF */
+:root{--bg:#0b0f17;--side:#0d121b;--card:#121823;--card2:#182030;--card3:#1e2738;--line:#1f2838;--line2:#2a3446;--text:#e9ecf4;--muted:#8a94a8;--dim:#5f6a80;
+ --accent:#7738FF;--accent-soft:#7738ff24;--blue:#4DB5FF;--ok:#2fd18b;--warn:#f3b44c;--bad:#ff5d70;--gold:#ffc940;
+ --c1:#7738FF;--c2:#4DB5FF;--c3:#2fd18b;--c4:#f3b44c;--c5:#ff5d70;--c6:#8a94a8;
+ font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;font-size:14px;color:var(--text);background:var(--bg);color-scheme:dark}
+:root[data-theme=light]{--bg:#f3f4f8;--side:#fff;--card:#fff;--card2:#f1f3f7;--card3:#e8ebf2;--line:#e3e6ee;--line2:#d4d9e3;--text:#151925;--muted:#606b80;--dim:#8d96a8;color-scheme:light}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);-webkit-font-smoothing:antialiased}button,input,select,textarea{font:inherit;color:inherit}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+/* shell */
+aside#side{position:fixed;inset:0 auto 0 0;width:60px;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:stretch;z-index:20;transition:width .15s;overflow:hidden}
+aside#side.open{width:232px;box-shadow:8px 0 30px #0007}
+.brand{height:60px;display:flex;align-items:center;gap:12px;padding:0 16px;cursor:pointer;white-space:nowrap}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px;flex-shrink:0;letter-spacing:-.5px}
+.bname{font-weight:700;font-size:17px;letter-spacing:-.02em}.bname b{color:var(--accent)}
+nav{display:flex;flex-direction:column;gap:4px;padding:8px}
+.nb{display:flex;align-items:center;gap:14px;padding:9px 10px;border-radius:9px;border:0;background:none;color:var(--muted);cursor:pointer;white-space:nowrap;text-align:left;position:relative}
 .nb:hover{background:var(--card2);color:var(--text)}.nb.on{background:var(--accent-soft);color:var(--text)}.nb.on svg{color:var(--accent)}
-.nb.new{color:var(--text)}.nb.new svg{color:var(--blue)}
-.sp{flex:1}.me{margin:6px}.av{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px;flex-shrink:0}
-main{margin-left:52px;min-height:100vh}
-.page{padding:26px 32px 40px;max-width:1500px}
-.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px}
-h1{font-size:24px;margin:0;font-weight:700}h2{font-size:15px;margin:0 0 14px;font-weight:600}.mut{color:var(--muted);font-size:12.5px}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-select,input[type=text],input[type=number],input:not([type]){background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;outline:none;min-width:0}
-input:focus,select:focus{border-color:var(--accent)}
-.btn{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer;white-space:nowrap}
-.btn:hover{border-color:#3a4456}.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}.btn.pri:hover{filter:brightness(1.1)}
-.btn.ghost{background:none}.btn:disabled{opacity:.45;cursor:default}
+.nb.on::before{content:"";position:absolute;left:-8px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+.nb.new svg{color:var(--blue)}
+aside:not(.open) .nb>span:last-child,aside:not(.open) .bname{opacity:0}
+.sp{flex:1}.me{margin:8px}.av{width:32px;height:32px;border-radius:50%;background:var(--card3) center/cover;display:grid;place-items:center;font-weight:700;font-size:12px;flex-shrink:0;color:var(--text);border:1px solid var(--line2)}
+main{margin-left:60px;min-height:100vh}
+.page{padding:22px 28px 40px;max-width:1520px;display:grid;gap:14px}
+/* header + filters */
+.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+h1{font-size:22px;margin:0;font-weight:650;letter-spacing:-.02em}h2{font-size:14px;margin:0;font-weight:600}
+.mut{color:var(--muted);font-size:12.5px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:none;padding:6px 14px;border-radius:7px;cursor:pointer;color:var(--muted);font-size:13px;white-space:nowrap}
+.seg button.on{background:var(--accent);color:#fff}.seg button:not(.on):hover{color:var(--text)}
+.mnav{display:flex;align-items:center;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px}
+.mnav button{border:0;background:none;color:var(--muted);width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:16px}.mnav button:hover:not(:disabled){background:var(--card2);color:var(--text)}.mnav button:disabled{opacity:.3}
+.mnav span{min-width:120px;text-align:center;font-size:13px;font-weight:500}
+select,input[type=text],input[type=email],input[type=number],input[type=password],input:not([type]),textarea{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 11px;outline:none;min-width:0}
+select{cursor:pointer}input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.btn{background:var(--card2);border:1px solid var(--line2);border-radius:9px;padding:8px 14px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+.btn:hover{border-color:#3b4760}.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}.btn.pri:hover{filter:brightness(1.12)}
+.btn.ghost{background:none;border-color:transparent;color:var(--blue)}.btn:disabled{opacity:.45;cursor:default}.btn.sm{padding:5px 10px;font-size:12.5px}.btn.danger{color:var(--bad);border-color:#ff5d7055}
+.lnk{background:none;border:0;color:var(--blue);cursor:pointer;font-size:12.5px;padding:0}
+kbd{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:var(--card3);border:1px solid var(--line2);border-radius:5px;padding:1px 5px;color:var(--muted)}kbd.inv{background:#ffffff26;border-color:#ffffff33;color:#fff}
+/* cards & KPIs */
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;min-width:0}
+.ch{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
-.kpi .l{color:var(--muted);font-size:12.5px}.kpi .v{font-size:30px;font-weight:700;margin:10px 0 6px;font-variant-numeric:tabular-nums}
-.delta{font-size:12px;color:var(--muted)}.delta.up{color:var(--ok)}.delta.down{color:var(--bad)}
-.g2{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-top:12px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
-.empty{color:var(--muted);text-align:center;padding:34px 10px;border:1px dashed var(--line);border-radius:10px;font-size:13px}
-table{width:100%;border-collapse:collapse}td,th{padding:10px 8px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--muted);font-weight:500}
-tr.click{cursor:pointer}tr.click:hover td{background:var(--card2)}
-.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11.5px;background:var(--card2);color:var(--muted)}
-.pill.exported{background:#37c08a22;color:var(--ok)}.pill.reviewed{background:#4db5ff22;color:var(--blue)}.pill.analyzed{background:var(--accent-soft);color:#b7a0ff}
-.rec{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}.rec:last-child{border:0}.rec b{font-variant-numeric:tabular-nums}
-.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,12px);gap:3px}.heat i{width:12px;height:12px;border-radius:3px;background:var(--card2)}
-.bars{display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:10px}.bars div{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;min-width:0}
-.bars span{width:100%;max-width:38px;background:var(--accent);border-radius:4px 4px 0 0;min-height:2px}.bars small{color:var(--muted);font-size:11px;white-space:nowrap}
-.meter{height:8px;background:var(--card2);border-radius:6px;overflow:hidden}.meter span{display:block;height:100%;background:var(--accent)}
-/* review */
-.rv{display:grid;grid-template-columns:270px 1fr;height:100vh}
-.rv-side{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--side)}
-.rv-head{padding:16px;border-bottom:1px solid var(--line)}
-.secs{overflow:auto;padding:8px;flex:1}
-.sec{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:9px 10px;cursor:pointer;margin-bottom:2px}
-.sec:hover{background:var(--card2)}.sec.on{background:var(--accent-soft)}
-.sec .t{display:flex;justify-content:space-between;gap:6px}.sec .s{color:var(--muted);font-size:12px;margin-top:2px}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--line);display:inline-block;margin-right:7px;flex-shrink:0;align-self:center}.dot.ok{background:var(--ok)}.dot.part{background:var(--warn)}
-.rv-main{display:flex;flex-direction:column;min-width:0;min-height:0}
-.bar{padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.tabs{display:flex;gap:4px;background:var(--card2);padding:3px;border-radius:9px}.tabs button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--muted)}
-.tabs button.on{background:var(--card);color:var(--text);box-shadow:0 1px 2px #0004}
-.grid{flex:1;overflow:auto;padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tile,190px),1fr));gap:10px;align-content:start;grid-auto-rows:max-content}
-.tile{position:relative;border-radius:9px;overflow:hidden;background:var(--card);border:2px solid transparent;cursor:pointer;outline:none}
-.tile:focus-visible{border-color:var(--blue)}.tile.on{border-color:var(--accent)}
-.tile .im{aspect-ratio:3/2;background:#0b0d12 center/contain no-repeat;display:grid;place-items:center;color:var(--muted);font-size:12px}
-.tile.ctx .im{opacity:.55}.tile.on .im{opacity:1}
-.tile .cap{display:flex;justify-content:space-between;padding:6px 8px;font-size:11.5px;color:var(--muted);gap:6px}
-.tile .cap b{color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chk{position:absolute;top:7px;right:7px;width:22px;height:22px;border-radius:50%;border:2px solid #fff9;background:#0007;display:grid;place-items:center}
-.tile.on .chk{background:var(--accent);border-color:var(--accent)}.tile.on .chk:after{content:'';width:9px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
-.star{position:absolute;top:6px;left:8px;color:var(--gold);font-size:17px;text-shadow:0 1px 3px #000}
-.sug{position:absolute;top:8px;left:8px;background:#4db5ffdd;color:#04121f;border-radius:5px;font-size:10.5px;padding:1px 6px;font-weight:600}
-.star+.sug{left:30px}
-.flag{position:absolute;bottom:34px;left:8px;background:#ef5d6bdd;color:#fff;font-size:10.5px;border-radius:5px;padding:1px 6px}
-.foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.warn{background:#f0b14a1f;color:var(--warn);border-radius:8px;padding:9px 12px;font-size:12.5px;margin:10px 18px 0}
-.err{background:#ef5d6b1f;color:var(--bad)}
-/* modal */
-.modal{position:fixed;inset:0;background:#000a;display:grid;place-items:center;z-index:50;padding:16px}
-.dlg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;width:min(620px,100%);max-height:92vh;overflow:auto}
+.kpi .v{font-size:28px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi .l{color:var(--muted);font-size:12.5px;margin-top:6px}.kpi .d{font-size:12.5px;margin-top:8px;color:var(--muted);font-variant-numeric:tabular-nums}
+.d.up{color:var(--ok)}.d.down{color:var(--bad)}
+.g2{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:12px}.g2e{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.minis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.mini{background:var(--card2);border-radius:11px;padding:12px 14px}.mini .v{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}.mini .l{color:var(--muted);font-size:12px;margin-top:4px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px;vertical-align:-1px}
+.legend i.ln{height:3px;border-radius:2px;width:14px;vertical-align:3px}
+.chart{width:100%;height:auto;display:block}.chart text{fill:var(--dim);font-size:11px;font-family:inherit}.chart .gl{stroke:var(--line);stroke-width:1}
+.empty{color:var(--muted);text-align:center;padding:34px 10px;border:1px dashed var(--line2);border-radius:11px;font-size:13px}
+.split{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center}
+.ll{display:grid;gap:9px;font-size:13px}.ll>div{display:grid;grid-template-columns:12px 1fr auto;gap:10px;align-items:center}.ll i{width:10px;height:10px;border-radius:3px}.ll b{font-weight:600;font-variant-numeric:tabular-nums}
+.hb{display:grid;gap:12px}.hb>div{display:grid;grid-template-columns:110px 1fr 130px;gap:12px;align-items:center;font-size:13px}.hb .tr{height:10px;background:var(--card3);border-radius:5px;overflow:hidden}.hb .tr span{display:block;height:100%;border-radius:5px;background:var(--accent)}.hb .vv{color:var(--muted);font-variant-numeric:tabular-nums}
+.rec{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.rec:last-child{border:0}.rec b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.recent{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rc{display:grid;grid-template-columns:52px 1fr;gap:12px;align-items:center;padding:8px;border-radius:11px;cursor:pointer;border:1px solid transparent}.rc:hover{background:var(--card2);border-color:var(--line)}
+.th{width:52px;height:52px;border-radius:9px;background:var(--card3) center/cover no-repeat}.rc .t{font-weight:550;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status{display:inline-flex;align-items:center;gap:7px;font-size:12.5px}.status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.status.exported::before{background:var(--ok)}.status.reviewed::before{background:var(--blue)}.status.analyzed::before,.status.imported::before{background:var(--warn)}
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);gap:3px;overflow-x:auto}.heat i{width:11px;height:11px;border-radius:3px;background:var(--card3)}
+/* next-step guide */
+.guide{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;background:linear-gradient(0deg,var(--accent-soft),var(--accent-soft)),var(--card);border:1px solid #7738ff55;border-radius:14px;padding:12px 16px}
+.guide .ic{width:34px;height:34px;border-radius:10px;background:var(--accent);display:grid;place-items:center;color:#fff;font-weight:700}
+.guide .gt{font-weight:600}.guide .gs{color:var(--muted);font-size:12.5px;margin-top:2px}
+.steps{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:6px;flex-wrap:wrap}.steps span{display:inline-flex;align-items:center;gap:6px}.steps span b{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--card3);font-size:11px;font-weight:600}
+.steps span.done b{background:var(--ok);color:#06150d}.steps span.cur{color:var(--text)}.steps span.cur b{background:var(--accent);color:#fff}.steps i{width:18px;height:1px;background:var(--line2)}
+.guide.warnc{border-color:#f3b44c66;background:linear-gradient(0deg,#f3b44c14,#f3b44c14),var(--card)}.guide.warnc .ic{background:var(--warn);color:#2a1b00}
+.guide.okc{border-color:#2fd18b66;background:linear-gradient(0deg,#2fd18b12,#2fd18b12),var(--card)}.guide.okc .ic{background:var(--ok);color:#06150d}
+.gx{background:none;border:0;color:var(--dim);cursor:pointer;font-size:18px;padding:0 4px}
+/* sub tabs */
+.subtabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:4px;width:max-content;max-width:100%;overflow-x:auto}
+.subtabs button{border:0;background:none;padding:7px 14px;border-radius:8px;cursor:pointer;color:var(--muted);white-space:nowrap}.subtabs button.on{background:var(--accent-soft);color:var(--text);box-shadow:inset 0 0 0 1px #7738ff66}
+/* tables */
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:760px}td,th{padding:10px 10px;text-align:left;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap}th{color:var(--muted);font-weight:500;font-size:12px}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}tr.click{cursor:pointer}tr.click:hover td{background:var(--card2)}
+td .tt{display:flex;align-items:center;gap:10px}td .th{width:36px;height:36px;border-radius:7px}
+/* settings, profile */
+.sl{display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start}
+.snav{display:grid;gap:2px;padding:8px}.snav button{text-align:left;border:0;background:none;padding:9px 12px;border-radius:9px;cursor:pointer;color:var(--muted)}.snav button.on{background:var(--accent-soft);color:var(--text)}.snav button:hover{color:var(--text)}
+.sg{display:grid;gap:4px;margin-bottom:22px}.sg h3{font-size:13px;margin:0 0 8px;font-weight:600}
+.sr2{display:grid;grid-template-columns:minmax(160px,1fr) minmax(0,260px);gap:14px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}.sr2 label{font-size:13px}.sr2 .h{color:var(--muted);font-size:12px;margin-top:2px}
+.sr2 input,.sr2 select{width:100%}
+.prof{display:grid;grid-template-columns:200px 1fr;gap:26px;align-items:start}.pph{width:200px;height:240px;border-radius:14px;background:var(--card3) center/cover;display:grid;place-items:center;font-size:56px;font-weight:700;color:var(--dim)}
+.pf2{display:grid;grid-template-columns:120px 1fr;gap:10px 16px;align-items:center;font-size:13.5px;margin-top:18px}.pf2 .k{color:var(--muted)}
+.soc{display:flex;gap:8px}.soc a,.soc span{width:34px;height:34px;border-radius:9px;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);font-size:12px;font-weight:700;text-decoration:none}
+.sw{width:26px;height:26px;border-radius:7px;border:2px solid transparent;cursor:pointer}.sw.on{border-color:var(--text)}
+/* dialogs */
+.modal{position:fixed;inset:0;background:#000b;display:grid;place-items:center;z-index:50;padding:16px}.modal.top{align-items:start;padding-top:12vh}
+.dlg{background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:22px;width:min(620px,100%);max-height:92vh;overflow:auto;box-shadow:0 20px 60px #000a}.dlg.wide{width:min(860px,100%)}
 .f{display:grid;gap:6px;margin-bottom:12px}.f label{color:var(--muted);font-size:12.5px}.f .row input{flex:1}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.seg{display:flex;background:var(--card2);border-radius:9px;padding:3px;margin-bottom:14px}.seg button{flex:1;border:0;background:none;padding:8px;border-radius:7px;cursor:pointer;color:var(--muted)}.seg button.on{background:var(--accent);color:#fff}
-.prog{height:6px;background:var(--card2);border-radius:4px;overflow:hidden;margin:10px 0}.prog span{display:block;height:100%;background:var(--blue);transition:width .2s}
-.lb{position:fixed;inset:0;background:#000e;z-index:60;display:grid;grid-template-rows:1fr auto;cursor:zoom-out}.lb img{max-width:100%;max-height:100%;object-fit:contain;margin:auto;display:block;align-self:center}
-.lb div{padding:12px 20px;color:#ccc;font-size:13px;text-align:center}
-.toast{position:fixed;bottom:18px;right:18px;background:var(--card);border:1px solid var(--line);padding:11px 15px;border-radius:10px;z-index:70;box-shadow:0 8px 30px #0006;max-width:420px}
-.stabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.stabs button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 12px;cursor:pointer;color:var(--muted)}.stabs button.on{border-color:var(--accent);color:var(--text)}
-.sw{width:26px;height:26px;border-radius:7px;border:2px solid transparent;cursor:pointer}.sw.on{border-color:var(--text)}
-kbd{background:var(--card2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11px}
-@media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.g2,.g3{grid-template-columns:1fr}.rv{grid-template-columns:1fr;height:auto}.rv-side{max-height:40vh}.grid{min-height:60vh}}
-@media(max-width:560px){.page{padding:18px 14px}.kpis{grid-template-columns:1fr}.two{grid-template-columns:1fr}}
+.segw{display:flex;background:var(--card2);border-radius:10px;padding:3px;margin-bottom:14px}.segw button{flex:1;border:0;background:none;padding:8px;border-radius:8px;cursor:pointer;color:var(--muted)}.segw button.on{background:var(--accent);color:#fff}
+.prog{height:6px;background:var(--card3);border-radius:4px;overflow:hidden;margin:10px 0}.prog span{display:block;height:100%;background:var(--blue);transition:width .2s}
+.warn{background:#f3b44c1a;color:var(--warn);border-radius:10px;padding:9px 12px;font-size:12.5px}.err{background:#ff5d701a;color:var(--bad)}
+.toast{position:fixed;bottom:18px;right:18px;background:var(--card3);border:1px solid var(--line2);padding:11px 15px;border-radius:11px;z-index:90;box-shadow:0 8px 30px #0008;max-width:420px;animation:tin .18s ease}
+@keyframes tin{from{transform:translateY(8px);opacity:0}}
+.meter{height:6px;background:var(--card3);border-radius:6px;overflow:hidden}.meter span{display:block;height:100%;background:var(--accent);border-radius:6px}
+/* review */
+.rv{display:grid;grid-template-columns:280px 1fr;height:100vh}
+.rv-side{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--side)}
+.rv-head{padding:16px;border-bottom:1px solid var(--line)}.rv-head .ttl{font-weight:650;font-size:15px}
+.srch{position:relative;margin-top:12px}.srch input{width:100%;padding-right:62px}.srch kbd{position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none}
+.secs{overflow:auto;padding:8px;flex:1}
+.grp{border-radius:10px;margin-bottom:2px}.grp.act{background:var(--card2)}
+.gh{display:flex;align-items:center;gap:8px;padding:8px 10px}.gh[onclick]{cursor:pointer}
+.gh .gt{flex:1;font-weight:550;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gh .gn{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.st{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;font-size:10px;flex-shrink:0;color:#06150d}.st.part{border-color:var(--warn)}.st.ok{background:var(--ok);border-color:var(--ok)}
+.iss{width:16px;height:16px;border-radius:50%;background:var(--bad);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;cursor:help}
+.sr{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;padding:6px 10px 6px 34px;border-radius:8px;cursor:pointer;color:var(--muted);text-align:left;font-size:13px}
+.sr .mut{margin-left:auto;font-variant-numeric:tabular-nums}.sr:hover{color:var(--text)}.sr.on{color:var(--text);background:var(--accent-soft)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--line2);flex-shrink:0}.dot.ok{background:var(--ok)}.dot.part{background:var(--warn)}
+.sidefoot{padding:10px;border-top:1px solid var(--line);display:grid;gap:6px}
+.rv-main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.crumbs{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);padding:14px 20px 0}.crumbs b{color:var(--text);font-weight:500}.crumbs a{color:var(--muted);cursor:pointer}.crumbs a:hover{color:var(--text)}
+.bar{padding:10px 20px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.bar .h1{font-size:19px;font-weight:650;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .h1 span{color:var(--muted);font-weight:400;font-size:14px;margin-left:6px}
+.tabs{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);padding:3px;border-radius:10px}
+.tabs button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--muted);font-size:13px;white-space:nowrap}.tabs button.on{background:var(--accent);color:#fff}
+.tabs button b{font-weight:500;opacity:.75;margin-left:3px;font-variant-numeric:tabular-nums}
+.seg2{display:flex;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px}.seg2 button{border:0;background:none;color:var(--muted);padding:5px 9px;border-radius:6px;cursor:pointer;font-size:12px}.seg2 button.on{background:var(--card3);color:var(--text)}
+.notes:empty{display:none}.notes{display:grid;gap:6px;padding:10px 20px 0}.notes .warn{padding:7px 12px}
+.warn.info{background:var(--card2);color:var(--muted)}.warn.acc{background:var(--accent-soft);color:var(--text);display:flex;align-items:center;gap:10px;flex-wrap:wrap}.warn.okb{background:#2fd18b1a;color:var(--ok)}
+.path{word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:12px;opacity:.85}
+.grid{flex:1;overflow:auto;padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tile,200px),1fr));gap:12px;align-content:start;grid-auto-rows:max-content}
+.tile{position:relative;border-radius:11px;overflow:hidden;background:var(--card);border:1px solid var(--line);cursor:pointer;outline:none;transition:transform .12s ease,box-shadow .12s ease}
+.tile:hover{transform:translateY(-1px);border-color:var(--line2)}
+.tile .im{aspect-ratio:4/3;background:#06080c center/contain no-repeat;display:grid;place-items:center;color:var(--muted);font-size:12px;transition:opacity .25s ease}
+.tile .im[data-src]:not(.ld){background-color:var(--card2);animation:pulse 1.2s ease-in-out infinite}
+.tile.ctx .im{opacity:.6}.tile.on .im{opacity:1}
+.tile.on{box-shadow:0 0 0 2px var(--accent);border-color:var(--accent)}.tile.fc{box-shadow:0 0 0 2px var(--blue)}.tile.on.fc{box-shadow:0 0 0 2px var(--blue),0 0 0 4px var(--accent)}
+.tile .cap{display:flex;justify-content:space-between;padding:7px 9px;font-size:11.5px;color:var(--muted);gap:6px}.tile .cap b{color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile .cap .role{color:var(--gold);font-weight:600}
+.chk{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;border:2px solid #ffffffb0;background:#0006;display:grid;place-items:center}
+.tile.on .chk{background:var(--accent);border-color:#fff}.tile.on .chk:after{content:'';width:9px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.star{position:absolute;top:7px;left:8px;width:22px;height:22px;border-radius:6px;background:#0008;color:var(--gold);font-size:14px;display:grid;place-items:center}
+.star.uns{background:var(--warn);color:#2a1b00;font-weight:800}
+.divh{border-bottom:0;padding-bottom:2px}.divmark{width:10px;height:10px;border-radius:3px;background:var(--accent);align-self:center}
+.divh.cat-group .divmark{background:var(--c2)}.divh.cat-common .divmark{background:var(--c3)}.divh.cat-teacher .divmark{background:var(--c4)}.divh.cat-skip .divmark{background:var(--bad)}
+.divchips{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 4px}.divchips button{border:1px solid var(--line2);background:var(--card);border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;color:var(--muted)}
+.divchips button.on{background:var(--accent);border-color:var(--accent);color:#fff}.divchips button.on kbd{background:#ffffff26;color:#fff;border-color:#ffffff33}.divchips .rm{color:var(--bad);border-color:transparent;background:none}
+.pr.seg{grid-template-columns:44px 1fr 4px}.segbar{width:4px;height:36px;border-radius:2px;background:var(--accent)}.pr.cat-group .segbar{background:var(--c2)}.pr.cat-common .segbar{background:var(--c3)}.pr.cat-teacher .segbar{background:var(--c4)}.pr.cat-skip .segbar{background:var(--bad)}
+.dpath{font:13px ui-monospace,Consolas,monospace;background:var(--card2);border-radius:9px;padding:10px 12px;word-break:break-all}
+.envb{width:100%;border:0;background:none;color:var(--text);text-align:left;font:inherit}
+.envb:hover .logo{box-shadow:0 0 0 3px #ffffff22}.envb .logo{width:28px;height:28px;font-size:15px;transition:box-shadow .12s}
+.envd{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0}.envd.sm{width:20px;height:20px;font-size:11px;border-radius:6px}
+.envn{display:grid;line-height:1.2}.envn b{font-size:15px}.envn span{font-size:11px;color:var(--muted)}aside:not(.open) .envn{opacity:0}
+.envline{display:flex;gap:8px;align-items:center;font-size:13px;margin:-4px 0 14px}
+.catbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}.catbar button{border:1px solid var(--line2);background:var(--card2);border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--muted);font-size:13px}.catbar button.on{background:var(--accent);border-color:var(--accent);color:#fff}.catbar button.on kbd{background:#ffffff26;color:#fff;border-color:#ffffff33}.catbar button.skip.on{background:var(--bad);border-color:var(--bad)}
+.cpick{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.cpick button{display:grid;gap:3px;text-align:left;background:var(--card2);border:1px solid var(--line2);border-radius:11px;padding:10px 12px;cursor:pointer}
+.cpick button span{font-size:12px;color:var(--muted)}.cpick button.on{border-color:var(--accent);background:var(--accent-soft)}
+.csel{margin-left:10px;padding:3px 8px;font-size:12.5px;border-radius:7px}
+.ctabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.ctabs button{border:1px solid var(--line2);background:var(--card2);border-radius:9px;padding:7px 14px;cursor:pointer;color:var(--muted)}.ctabs button.on{border-color:var(--accent);color:var(--text);background:var(--accent-soft)}
+.chk2{display:inline-flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer}
+.cprev pre{background:var(--card2);border-radius:10px;padding:12px 14px;font:12.5px/1.6 ui-monospace,Consolas,monospace;overflow-x:auto;margin:0}.cprev{margin-top:12px}
+.dupb{position:absolute;top:9px;left:8px;background:#f3b44ce6;color:#2a1b00;border-radius:6px;font-size:10.5px;padding:2px 7px;font-weight:700}
+.sug{position:absolute;top:9px;left:8px;background:#4db5ffe6;color:#04121f;border-radius:6px;font-size:10.5px;padding:2px 7px;font-weight:600}
+.flag{position:absolute;bottom:38px;left:8px;background:#ff5d70e6;color:#fff;font-size:10.5px;border-radius:6px;padding:2px 7px}
+.other{position:absolute;bottom:38px;left:8px;background:#000b;color:#fff;font-size:10.5px;border-radius:6px;padding:2px 7px}
+.more{position:absolute;right:8px;bottom:38px;width:28px;height:24px;border-radius:7px;border:0;background:#000b;color:#fff;cursor:pointer;font-size:15px;line-height:1;opacity:0;transition:opacity .1s}
+.tile:hover .more,.tile:focus-within .more,.tile .more.show{opacity:1}
+.foot{padding:12px 20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--side)}
+.kitsum{display:flex;align-items:center;gap:12px}.kitsum .ki{width:38px;height:38px;border-radius:10px;background:var(--card2);display:grid;place-items:center;color:var(--accent)}
+.kitsum b{font-size:14px}.hint{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.savest{font-size:12px;color:var(--muted);min-width:80px;text-align:right}.savest.ok{color:var(--ok)}.savest.bad{color:var(--bad)}
+.menu{position:fixed;z-index:80;background:var(--card3);border:1px solid var(--line2);border-radius:11px;padding:5px;min-width:240px;box-shadow:0 10px 30px #0009}
+.menu button{display:flex;justify-content:space-between;gap:14px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:7px;cursor:pointer}
+.menu button:hover{background:var(--card2)}.menu .bad{color:var(--bad)}.menu .h{color:var(--muted);font-size:12px;padding:6px 10px 4px}
+@keyframes pulse{50%{opacity:.55}}.skel{background:var(--card2);border-radius:12px;animation:pulse 1.2s ease-in-out infinite}
+/* viewer */
+.vw{position:fixed;inset:0;z-index:60;background:#05070b;display:grid;grid-template-rows:auto 1fr auto;color:#eef1f7}
+.vtop{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #1a2130;flex-wrap:wrap}
+.vw .btn{background:#161d2b;border-color:#283246;color:#eef1f7}.vw .btn.pri{background:var(--accent);border-color:var(--accent)}.vw .mut{color:#8a94a8}
+.vstage{min-height:0;display:flex;gap:6px;padding:10px;overflow:hidden}.vstage.zoom{overflow:auto;cursor:zoom-out;display:block}
+.vf{margin:0;flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;cursor:zoom-in;border-radius:8px}
+.vf img{max-width:100%;max-height:calc(100vh - 230px);object-fit:contain;border-radius:4px;box-shadow:0 10px 40px #000}
+.vstage.two .vf{border:2px solid transparent;padding:6px}.vstage.two .vf.on{border-color:var(--accent)}
+.vstage.zoom .vf{display:block}.vstage.zoom .vf img{max-width:none;max-height:none}.vstage.zoom figcaption{display:none}
+.vf figcaption{font-size:12.5px;color:#aab3c3;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+.rb{background:#ffc94022;color:var(--gold);padding:1px 8px;border-radius:20px;font-weight:600}.sb{background:var(--accent);color:#fff;padding:1px 8px;border-radius:20px}
+.pill{background:var(--card3);border-radius:20px;padding:2px 9px;font-size:12px}
+.vnav{position:fixed;top:50%;transform:translateY(-50%);width:44px;height:64px;border:0;border-radius:11px;background:#ffffff12;color:#fff;font-size:30px;cursor:pointer}.vnav:hover{background:#ffffff26}.vnav.l{left:12px}.vnav.r{right:12px}
+.vbar{border-top:1px solid #1a2130;padding:10px 16px;display:grid;gap:10px}
+.strip{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px}.strip img{height:54px;border-radius:5px;opacity:.5;cursor:pointer;border:2px solid transparent;flex-shrink:0}.strip img.on{opacity:.85;border-color:var(--accent)}.strip img.cur{opacity:1;border-color:#fff}
+/* palette, help, preflight */
+.pal{width:min(620px,100%);background:var(--card);border:1px solid var(--line2);border-radius:15px;overflow:hidden;box-shadow:0 20px 60px #000a}
+.pal input{width:100%;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:16px 18px;font-size:16px;background:var(--card)}
+#pall{max-height:50vh;overflow:auto;padding:6px}.pi{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border-radius:8px;cursor:pointer}.pi.on{background:var(--accent-soft)}
+.pk{font-size:11px;color:var(--muted);border:1px solid var(--line2);border-radius:5px;padding:1px 6px;align-self:center}
+.palf{display:flex;gap:16px;padding:8px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}.kh{font-weight:600;margin-bottom:8px}.kr{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}.kr>span:last-child{color:var(--muted);text-align:right}
+.pf{border:1px solid var(--line2);border-radius:11px;margin-bottom:14px;overflow:hidden}.pf.okk{border-color:#2fd18b66}
+.pfh{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;font-weight:600;background:var(--card2);flex-wrap:wrap}.pf.okk .pfh{color:var(--ok)}
+.pfl{max-height:200px;overflow:auto}.pfi{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:8px 12px;font-size:13px;cursor:pointer}
+.pfi:hover{background:var(--card2)}.pfi .lv{width:8px;height:8px;border-radius:50%;flex-shrink:0}.pfi.lv-bad .lv{background:var(--bad)}.pfi.lv-warn .lv{background:var(--warn)}.pfi.lv-info .lv{background:var(--blue)}.pfi .go{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+.coach{position:fixed;z-index:70;background:var(--accent);color:#fff;border-radius:11px;padding:10px 12px;font-size:13px;max-width:280px;box-shadow:0 10px 30px #0008}.coach button{background:#ffffff2e;border:0;color:#fff;border-radius:6px;padding:3px 9px;margin-top:8px;cursor:pointer;font-size:12px}
+
+/* person-centred review */
+.pr{display:grid;grid-template-columns:44px 1fr auto auto;gap:10px;align-items:center;width:100%;background:none;border:0;border-radius:11px;padding:7px 8px;cursor:pointer;text-align:left;margin-bottom:2px}
+.pr:hover{background:var(--card2)}.pr.on{background:var(--accent-soft);box-shadow:inset 0 0 0 1px #7738ff55}
+.sh{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:12px 10px 6px;font-weight:600}.sh span{color:var(--dim);margin-left:4px}
+.pth{width:44px;height:44px;border-radius:10px;background:var(--card3) center 20%/cover no-repeat}
+.pt{min-width:0;display:grid;gap:1px}.pt b{font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pt .mut{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kitbar{display:flex;gap:10px;padding:12px 20px 0;overflow-x:auto;flex-shrink:0}
+.slot{flex:0 0 auto;width:112px;display:grid;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:6px;cursor:pointer;text-align:left}
+.slot:hover{border-color:var(--accent)}.slot .sth{height:96px;border-radius:8px;background:#06080c center/contain no-repeat;display:block}
+.slot .sl{font-size:12px;font-weight:600;color:var(--gold)}.slot .sn{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot.empty{cursor:default;border-style:dashed}.slot.empty .sth{background:repeating-linear-gradient(45deg,var(--card2) 0 6px,var(--card) 6px 12px)}.slot.empty .sl{color:var(--muted)}
+.slot.uns{border-color:var(--warn)}.slot.uns .sl{color:var(--warn)}
+.slot.plus{cursor:default;align-content:start}.slot.plus .pn{height:96px;display:grid;place-items:center;font-size:26px;font-weight:650;color:var(--accent);background:var(--card2);border-radius:8px}.slot.plus .sl{color:var(--text)}
+.grid2{flex:1;overflow:auto;padding:4px 20px 20px;display:grid;gap:18px;align-content:start;min-height:0}
+.grid2 .grid{overflow:visible;padding:0;flex:none}
+.grp2{display:grid;gap:10px}.gh2{display:flex;gap:12px;align-items:baseline;position:sticky;top:0;background:var(--bg);padding:10px 0 6px;z-index:3;border-bottom:1px solid var(--line);flex-wrap:wrap}.gh2 b{font-size:14px}
+@media(max-width:1200px){.recent{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1000px){.kpis,.minis{grid-template-columns:repeat(2,minmax(0,1fr))}.g2,.g2e,.sl,.prof{grid-template-columns:1fr}.rv{grid-template-columns:1fr;height:auto}.rv-side{max-height:45vh}.grid{min-height:60vh}.keys{grid-template-columns:1fr}.hint{display:none}.split{grid-template-columns:1fr}.guide{grid-template-columns:auto 1fr}.guide>.row{grid-column:1/-1}}
+@media(max-width:560px){.page{padding:16px 14px}.kpis,.minis,.recent{grid-template-columns:1fr}.two{grid-template-columns:1fr}.hb>div{grid-template-columns:80px 1fr}.hb .vv{grid-column:2}.pph{width:100%}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -98,158 +234,577 @@ kbd{background:var(--card2);border:1px solid var(--line);border-radius:4px;paddi
 <script>
 const I={
  home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
- shoot:'<rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/>',
- perf:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
- qual:'<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/>',
- ai:'<path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M6 18l2-2M16 8l2-2"/><circle cx="12" cy="12" r="3"/>',
- flow:'<circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h7a3 3 0 0 1 0 6H10a3 3 0 0 0 0 6h7"/>',
- hist:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+ shoot:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+ chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+ hist:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
  set:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
- plus:'<path d="M12 5v14M5 12h14"/>'};
+ plus:'<path d="M12 5v14M5 12h14"/>',menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',kit:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5l2 2 4-4"/>'};
 const ico=n=>`<svg class="i" viewBox="0 0 24 24">${I[n]}</svg>`;
-const PAGES=[['overview','Обзор','home'],['shoot','Текущая съёмка','shoot'],['perf','Производительность','perf'],['quality','Качество','qual'],['ai','Автоотбор','ai'],['flow','Рабочий процесс','flow'],['history','История съёмок','hist'],['settings','Настройки','set']];
+const PAGES=[['overview','Обзор','home'],['shoot','Текущая съёмка','shoot'],['analytics','Аналитика','chart'],['history','История съёмок','hist'],['settings','Настройки','set']];
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt=n=>n==null?'—':Number(n).toLocaleString('ru-RU');
-const MONTHS=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
-let S={page:'overview',stats:null,cfg:null,sid:localStorage.getItem('fobox.sid')||'',sess:null,sec:0,tab:'all',sel:new Set(),dirty:false,period:'all'};
-async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({error:'Ошибка сервера'}));if(!r.ok)throw Error(j.error||'Ошибка');return j}
-function toast(t,bad){const d=document.createElement('div');d.className='toast';if(bad)d.style.borderColor='var(--bad)';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),bad?6000:2800)}
-function side(){const p=S.cfg?.profile||{};const ini=(p.name||'Ф').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
- $('#side').innerHTML=`<div class="brand" onclick="$('#side').classList.toggle('open')"><span class="logo">F</span><span>FOBOX 4.0</span></div>
- <nav><button class="nb new" onclick="importDlg()">${ico('plus')}<span>Новая съёмка</span></button>${PAGES.map(([k,t,i])=>`<button class="nb ${S.page===k?'on':''}" title="${t}" onclick="go('${k}')">${ico(i)}<span>${t}</span></button>`).join('')}</nav>
- <div class="sp"></div><button class="nb me" onclick="go('settings','Профиль')"><span class="av">${esc(ini)}</span><span>${esc(p.name||'Профиль фотографа')}</span></button>`}
-function go(p,sub){S.page=p;S.sub=sub;$('#side').classList.remove('open');side();render()}
-async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;side();render()}
-function applyTheme(){const s=S.cfg.settings;document.documentElement.style.setProperty('--accent',s.accent);document.documentElement.style.setProperty('--accent-soft',s.accent+'26');document.documentElement.dataset.theme=s.theme}
-function render(){const m=$('#main');if(S.page==='shoot')return renderShoot();const f={overview,perf,quality,ai,flow,history,settings}[S.page];m.innerHTML='<div class="page">'+f()+'</div>';if(S.page==='settings')bindSettings()}
-const head=(t,sub,right='')=>`<div class="top"><div><h1>${t}</h1><div class="mut">${sub}</div></div><div class="row">${right}</div></div>`;
-const kpi=(l,v,d='')=>`<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="delta ${d.cls||''}">${d.t||'&nbsp;'}</div></div>`;
-const empty=t=>`<div class="empty">${t}</div>`;
-const NODATA='Нет данных — импортируйте съёмку';
-// ---------- period filtering
-function periodRange(p,shift=0){const n=new Date();if(p==='month'){const a=new Date(n.getFullYear(),n.getMonth()-shift,1),b=new Date(n.getFullYear(),n.getMonth()-shift+1,1);return[a,b]}if(p==='year'){return[new Date(n.getFullYear()-shift,0,1),new Date(n.getFullYear()-shift+1,0,1)]}return[new Date(0),new Date(9e12)]}
-const iso=d=>d.toISOString().slice(0,10);
-function agg(p,shift){const [a,b]=periodRange(p,shift),A=iso(a),B=iso(b);const ss=S.stats.sessions.filter(s=>s.shoot_date&&s.shoot_date>=A&&s.shoot_date<B);
- return{sessions:ss.length,frames:ss.reduce((x,s)=>x+s.frames,0),hours:ss.some(s=>s.hours!=null)?ss.reduce((x,s)=>x+(s.hours||0),0):null,students:ss.reduce((x,s)=>x+s.students,0)}}
-function delta(cur,prev,key){if(S.period==='all')return{t:'За всё время'};const p=prev[key],c=cur[key];if(!p||c==null)return{t:'Нет данных для сравнения'};const d=c-p,pc=Math.round(d/p*100);return{t:`${d>=0?'+':''}${fmt(Math.round(d*10)/10)} (${pc>=0?'+':''}${pc}%) к ${S.period==='month'?'прошлому месяцу':'прошлому году'}`,cls:d>0?'up':d<0?'down':''}}
-function overview(){const st=S.stats;if(!st.sessions.length)return head('Обзор','Локальная статистика по вашим съёмкам')+onboarding();
- const cur=agg(S.period,0),prev=agg(S.period,1);
- const sel=`<select onchange="S.period=this.value;render()">${[['month','Этот месяц'],['year','Этот год'],['all','Всё время']].map(([v,t])=>`<option value="${v}" ${S.period===v?'selected':''}>${t}</option>`).join('')}</select>`;
- const note=S.period==='month'?'<div class="mut" style="margin:-12px 0 14px">Текущий месяц неполный — сравнение с полным прошлым месяцем.</div>':'';
- return head('Обзор','Локальная статистика по вашим съёмкам',sel)+note+`<div class="kpis">${kpi('Проведено съёмок',fmt(cur.sessions),delta(cur,prev,'sessions'))}${kpi('Отснято кадров',fmt(cur.frames),delta(cur,prev,'frames'))}${kpi('Часы съёмок <span class="mut">(по EXIF)</span>',cur.hours==null?'—':fmt(Math.round(cur.hours*10)/10),delta(cur,prev,'hours'))}${kpi('Готовые комплекты',fmt(st.kits),{t:'Ученики с подтверждёнными портретами и друзьями'})}</div>
- <div class="g2"><div class="card"><h2>Кадры по месяцам</h2>${monthBars()}</div><div class="card"><h2>Рекорды</h2>${records()}</div></div>
- <div class="g2"><div class="card"><h2>Последние съёмки</h2>${sessTable(st.sessions.slice(0,6))}</div><div class="card"><h2>Календарь активности</h2>${heat()}</div></div>`}
-function onboarding(){return `<div class="card" style="padding:30px"><h2 style="font-size:18px">С чего начать</h2><div class="g3" style="margin-top:6px">
- ${[['1. Новая съёмка','Укажите папку с карты или диска. FOBOX прочитает RAW и JPEG, время съёмки и разобьёт кадры на серии. Исходники не меняются.'],['2. Отбор','Программа отметит пустые, тёмные, нерезкие кадры и дубли и сама предложит лучшие. Вы кликами правите выбор и подтверждаете.'],['3. Экспорт','Подтверждённые кадры копируются в новую папку заказа. Статистика на этой странице считается автоматически.']].map(([t,d])=>`<div><b>${t}</b><p class="mut" style="line-height:1.55">${d}</p></div>`).join('')}
- </div><button class="btn pri" onclick="importDlg()" style="margin-top:8px">Импортировать первую съёмку</button></div>`}
-function monthBars(){const m=S.stats.months,ks=Object.keys(m).slice(-12);if(!ks.length)return empty(NODATA);const mx=Math.max(...ks.map(k=>m[k].frames),1);
- return `<div class="bars">${ks.map(k=>`<div title="${k}: ${m[k].frames} кадров, ${m[k].sessions} съёмок"><small>${fmt(m[k].frames)}</small><span style="height:${Math.max(2,m[k].frames/mx*110)}px"></span><small>${MONTHS[+k.slice(5)-1]} ${k.slice(2,4)}</small></div>`).join('')}</div>`}
-function heat(){const d=S.stats.days,days=Object.keys(d);if(!days.length)return empty(NODATA);const end=new Date(),start=new Date();start.setDate(end.getDate()-7*26-end.getDay());const mx=Math.max(...Object.values(d));let cells='';
- for(let x=new Date(start);x<=end;x.setDate(x.getDate()+1)){const k=iso(x),v=d[k]||0;cells+=`<i title="${k}: ${v} кадров" style="${v?`background:var(--accent);opacity:${.25+.75*v/mx}`:''}"></i>`}
- return `<div class="heat">${cells}</div><div class="mut" style="margin-top:10px">Последние 26 недель · ярче — больше кадров</div>`}
-function records(){const r=S.stats.records;const rows=[['Самая длинная съёмка',r.longest&&`${r.longest.value} ч`,r.longest&&`${esc(r.longest.title)}, ${r.longest.date}`],['Больше всего кадров за день',r.max_day&&fmt(r.max_day.value),r.max_day&&r.max_day.date],['Самый активный месяц',r.active_month&&fmt(r.active_month.value)+' кадр.',r.active_month&&r.active_month.month],['Самый большой класс',r.biggest_class&&r.biggest_class.value+' уч.',r.biggest_class&&`${esc(r.biggest_class.title)}`]];
- return rows.map(([t,v,s])=>`<div class="rec"><div>${t}<div class="mut">${s||'Нет данных'}</div></div><b>${v||'—'}</b></div>`).join('')+'<div class="mut" style="margin-top:8px">Длительность — интервал между первым и последним кадром по EXIF, не активное время.</div>'}
+const fmt=n=>n==null||Number.isNaN(n)?'—':Number(n).toLocaleString('ru-RU');
+const MONTHS=['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+const MON=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
 const ALAB={V:'Виньетка',P1:'ЛР',P2:'ЛС',D1:'Друг 1',D2:'Друг 2',T:'Учитель'};
-const STATUS={imported:'Импортирована',analyzed:'Проверена',reviewed:'Отобрана',exported:'Экспортирована'};
-function sessTable(list,full){if(!list.length)return empty(NODATA);return `<table><tr><th>Дата</th><th>Съёмка</th>${full?'<th>Тип</th><th>Ученики</th>':''}<th>Кадры</th>${full?'<th>Длит.</th>':''}<th>Статус</th></tr>${list.map(s=>`<tr class="click" onclick="openSess('${s.id}')"><td>${s.shoot_date||'—'}</td><td>${esc(s.title)}${full&&s.location?`<div class="mut">${esc(s.location)}</div>`:''}</td>${full?`<td>${s.mode==='school'?'Школа':'Обычная'}</td><td>${s.students||'—'}</td>`:''}<td>${fmt(s.frames)}</td>${full?`<td>${s.hours==null?'—':s.hours+' ч'}</td>`:''}<td><span class="pill ${s.status}">${STATUS[s.status]||s.status}</span></td></tr>`).join('')}</table>`}
-function perf(){const ss=S.stats.sessions.filter(s=>s.hours>0.05);const fph=ss.length?Math.round(ss.reduce((a,s)=>a+s.frames,0)/ss.reduce((a,s)=>a+s.hours,0)):null;
- const days=new Set(S.stats.sessions.map(s=>s.shoot_date).filter(Boolean)).size,sch=S.stats.sessions.filter(s=>s.students);
- return head('Производительность','Считается по EXIF-времени кадров')+`<div class="kpis">${kpi('Кадров в час',fmt(fph))}${kpi('Съёмок в день',days?(S.stats.sessions.length/days).toFixed(1):'—')}${kpi('Учеников за съёмку',sch.length?Math.round(sch.reduce((a,s)=>a+s.students,0)/sch.length):'—')}${kpi('Средняя длительность',ss.length?(ss.reduce((a,s)=>a+s.hours,0)/ss.length).toFixed(1)+' ч':'—')}</div>
- <div class="card" style="margin-top:12px"><h2>Кадров в час по съёмкам</h2>${ss.length?bars(ss.slice(0,12).reverse().map(s=>[s.shoot_date?.slice(5)||'', Math.round(s.frames/s.hours),s.title])):empty(NODATA)}</div>`}
-function bars(rows){const mx=Math.max(...rows.map(r=>r[1]),1);return `<div class="bars">${rows.map(([l,v,t])=>`<div title="${esc(t||l)}: ${v}"><small>${fmt(v)}</small><span style="height:${Math.max(2,v/mx*110)}px"></span><small>${esc(l)}</small></div>`).join('')}</div>`}
-const FL={white:'Пустые белые',black:'Пустые чёрные',over:'Пересветы',under:'Недодержка',blur:'Нерезкие',dup:'Дубли'};
-function quality(){const st=S.stats,f=st.flags,an=st.analyzed;if(!st.pillow)return head('Качество','')+empty('Проверка качества недоступна: установите Pillow командой <kbd>py -m pip install pillow</kbd> и перезапустите.');
- if(!an)return head('Качество','Технические проблемы кадров')+empty(NODATA);const pc=n=>an?((n||0)/an*100).toFixed(1)+'%':'—';
- return head('Качество',`Проверено ${fmt(an)} кадров. Проблемные кадры не удаляются — они попадают во вкладку «На проверку».`)+`<div class="kpis">${kpi('Нерезкие',fmt(f.blur||0),{t:pc(f.blur)})}${kpi('Дубли',fmt(f.dup||0),{t:pc(f.dup)})}${kpi('Пересветы / недодержка',fmt((f.over||0)+(f.under||0)),{t:pc((f.over||0)+(f.under||0))})}${kpi('Технический брак',fmt((f.white||0)+(f.black||0)),{t:'Пустые белые и чёрные кадры'})}</div>
- <div class="card" style="margin-top:12px"><h2>Причины отметок</h2>${Object.keys(FL).map(k=>`<div class="rec"><div style="flex:1">${FL[k]}<div class="meter" style="margin-top:6px;max-width:520px"><span style="width:${Math.min(100,(f[k]||0)/Math.max(1,...Object.values(f))*100)}%"></span></div></div><b>${fmt(f[k]||0)}</b></div>`).join('')}</div>`}
-function ai(){const s=S.stats.selection;const rate=s.sections_approved?Math.round(s.sections_untouched/s.sections_approved*100)+'%':'—';
- return head('Автоотбор','Как часто вы соглашаетесь с предложениями программы. Сейчас это эвристика (резкость + непохожесть кадров), распознавание лиц — следующий этап.')+`<div class="kpis">${kpi('Предложено',fmt(s.suggested))}${kpi('Оставлено в подтверждённых',fmt(s.accepted))}${kpi('Снято вручную',fmt(s.replaced))}${kpi('Секций без правок',rate,{t:`${s.sections_untouched} из ${s.sections_approved} подтверждённых`})}</div>
- <div class="card" style="margin-top:12px"><h2>Добавлено вручную</h2><div class="kpi"><div class="v">${fmt(s.manual_added)}</div><div class="mut">кадров, которые вы выбрали сами сверх предложенных и обязательных</div></div></div>`}
-function flow(){const w=S.stats.workflow,t=v=>v==null?'—':v<90?Math.round(v)+' с':(v/60).toFixed(1)+' мин';
- return head('Рабочий процесс','Время этапов измеряется с момента начала использования 4.0-alpha.2; старые съёмки этого не восстановят')+`<div class="kpis">${kpi('Импорт',t(w.import_sec),{t:'среднее на съёмку'})}${kpi('Проверка качества',t(w.analysis_sec),{t:'среднее на съёмку'})}${kpi('Проверка секции',t(w.review_per_section_sec),{t:'между подтверждениями'})}${kpi('Экспорт',t(w.export_sec),{t:'среднее на съёмку'})}</div>
- <div class="card" style="margin-top:12px"><h2>Объём RAW</h2><div class="kpi"><div class="v">${fmt(S.stats.raw)}</div><div class="mut">RAW-файлов в каталоге из ${fmt(S.stats.files)} кадров</div></div></div>`}
-function history(){return head('История съёмок','Нажмите строку, чтобы открыть отбор')+`<div class="card">${sessTable(S.stats.sessions,true)}</div>`}
+const STATUS={imported:'Импортирована',analyzed:'В отборе',reviewed:'Отобрана',exported:'Готово'};
+let S={page:'overview',sub:null,stats:null,cfg:null,sid:'',sess:null,sec:0,tab:'kit',sel:new Set(),period:'month',anchor:new Date(),cmp:'prev',atab:'perf',undo:[]};
+try{S.sid=localStorage.getItem('fobox.sid')||''}catch(e){}
+async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({error:'Ошибка сервера'}));if(!r.ok)throw Error(j.error||'Ошибка');return j}
+function toast(t,bad){const d=document.createElement('div');d.className='toast';if(bad)d.style.borderColor='var(--bad)';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),bad?6000:2600)}
+function fdate(d){if(!d)return'—';const [y,m,dd]=d.slice(0,10).split('-');return (S.cfg?.settings?.date_format==='yyyy-mm-dd')?`${y}-${m}-${dd}`:`${dd}.${m}.${y}`}
+const dur=h=>h==null?'—':h<1?Math.round(h*60)+' мин':`${Math.floor(h)} ч ${Math.round(h%1*60)} мин`;
+const secs=v=>v==null?'—':v<90?Math.round(v)+' с':v<5400?Math.round(v/60)+' мин':(v/3600).toFixed(1)+' ч';
+function initials(n){return (n||'Ф').split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,2).toUpperCase()}
+function avatarStyle(p){return p&&p.avatar?`style="background-image:url('${p.avatar}');color:transparent"`:''}
+function side(){const p=S.cfg?.profile||{};
+ $('#side').innerHTML=`${envBtn()}
+ <nav><button class="nb new" title="Новая съёмка" onclick="importDlg()">${ico('plus')}<span>Новая съёмка</span></button>${PAGES.map(([k,t,i])=>`<button class="nb ${S.page===k?'on':''}" title="${t}" onclick="go('${k}')">${ico(i)}<span>${t}</span></button>`).join('')}</nav>
+ <div class="sp"></div><button class="nb" title="Развернуть / свернуть меню" onclick="$('#side').classList.toggle('open')">${ico('menu')}<span>Меню</span></button><button class="nb me" title="Профиль фотографа" onclick="go('settings','Профиль')"><span class="av" ${avatarStyle(p)}>${esc(initials(p.name))}</span><span>${esc(p.name||'Профиль фотографа')}</span></button>`}
+const curEnv=()=>{const cs=S.cfg?.companies||[];return cs.find(c=>c.id===S.cfg.settings.current_company)||cs[0]||{id:'vypusk',name:'Выпуск',color:'#7738FF'}};
+const envLetter=c=>{if(c.short)return c.short;const m={vypusk:'V',crous:'C'};if(m[c.id])return m[c.id];const t={'В':'V','К':'C','С':'S','Ф':'F'};const f=(c.name||'?')[0].toUpperCase();return t[f]||f};
+function envBtn(){const e=curEnv();return `<button class="brand envb" onclick="event.stopPropagation();envMenu(this)" title="Среда: ${esc(e.name)} — нажмите, чтобы переключить"><span class="logo" style="background:${e.color||'#7738FF'}">${esc(envLetter(e))}</span><span class="envn"><b>${esc(e.name)}</b><span>сменить среду ▾</span></span></button>`}
+function envMenu(btn){closeMenu();const m=document.createElement('div');m.className='menu';m.id='rmenu';const cur=curEnv().id;
+ m.innerHTML=`<div class="h">Среда работы</div>`+(S.cfg.companies||[]).map(c=>`<button data-c="${c.id}"><span style="display:flex;gap:10px;align-items:center"><span class="envd sm" style="background:${c.color||'#7738FF'}">${esc(envLetter(c))}</span>${esc(c.name)}</span>${c.id===cur?'✓':''}</button>`).join('')+`<button data-c=""><span class="mut">Настроить среды…</span></button>`;
+ m.querySelectorAll('button').forEach(b=>b.onclick=async()=>{closeMenu();if(!b.dataset.c)return go('settings','Компании');await switchEnv(b.dataset.c)});document.body.append(m);
+ const r=btn.getBoundingClientRect();m.style.left=(r.right+8)+'px';m.style.top=r.top+'px';setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
+async function switchEnv(id){if(typeof flush==='function')await flush();try{await api('/api/settings',{settings:{current_company:id}});S.sess=null;S.sid='';try{localStorage.removeItem('fobox.sid')}catch(e){}await load();toast('Среда: '+curEnv().name)}catch(e){toast(e.message,1)}}
+async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
+const UI_VERSION='4.4.2';
+async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();
+ const env=curEnv().id;S.stats.allSessions=S.stats.sessions;S.stats.sessions=S.stats.sessions.filter(x=>(x.company||'vypusk')===env);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
+function applyTheme(){const s=S.cfg.settings;const a=curEnv().color||s.accent;document.documentElement.style.setProperty('--accent',a);document.documentElement.style.setProperty('--c1',a);document.documentElement.style.setProperty('--accent-soft',a+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
+function render(){document.querySelector('.coach')?.remove();const m=$('#main');if(S.page==='shoot')return renderShoot();const f={overview,analytics,history,settings}[S.page]||overview;m.innerHTML='<div class="page">'+f()+'</div>';if(S.page==='settings')bindSettings();hydrate()}
+function hydrate(){document.querySelectorAll('[data-bg]').forEach(el=>{const im=new Image();im.onload=()=>el.style.backgroundImage=`url('${el.dataset.bg}')`;im.src=el.dataset.bg})}
+function staleBanner(){if($('#stale'))return;const d=document.createElement('div');d.id='stale';d.className='toast';d.style.cssText='left:50%;right:auto;transform:translateX(-50%);top:16px;bottom:auto;border-color:var(--warn);max-width:560px';
+ d.innerHTML='<b>Программа обновилась — перезапустите её.</b><br><span class="mut">Закройте чёрное окно программы и снова запустите «Запустить LUMIO.bat».</span>';document.body.append(d)}
+const empty=t=>`<div class="empty">${t}</div>`;
+const head=(t,sub)=>`<div class="top"><div><h1>${t}</h1>${sub?`<div class="mut">${sub}</div>`:''}</div></div>`;
+const NODATA='Нет данных за этот период';
+// ---------- periods
+function rng(period,anchor,shift){const y=anchor.getFullYear(),m=anchor.getMonth();
+ if(period==='month'){const a=new Date(y,m-shift,1);return[a,new Date(a.getFullYear(),a.getMonth()+1,1)]}
+ if(period==='year'){return[new Date(y-shift,0,1),new Date(y-shift+1,0,1)]}return[new Date(2000,0,1),new Date(2100,0,1)]}
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function cmpRange(){if(S.period==='all')return null;if(S.period==='month'&&S.cmp==='year')return rng('month',new Date(S.anchor.getFullYear()-1,S.anchor.getMonth(),1),0);return rng(S.period,S.anchor,1)}
+function inR(d,r){return d&&r&&d>=iso(r[0])&&d<iso(r[1])}
+function agg(r){const ss=r?S.stats.sessions.filter(s=>inR(s.shoot_date,r)):[];const sum=k=>ss.reduce((a,s)=>a+(s[k]||0),0);
+ const fl={};ss.forEach(s=>Object.entries(s.flags||{}).forEach(([k,v])=>fl[k]=(fl[k]||0)+v));const hs=ss.filter(s=>s.hours!=null);
+ const dd={};ss.forEach(s=>Object.entries(s.durations||{}).forEach(([k,v])=>{if(v!=null&&k!=='review_per_section'){(dd[k]=dd[k]||[]).push(v)}}));
+ const days=new Set(ss.map(s=>s.shoot_date)).size;
+ return{ss,n:ss.length,frames:sum('frames'),hours:hs.length?hs.reduce((a,s)=>a+s.hours,0):null,kits:sum('kits'),students:sum('students'),selected:sum('selected'),analyzed:sum('analyzed'),flags:fl,
+  suggested:sum('suggested'),accepted:sum('accepted'),replaced:sum('replaced'),manual:sum('manual_added'),untouched:sum('untouched'),approved:sum('approved'),days,
+  fph:hs.length&&hs.reduce((a,s)=>a+s.hours,0)>0.05?hs.reduce((a,s)=>a+s.frames,0)/hs.reduce((a,s)=>a+s.hours,0):null,
+  durations:Object.fromEntries(Object.entries(dd).map(([k,v])=>[k,v.reduce((a,b)=>a+b,0)/v.length]))}}
+function delta(c,p,lowerIsBetter){if(S.period==='all')return{t:'за всё время'};if(p==null||c==null||p===0)return{t:'нет данных для сравнения'};const pc=Math.round((c-p)/p*100);const good=lowerIsBetter?pc<0:pc>0;
+ return{t:`${pc>0?'↑':pc<0?'↓':'→'} ${Math.abs(pc)}% ${S.cmp==='year'&&S.period==='month'?'к прошлому году':S.period==='month'?'к прошлому месяцу':'к прошлому году'}`,cls:pc===0?'':good?'up':'down'}}
+function filters(){const lbl=S.period==='month'?`${MONTHS[S.anchor.getMonth()][0].toUpperCase()+MONTHS[S.anchor.getMonth()].slice(1)} ${S.anchor.getFullYear()}`:S.period==='year'?`${S.anchor.getFullYear()} год`:'Всё время';
+ const now=new Date();const atEnd=S.period==='month'?S.anchor.getFullYear()*12+S.anchor.getMonth()>=now.getFullYear()*12+now.getMonth():S.anchor.getFullYear()>=now.getFullYear();
+ return `<div class="filters"><div class="seg">${[['month','Месяц'],['year','Год'],['all','Всё время']].map(([v,t])=>`<button class="${S.period===v?'on':''}" onclick="S.period='${v}';render()">${t}</button>`).join('')}</div>
+ ${S.period!=='all'?`<div class="mnav"><button onclick="shiftA(-1)" aria-label="Назад">‹</button><span>${lbl}</span><button onclick="shiftA(1)" ${atEnd?'disabled':''} aria-label="Вперёд">›</button></div>`:''}
+ ${S.period==='month'?`<select onchange="S.cmp=this.value;render()" aria-label="Сравнение"><option value="prev" ${S.cmp==='prev'?'selected':''}>к прошлому месяцу</option><option value="year" ${S.cmp==='year'?'selected':''}>к этому месяцу год назад</option></select>`:S.period==='year'?'<span class="mut">сравнение с прошлым годом</span>':''}</div>`}
+function shiftA(d){const a=S.anchor;S.anchor=S.period==='month'?new Date(a.getFullYear(),a.getMonth()+d,1):new Date(a.getFullYear()+d,a.getMonth(),1);render()}
+// ---------- charts (SVG, drawn to scale)
+function niceMax(v){if(v<=0)return 1;const e=Math.pow(10,Math.floor(Math.log10(v)));const f=v/e;return (f<=1?1:f<=2?2:f<=5?5:10)*e}
+function bars(labels,series,opt={}){const W=opt.w||720,H=opt.h||200,pl=34,pr=opt.line?40:8,pt=10,pb=24;const cw=W-pl-pr,chh=H-pt-pb;
+ const mx=Math.max(4,niceMax(Math.max(1,...series.flatMap(s=>s.values))));const n=labels.length,gw=cw/n,bw=Math.max(2,Math.min(16,(gw-4)/series.length));
+ let g='';for(let i=0;i<=4;i++){const y=pt+chh-chh*i/4;g+=`<line class="gl" x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}"/><text x="${pl-6}" y="${y+4}" text-anchor="end">${fmt(Math.round(mx*i/4))}</text>`}
+ let b='';series.forEach((s,si)=>s.values.forEach((v,i)=>{if(!v)return;const h=chh*v/mx;const x=pl+gw*i+gw/2-bw*series.length/2+bw*si;b+=`<rect x="${x.toFixed(1)}" y="${(pt+chh-h).toFixed(1)}" width="${(bw-1).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${s.color}"><title>${labels[i]}: ${fmt(v)} ${s.name}</title></rect>`}));
+ const every=Math.ceil(n/(opt.maxLabels||12));let xl='';labels.forEach((l,i)=>{if(i%every===0||i===n-1)xl+=`<text x="${(pl+gw*i+gw/2).toFixed(1)}" y="${H-6}" text-anchor="middle">${l}</text>`});
+ let ln='';if(opt.line){const lm=Math.max(4,niceMax(Math.max(1,...opt.line.values.filter(v=>v!=null))));const pts=opt.line.values.map((v,i)=>v==null?null:[pl+gw*i+gw/2,pt+chh-chh*v/lm]);
+  const segs=[];let cur=[];pts.forEach(p=>{if(p)cur.push(p);else if(cur.length){segs.push(cur);cur=[]}});if(cur.length)segs.push(cur);
+  ln=segs.map(sg=>`<polyline fill="none" stroke="${opt.line.color}" stroke-width="2" points="${sg.map(p=>p.map(x=>x.toFixed(1)).join(',')).join(' ')}"/>`).join('')+pts.filter(Boolean).map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" fill="${opt.line.color}"/>`).join('');
+  for(let i=0;i<=4;i++){const y=pt+chh-chh*i/4;ln+=`<text x="${W-pr+6}" y="${y+4}">${fmt(Math.round(lm*i/4))}</text>`}}
+ return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}${b}${ln}${xl}</svg>`}
+function linechart(labels,values,opt={}){const W=opt.w||520,H=opt.h||170,pl=38,pr=10,pt=10,pb=24,cw=W-pl-pr,chh=H-pt-pb;const lo=opt.min??0,hi=opt.max??niceMax(Math.max(1,...values.filter(v=>v!=null)));
+ const n=labels.length;const X=i=>pl+(n<2?cw/2:cw*i/(n-1)),Y=v=>pt+chh-chh*(v-lo)/(hi-lo);
+ let g='';for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4,y=Y(v);g+=`<line class="gl" x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}"/><text x="${pl-6}" y="${y+4}" text-anchor="end">${Math.round(v)}${opt.unit||''}</text>`}
+ const pts=values.map((v,i)=>v==null?null:[X(i),Y(v)]).filter(Boolean);const pl2=pts.map(p=>p.map(x=>x.toFixed(1)).join(',')).join(' ');
+ const area=pts.length>1?`<polygon fill="${opt.color||'var(--c1)'}" opacity=".12" points="${pts[0][0].toFixed(1)},${pt+chh} ${pl2} ${pts[pts.length-1][0].toFixed(1)},${pt+chh}"/>`:'';
+ return `<svg class="chart" viewBox="0 0 ${W} ${H}">${g}${area}<polyline fill="none" stroke="${opt.color||'var(--c1)'}" stroke-width="2.2" points="${pl2}"/>${pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3" fill="${opt.color||'var(--c1)'}"/>`).join('')}${labels.map((l,i)=>`<text x="${X(i).toFixed(1)}" y="${H-6}" text-anchor="middle">${l}</text>`).join('')}</svg>`}
+function donut(parts,center,sub){const R=58,C=2*Math.PI*R;const tot=parts.reduce((a,p)=>a+p.v,0)||1;let off=0;
+ const arcs=parts.map(p=>{const len=C*p.v/tot;const s=`<circle r="${R}" cx="80" cy="80" fill="none" stroke="${p.c}" stroke-width="16" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 80 80)"><title>${p.n}: ${fmt(p.v)}</title></circle>`;off+=len;return s}).join('');
+ return `<svg viewBox="0 0 160 160" width="160" height="160" style="max-width:100%"><circle r="${R}" cx="80" cy="80" fill="none" stroke="var(--card3)" stroke-width="16"/>${arcs}<text x="80" y="80" text-anchor="middle" fill="var(--text)" font-size="26" font-weight="650">${center}</text><text x="80" y="100" text-anchor="middle" fill="var(--muted)" font-size="10.5">${sub||''}</text></svg>`}
+const kpi=(v,l,d)=>`<div class="card kpi"><div class="v">${v}</div><div class="l">${l}</div><div class="d ${d&&d.cls||''}">${d?d.t:'&nbsp;'}</div></div>`;
+// ---------- next-step guide
+function nextStep(){const st=S.stats;if(!st.sessions.length)return{step:0,t:'Добавьте первую съёмку',s:'Выберите папку с карты памяти и, для школы, файл со списком детей. Исходники не изменятся.',btn:['Новая съёмка','importDlg()']};
+ const cur=st.sessions.find(x=>x.id===S.sid)||st.sessions[0];
+ const left0=cur.sections-cur.approved;
+ if(cur.status==='exported'&&left0>0)return{step:2,warn:1,t:`«${cur.title}» собрана с замечаниями`,s:`Не подтверждено секций: ${left0}. Доделайте отбор и нажмите экспорт ещё раз — докопируется только новое.`,btn:['Продолжить отбор',`openSess('${cur.id}')`]};
+ if(cur.status==='exported')return{step:3,ok:1,t:`«${cur.title}» собрана`,s:'Нужно что-то поправить — исправьте в отборе и нажмите экспорт ещё раз: докопируется только новое.',btn:['Новая съёмка','importDlg()'],btn2:['Открыть съёмку',`openSess('${cur.id}')`]};
+ const left=cur.sections-cur.approved;
+ if(left>0)return{step:2,t:`Отберите кадры: «${cur.title}»`,s:`Осталось подтвердить ${left} из ${cur.sections}. Проверьте кадры и нажмите «Подтвердить» — или Ctrl+Enter.`,btn:['Продолжить отбор',`openSess('${cur.id}')`]};
+ return{step:3,t:`Всё подтверждено — соберите заказ`,s:'Копии уйдут в новую папку, исходники останутся как были.',btn:['Экспорт заказа',`openSess('${cur.id}').then(()=>setTimeout(exportDlg,300))`]}}
+function guideHTML(g){if(!g)return'';try{if(localStorage.getItem('fobox.guide.off')==='1')return''}catch(e){}
+ const st=['Импорт','Отбор','Экспорт'];
+ return `<div class="guide ${g.warn?'warnc':g.ok?'okc':''}"><div class="ic">${g.ok?'✓':g.warn?'!':'→'}</div><div><div class="gt">${esc(g.t)}</div><div class="gs">${esc(g.s)}</div>
+ ${g.step!=null?`<div class="steps">${st.map((x,i)=>`${i?'<i></i>':''}<span class="${i+1<g.step||g.ok?'done':i+1===g.step||(g.step===0&&i===0)?'cur':''}"><b>${i+1<g.step||g.ok?'✓':i+1}</b>${x}</span>`).join('')}</div>`:''}</div>
+ <div class="row">${g.btn2?`<button class="btn" onclick="${g.btn2[1]}">${g.btn2[0]}</button>`:''}${g.btn?`<button class="btn pri" onclick="${g.btn[1]}">${g.btn[0]}</button>`:''}<button class="gx" title="Скрыть подсказки (вернуть — в Настройках → Интерфейс)" onclick="try{localStorage.setItem('fobox.guide.off','1')}catch(e){};render()">×</button></div></div>`}
+// ---------- overview
+function overview(){const st=S.stats;const g=guideHTML(nextStep());if(!st.sessions.length)return `<div class="top"><h1>Обзор</h1></div>${g}${onboarding()}`;
+ const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?agg(pr):null;
+ const cards=`<div class="kpis">${kpi(fmt(c.n),'Съёмок',delta(c.n,p&&p.n))}${kpi(fmt(c.frames),'Отснято кадров',delta(c.frames,p&&p.frames))}${kpi(c.hours==null?'—':fmt(Math.round(c.hours))+' ч','Часов съёмки (по EXIF)',delta(c.hours,p&&p.hours))}${kpi(fmt(c.kits),'Готовых комплектов',delta(c.kits,p&&p.kits))}</div>`;
+ const recent=st.sessions.slice(0,4).map(s=>`<div class="rc" onclick="openSess('${s.id}')"><div class="th" ${s.cover?`data-bg="/api/preview?s=${s.id}&p=${encodeURIComponent(s.cover)}&size=160"`:''}></div><div style="min-width:0"><div class="mut">${fdate(s.shoot_date)}</div><div class="t">${esc(s.title)}</div><div class="row" style="gap:10px"><span class="mut">${fmt(s.frames)} кадров</span><span class="status ${s.status}">${STATUS[s.status]||''}</span></div></div></div>`).join('');
+ return `<div class="top"><h1>Обзор</h1>${filters()}</div>${g}${cards}
+ <div class="g2"><div class="card"><div class="ch"><h2>Кадры ${S.period==='month'?'по дням':'по месяцам'}</h2>${chartLegend()}</div>${overviewChart()}</div><div class="card"><div class="ch"><h2>Рекорды</h2></div>${records()}</div></div>
+ <div class="card"><div class="ch"><h2>Последние съёмки</h2><button class="btn ghost sm" onclick="go('history')">Все съёмки →</button></div><div class="recent">${recent}</div></div>`}
+function chartLegend(){if(S.period==='all')return `<div class="legend"><span><i style="background:var(--c1)"></i>Кадры</span></div>`;const pr=cmpRange();
+ const a=S.period==='month'?`${MON[S.anchor.getMonth()]} ${S.anchor.getFullYear()}`:S.anchor.getFullYear(),b=S.period==='month'?`${MON[pr[0].getMonth()]} ${pr[0].getFullYear()}`:pr[0].getFullYear();
+ return `<div class="legend"><span><i style="background:var(--c1)"></i>${a}</span><span><i style="background:var(--c2)"></i>${b}</span></div>`}
+function overviewChart(){const d=S.stats.days;
+ if(S.period==='month'){const r=rng('month',S.anchor,0),pr=cmpRange();const n=(r[1]-r[0])/864e5|0;const L=[],A=[],B=[];
+  for(let i=0;i<n;i++){const x=new Date(r[0].getFullYear(),r[0].getMonth(),i+1),y=new Date(pr[0].getFullYear(),pr[0].getMonth(),i+1);L.push(String(i+1));A.push(d[iso(x)]||0);B.push(y.getMonth()===pr[0].getMonth()?d[iso(y)]||0:0)}
+  if(!A.some(Boolean)&&!B.some(Boolean))return empty(NODATA);return bars(L,[{name:'кадров',values:A,color:'var(--c1)'},{name:'кадров (сравнение)',values:B,color:'var(--c2)'}],{maxLabels:11})}
+ const M=y=>MON.map((_,i)=>Object.entries(d).filter(([k])=>k.startsWith(`${y}-${String(i+1).padStart(2,'0')}`)).reduce((a,[,v])=>a+v,0));
+ if(S.period==='year'){const y=S.anchor.getFullYear();const A=M(y),B=M(y-1);if(!A.some(Boolean)&&!B.some(Boolean))return empty(NODATA);return bars(MON,[{name:'кадров',values:A,color:'var(--c1)'},{name:'кадров',values:B,color:'var(--c2)'}])}
+ const ks=Object.keys(S.stats.months).slice(-18);if(!ks.length)return empty(NODATA);return bars(ks.map(k=>`${MON[+k.slice(5)-1]} ${k.slice(2,4)}`),[{name:'кадров',values:ks.map(k=>S.stats.months[k].frames),color:'var(--c1)'}],{maxLabels:9})}
+function records(){const r=S.stats.records;const rows=[['Самая длинная съёмка',r.longest&&dur(r.longest.value),r.longest&&`${esc(r.longest.title)} · ${fdate(r.longest.date)}`],['Больше всего кадров за день',r.max_day&&fmt(r.max_day.value),r.max_day&&fdate(r.max_day.date)],['Самый активный месяц',r.active_month&&fmt(r.active_month.value)+' кадров',r.active_month&&`${MONTHS[+r.active_month.month.slice(5)-1]} ${r.active_month.month.slice(0,4)}`],['Самый большой класс',r.biggest_class&&r.biggest_class.value+' учеников',r.biggest_class&&esc(r.biggest_class.title)]];
+ return rows.map(([t,v,s])=>`<div class="rec"><div>${t}<div class="mut">${s||'Нет данных'}</div></div><b>${v||'—'}</b></div>`).join('')}
+function onboarding(){return `<div class="card" style="padding:26px"><h2 style="font-size:17px">Как это работает</h2><div class="kpis" style="margin-top:14px">
+ ${[['1','Импорт','Папка с карты и, для школы, список детей с 5 номерами. LUMIO найдёт RAW, прочитает время, разобьёт на серии.'],['2','Проверка','Сам отметит пустые, тёмные, нерезкие кадры и дубли. Ничего не удаляет.'],['3','Отбор','Предложит лучшие кадры. Вы правите кликами или клавишами и подтверждаете.'],['4','Экспорт','Копии в папку заказа с правильными именами и отчётом. Исходники не меняются.']].map(([n,t,d])=>`<div><div class="guide" style="display:inline-flex;padding:0;border:0;background:none"><span class="ic" style="width:28px;height:28px">${n}</span></div><div style="font-weight:600;margin:10px 0 4px">${t}</div><div class="mut" style="line-height:1.55">${d}</div></div>`).join('')}</div></div>`}
+// ---------- analytics (sub tabs)
+function analytics(){const st=S.stats;const tabs=[['perf','Производительность'],['quality','Качество'],['ai','Отбор ИИ'],['flow','Рабочий процесс']];
+ const body=!st.sessions.length?guideHTML(nextStep())+onboarding():{perf:aPerf,quality:aQual,ai:aAI,flow:aFlow}[S.atab]();
+ return `<div class="top"><h1>Аналитика</h1>${filters()}</div><div class="subtabs">${tabs.map(([k,t])=>`<button class="${S.atab===k?'on':''}" onclick="S.atab='${k}';render()">${t}</button>`).join('')}</div>${body}`}
+function monthsBack(n){const out=[];for(let i=n-1;i>=0;i--){const d=new Date(S.anchor.getFullYear(),S.anchor.getMonth()-i,1);out.push([d,new Date(d.getFullYear(),d.getMonth()+1,1)])}return out}
+function aPerf(){const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?agg(pr):null,all=agg(rng('all',S.anchor,0));
+ const spd=x=>x.days?x.n/x.days:null,spp=x=>{const k=x.ss.filter(s=>s.students);return k.length?k.reduce((a,s)=>a+s.students,0)/k.length:null},avgH=x=>{const k=x.ss.filter(s=>s.hours!=null);return k.length?k.reduce((a,s)=>a+s.hours,0)/k.length:null};
+ let chart;if(S.period==='month'){const n=(r[1]-r[0])/864e5|0;const L=[],A=[],B=[];for(let i=0;i<n;i++){const k=iso(new Date(r[0].getFullYear(),r[0].getMonth(),i+1));const ss=c.ss.filter(s=>s.shoot_date===k);L.push(String(i+1));A.push(ss.length);const h=S.stats.day_hours[k];B.push(h>0.05?Math.round((S.stats.days[k]||0)/h):null)}
+  chart=A.some(Boolean)?bars(L,[{name:'съёмок',values:A,color:'var(--c1)'}],{line:{values:B,color:'var(--c2)'},maxLabels:11}):empty(NODATA)}
+ else{const ms=monthsBack(12);const xs=ms.map(m=>agg(m));chart=xs.some(x=>x.n)?bars(ms.map(m=>MON[m[0].getMonth()]),[{name:'съёмок',values:xs.map(x=>x.n),color:'var(--c1)'}],{line:{values:xs.map(x=>x.fph?Math.round(x.fph):null),color:'var(--c2)'}}):empty(NODATA)}
+ return `<div class="kpis">${kpi(c.fph?fmt(Math.round(c.fph)):'—','Кадров в час',delta(c.fph,p&&p.fph))}${kpi(spd(c)?spd(c).toFixed(1):'—','Съёмок в день',delta(spd(c),p&&spd(p)))}${kpi(spp(c)?Math.round(spp(c)):'—','Учеников за съёмку',delta(spp(c),p&&spp(p)))}${kpi(dur(avgH(c)),'Средняя длительность',delta(avgH(c),p&&avgH(p),true))}</div>
+ <div class="card"><div class="ch"><div class="legend"><span><i style="background:var(--c1)"></i>Съёмки</span><span><i class="ln" style="background:var(--c2)"></i>Кадров в час (правая шкала)</span></div></div>${chart}
+ <h2 style="margin:18px 0 10px">Средние показатели за всё время</h2><div class="minis">${[[all.fph?fmt(Math.round(all.fph)):'—','Кадров в час'],[spp(all)?Math.round(spp(all)):'—','Учеников за съёмку'],[dur(avgH(all)),'Длительность'],[all.n?fmt(Math.round(all.frames/all.n)):'—','Кадров за съёмку']].map(([v,l])=>`<div class="mini"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('')}</div></div>`}
+const QF=[['sharp','Резкие','var(--c1)'],['dup','Дубли','var(--c2)'],['over','Пересветы','var(--c5)'],['under','Недодержка','var(--c4)'],['blur','Нерезкие','var(--c6)'],['tech','Пустые кадры','var(--c3)']];
+function qParts(x){const f=x.flags;const tech=(f.white||0)+(f.black||0);const bad=(f.dup||0)+(f.over||0)+(f.under||0)+(f.blur||0)+tech;return{sharp:Math.max(0,x.analyzed-bad),dup:f.dup||0,over:f.over||0,under:f.under||0,blur:f.blur||0,tech}}
+function aQual(){if(!S.stats.pillow)return empty('Проверка качества выключена: установите Pillow (<kbd>py -m pip install pillow</kbd>) и перезапустите.');
+ const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?agg(pr):null;if(!c.analyzed)return `<div class="card">${empty(NODATA)}</div>`;
+ const q=qParts(c),pq=p&&p.analyzed?qParts(p):null;const pct=(v,t)=>t?Math.round(v/t*1000)/10:0;const share=pct(q.sharp,c.analyzed);
+ const ms=monthsBack(7);const tr=ms.map(m=>{const x=agg(m);return x.analyzed?pct(qParts(x).sharp,x.analyzed):null});
+ const cmpRow=[['sharp','Резкие'],['dup','Дубли'],['over','Пересветы'],['blur','Нерезкие']].map(([k,l])=>{const a=pct(q[k],c.analyzed),b=pq?pct(pq[k],p.analyzed):null;const d=b==null?'':` <span class="d ${(k==='sharp'?a>=b:a<=b)?'up':'down'}" style="display:inline">(${a-b>=0?'+':''}${(a-b).toFixed(1)})</span>`;return `<div class="mini"><div class="l" style="margin:0 0 4px">${l}</div><div class="v" style="font-size:17px">${a}%${d}</div></div>`}).join('');
+ return `<div class="g2e"><div class="card"><div class="ch"><h2>Доля технически хороших кадров</h2><span class="mut">${fmt(c.analyzed)} проверено</span></div><div class="split">${donut(QF.map(([k,n,col])=>({n,v:q[k],c:col})),share+'%','хорошие кадры')}<div class="ll">${QF.map(([k,n,col])=>`<div><i style="background:${col}"></i><span>${n}</span><b>${pct(q[k],c.analyzed)}%</b></div>`).join('')}</div></div></div>
+ <div class="card"><div class="ch"><h2>Доля хороших кадров по месяцам</h2></div>${tr.some(v=>v!=null)?linechart(ms.map(m=>MON[m[0].getMonth()]),tr,{min:Math.max(0,Math.floor(Math.min(...tr.filter(v=>v!=null))/10)*10-10),max:100,unit:'%'}):empty(NODATA)}</div></div>
+ <div class="card"><div class="ch"><h2>${pq?'Сравнение с периодом для сравнения':'Сравнение'}</h2><span class="mut">в скобках — изменение в процентных пунктах</span></div><div class="minis">${cmpRow}</div></div>
+ <p class="mut" style="margin:0">Отмеченные кадры не удаляются — они во вкладке «На проверку». Пороги настраиваются в Настройках → Отбор и качество.</p>`}
+function aAI(){const r=rng(S.period,S.anchor,0),c=agg(r);if(!c.suggested)return `<div class="card">${empty('Нет данных: автоотбор появится после импорта и подтверждения секций')}</div>`;
+ const kept=c.accepted,rep=c.replaced,man=c.manual,base=Math.max(1,kept+rep);const rate=c.approved?Math.round(c.untouched/c.approved*100):0;
+ const ms=monthsBack(7);const acc=ms.map(m=>{const x=agg(m);return x.accepted+x.replaced?Math.round(x.accepted/(x.accepted+x.replaced)*100):null});
+ const P=[['Оставлено как предложено',kept,'var(--c1)'],['Снято вручную',rep,'var(--c5)'],['Добавлено вручную',man,'var(--c2)']];
+ return `<div class="g2e"><div class="card"><div class="ch"><h2>Секции без правок</h2><span class="mut">${c.untouched} из ${c.approved} подтверждённых</span></div><div class="split">${donut(P.map(([n,v,col])=>({n,v,c:col})),rate+'%','без изменений')}<div class="ll">${P.map(([n,v,col])=>`<div><i style="background:${col}"></i><span>${n}</span><b>${fmt(v)}</b></div>`).join('')}</div></div></div>
+ <div class="card"><div class="ch"><h2>Точность предложений по месяцам</h2><span class="mut">% оставленных из проверенных</span></div>${acc.some(v=>v!=null)?bars(ms.map(m=>MON[m[0].getMonth()]),[{name:'%',values:acc.map(v=>v||0),color:'var(--c1)'}],{w:520,h:170}):empty(NODATA)}</div></div>
+ <div class="kpis" style="grid-template-columns:repeat(5,minmax(0,1fr))">${[[fmt(c.suggested),'Предложено'],[fmt(kept),`Оставлено · ${Math.round(kept/base*100)}%`],[fmt(rep),`Снято · ${Math.round(rep/base*100)}%`],[fmt(man),'Добавлено вручную'],[rate+'%','Секций без правок']].map(([v,l])=>kpi(v,l)).join('')}</div>
+ <p class="mut" style="margin:0">Сейчас подбор эвристический: резкость и непохожесть кадров. Распознавание лиц — следующий этап.</p>`}
+function aFlow(){const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?agg(pr):null;const D=c.durations,PD=p?p.durations:{};
+ const st=[['import','Импорт','var(--c2)'],['analysis','Проверка качества','var(--c4)'],['review','Отбор','var(--c1)'],['export','Экспорт','var(--c3)']];
+ const tot=st.reduce((a,[k])=>a+(D[k]||0),0);const perKid=c.students&&D.review?D.review/c.students:null,pPerKid=p&&p.students&&PD.review?PD.review/p.students:null;
+ return `<div class="kpis">${kpi(secs((D.import||0)+(D.analysis||0)||null),'Импорт и анализ',delta((D.import||0)+(D.analysis||0)||null,PD&&((PD.import||0)+(PD.analysis||0))||null,true))}${kpi(secs(D.review),'Отбор комплектов',delta(D.review,PD.review,true))}${kpi(secs(perKid),'Отбор одного ученика',delta(perKid,pPerKid,true))}${kpi(secs(D.export),'Экспорт',delta(D.export,PD.export,true))}</div>
+ <div class="card"><div class="ch"><h2>Время обработки съёмки</h2><span class="mut">в среднем на съёмку за период</span></div>${tot?`<div class="split" style="grid-template-columns:1fr auto"><div class="hb">${st.map(([k,n,col])=>`<div><span>${n}</span><div class="tr"><span style="width:${(D[k]||0)/tot*100}%;background:${col}"></span></div><span class="vv">${secs(D[k]||null)} (${Math.round((D[k]||0)/tot*100)}%)</span></div>`).join('')}</div>${donut(st.map(([k,n,col])=>({n,v:D[k]||0,c:col})),secs(tot),'всего')}</div>`:empty('Нет данных: время этапов записывается начиная с этой версии')}</div>
+ <p class="mut" style="margin:0">Отбор считается по паузам между подтверждениями секций (перерывы больше 30 минут не учитываются).</p>`}
+// ---------- history
+function history(){const st=S.stats;const f=S.hf||{type:'',status:'',q:''};S.hf=f;
+ const list=st.sessions.filter(s=>(!f.type||s.mode===f.type)&&(!f.status||s.status===f.status)&&(!f.q||(s.title+' '+(s.location||'')+' '+(s.school||'')).toLowerCase().includes(f.q.toLowerCase())));
+ return `<div class="top"><h1>История съёмок</h1><div class="filters"><select onchange="S.hf.type=this.value;render()" aria-label="Тип"><option value="">Все типы</option><option value="school" ${f.type==='school'?'selected':''}>Школа</option><option value="general" ${f.type==='general'?'selected':''}>Обычная</option></select>
+ <select onchange="S.hf.status=this.value;render()" aria-label="Статус"><option value="">Все статусы</option>${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${f.status===k?'selected':''}>${v}</option>`).join('')}</select>
+ <input id="hq" placeholder="Поиск" value="${esc(f.q)}" oninput="S.hf.q=this.value;clearTimeout(S.hqT);S.hqT=setTimeout(()=>{render();const i=$('#hq');i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)"></div></div>
+ <div class="card" style="padding:6px 8px"><div class="tw">${list.length?`<table><tr><th>Дата</th><th>Название / локация</th><th>Компания</th><th class="num">Ученики</th><th class="num">Кадры</th><th class="num">Комплект</th><th class="num">Длительность</th><th>Статус</th><th></th></tr>
+ ${list.map(s=>`<tr class="click" onclick="openSess('${s.id}')"><td>${fdate(s.shoot_date)}</td><td><div class="tt"><div class="th" ${s.cover?`data-bg="/api/preview?s=${s.id}&p=${encodeURIComponent(s.cover)}&size=120"`:''}></div><div>${esc(s.title)}${s.location||s.school?`<div class="mut">${esc(s.location||s.school)}</div>`:''}</div></div></td><td>${s.mode==='school'?esc(((S.cfg.companies||[]).find(c=>c.id===s.company)||{}).name||'—'):'Обычная'}</td><td class="num">${s.students||'—'}</td><td class="num">${fmt(s.frames)}</td><td class="num">${fmt(s.selected)}</td><td class="num">${dur(s.hours)}</td><td><span class="status ${s.status}">${STATUS[s.status]||s.status}</span></td><td><button class="btn sm" onclick="event.stopPropagation();openSess('${s.id}')">Открыть</button></td></tr>`).join('')}</table>`:empty(st.sessions.length?'Ничего не найдено — измените фильтры':'Съёмок пока нет')}</div></div>`}
 // ---------- settings & profile
-function settings(){const s=S.cfg.settings,p=S.cfg.profile,tab=S.sub||'Профиль';const tabs=['Профиль','Отбор и качество','Файлы и экспорт','Интерфейс','Данные'];
- const field=(k,l,h,src='s')=>`<div class="f"><label>${l}</label><input data-${src}="${k}" value="${esc((src==='s'?s:p)[k]||'')}">${h?`<span class="mut">${h}</span>`:''}</div>`;
- let body='';
- if(tab==='Профиль')body=`<div class="two">${field('name','Имя фотографа','','p')}${field('studio','Студия','','p')}${field('email','Email','','p')}${field('phone','Телефон','','p')}${field('city','Город','','p')}${field('workspace','Название рабочего пространства','Показывается в шапке и отчётах')}</div>`;
- if(tab==='Отбор и качество')body=`<div class="two">${field('series_gap_sec','Пауза для новой серии, сек','Если между кадрами дольше — начинается новая серия')}${field('target_per_student','Ориентир кадров на ученика','Включая 5 обязательных; не жёсткий лимит')}${field('radius','Окно вокруг кадров ведомости','± номеров кадров для показа')}${field('blur_threshold','Порог нерезкости','Меньше — строже. Также сравнивается с серией')}${field('dup_distance','Чувствительность к дублям','0–10, больше — больше кадров считается дублями')}${field('clip_threshold','Доля пересвеченных пикселей','0.25 = 25%')}</div><p class="mut">Изменения порогов применяются после «Перепроверить качество» в съёмке.</p>`;
- if(tab==='Файлы и экспорт')body=`<p class="mut" style="line-height:1.6">Исходники только читаются. Экспорт копирует файлы в новую пустую папку заказа и никогда не перезаписывает.<br>Школьная структура: Заказ / Школа / Дата / Класс / 01_ДОКУМЕНТЫ … 07_ФОН.<br>Имена обязательных RAW: «Фамилия Имя_исх», «ЛР_…», «ЛС_…», «Друг1_исх», «Друг2_исх».</p>`;
- if(tab==='Интерфейс')body=`<div class="f"><label>Тема</label><div class="row"><button class="btn ${s.theme==='dark'?'pri':''}" onclick="setS('theme','dark')">Тёмная</button><button class="btn ${s.theme==='light'?'pri':''}" onclick="setS('theme','light')">Светлая</button></div></div>
-  <div class="f"><label>Акцентный цвет</label><div class="row">${['#7738FF','#4DB5FF','#E5484D','#2EB67D','#F59E0B'].map(c=>`<span class="sw ${s.accent.toUpperCase()===c?'on':''}" style="background:${c}" onclick="setS('accent','${c}')"></span>`).join('')}<input data-s="accent" value="${s.accent}" style="width:110px"></div><span class="mut">Цвета ошибок и предупреждений не меняются.</span></div>`;
- if(tab==='Данные')body=`<p class="mut" style="line-height:1.6">Каталог хранится локально в SQLite (по умолчанию <kbd>%USERPROFILE%\\.fobox\\fobox4.sqlite3</kbd>). Для резервной копии скопируйте этот файл. Удаление съёмки из каталога не трогает фотографии на диске.</p>${S.stats.sessions.map(x=>`<div class="rec"><div>${esc(x.title)}<div class="mut">${esc(x.source||'')}</div></div><button class="btn" onclick="delSess('${x.id}')">Убрать из каталога</button></div>`).join('')||empty('Каталог пуст')}`;
- return head('Настройки','Хранятся локально')+`<div class="stabs">${tabs.map(t=>`<button class="${t===tab?'on':''}" onclick="go('settings','${t}')">${t}</button>`).join('')}</div><div class="card">${body}${['Профиль','Отбор и качество','Интерфейс'].includes(tab)?'<button class="btn pri" id="saveS">Сохранить</button>':''}</div>`}
-function bindSettings(){const b=$('#saveS');if(b)b.onclick=async()=>{const st={},pr={...S.cfg.profile};document.querySelectorAll('[data-s]').forEach(i=>st[i.dataset.s]=i.value.trim());document.querySelectorAll('[data-p]').forEach(i=>pr[i.dataset.p]=i.value.trim());
- try{await api('/api/settings',{settings:st,profile:pr});toast('Сохранено');await load()}catch(e){toast(e.message,1)}}}
+const SNAV=['Профиль','Компании','Яндекс.Диск','Предпочтения','Отбор и качество','Файлы и экспорт','Интерфейс','Данные и резервные копии','О программе'];
+function settings(){const s=S.cfg.settings,p=S.cfg.profile,tab=S.sub||'Профиль';
+ const row=(k,l,h,ctl)=>`<div class="sr2"><div><label for="${k}">${l}</label>${h?`<div class="h">${h}</div>`:''}</div><div>${ctl}</div></div>`;
+ const inp=(k,src='s',type='text')=>`<input id="${k}" type="${type}" data-${src}="${k}" value="${esc((src==='s'?s:p)[k]||'')}">`;
+ const sel=(k,opts)=>`<select id="${k}" data-s="${k}">${opts.map(([v,t])=>`<option value="${v}" ${s[k]===v?'selected':''}>${t}</option>`).join('')}</select>`;
+ let body='';const fld=(k,l,t)=>`<div class="f"><label for="${k}">${l}</label>${inp(k,'p',t||'text')}</div>`;
+ if(tab==='Профиль'){body=`<div class="prof"><div><div class="pph" ${avatarStyle(p)}>${p.avatar?'':esc(initials(p.name))}</div><div class="row" style="margin-top:10px"><label class="btn sm" style="cursor:pointer">Изменить фото<input type="file" accept="image/*" hidden onchange="setAvatar(this.files[0])"></label>${p.avatar?'<button class="btn sm ghost" onclick="setAvatar(null)">Убрать</button>':''}</div></div>
+  <div><div style="font-size:22px;font-weight:650">${esc(p.name||'Ваше имя')}</div><div class="mut" style="margin-top:4px">${esc(p.role||'Фотограф')}${p.studio?' · '+esc(p.studio):''}${p.city?' · '+esc(p.city):''}</div>
+  <div class="row" style="margin-top:14px">${[['Съёмок',fmt(S.stats.sessions.length)],['Кадров',fmt(S.stats.files)],['Комплектов',fmt(S.stats.kits)]].map(([l,v])=>`<div class="mini" style="min-width:120px"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
+  <h3 style="font-size:13px;margin:22px 0 10px">Основное</h3><div class="two">${fld('name','Имя и фамилия')}${fld('role','Должность')}${fld('studio','Студия')}${fld('city','Город')}</div>
+  <h3 style="font-size:13px;margin:12px 0 10px">Контакты</h3><div class="two">${fld('email','Email','email')}${fld('phone','Телефон')}${fld('site','Сайт')}${fld('telegram','Telegram')}${fld('vk','ВКонтакте')}${fld('instagram','Instagram')}${fld('youtube','YouTube')}</div></div></div>`}
+ if(tab==='Предпочтения')body=`<div class="sg"><h3>Основные</h3>${row('lang','Язык приложения','',`<select id="lang" disabled><option>Русский</option></select>`)}${row('date_format','Формат даты','',sel('date_format',[['dd.mm.yyyy','ДД.ММ.ГГГГ'],['yyyy-mm-dd','ГГГГ-ММ-ДД']]))}${row('compare_to','Сравнение на «Обзоре» по умолчанию','',sel('compare_to',[['prev','с прошлым месяцем'],['year','с этим месяцем год назад']]))}${row('workspace','Название рабочего пространства','Видно в отчётах',inp('workspace'))}</div>`;
+ if(tab==='Отбор и качество')body=`<div class="sg"><h3>Отбор</h3>${row('target_per_student','Комплект ученика собирается автоматически, кадров','Цель, включая 5 из ведомости',inp('target_per_student','s','number'))}${row('kit_min','Не меньше, кадров','Если в серии хватает разных кадров',inp('kit_min','s','number'))}${row('kit_max','Не больше, кадров','',inp('kit_max','s','number'))}${row('radius','Окно вокруг номеров ведомости','± кадров, которые показываются рядом',inp('radius','s','number'))}${row('series_gap_sec','Пауза для новой серии, секунд','Для обычных съёмок',inp('series_gap_sec','s','number'))}${row('teacher_gap_sec','Серия учителя: пауза, секунд','Кадры учителя снятые подряд; серия заканчивается на паузе дольше этой или на кадре другого человека',inp('teacher_gap_sec','s','number'))}</div>
+  <div class="sg"><h3>Качество</h3>${row('blur_threshold','Порог нерезкости','Меньше — мягче; кадр также сравнивается со своей серией',inp('blur_threshold','s','number'))}${row('dup_distance','Чувствительность к дублям','0–10, больше — больше кадров считается дублями',inp('dup_distance','s','number'))}${row('clip_threshold','Доля пересвеченных пикселей','0.25 = 25%',inp('clip_threshold'))}<p class="mut">Новые пороги применяются после «Перепроверить» на экране съёмки.</p></div>`;
+ if(tab==='Файлы и экспорт')body=`<div class="sg"><h3>Экспорт</h3><p class="mut" style="line-height:1.7;margin:0">Исходники только читаются. Экспорт копирует RAW в новую папку заказа и никогда не перезаписывает файлы; повторный экспорт докопирует только новое.<br>Структура школьного заказа: Заказ / Школа / Дата / Класс / 01_ДОКУМЕНТЫ … 07_ФОН.<br>Имена кадров из ведомости: «Фамилия Имя_исх», «ЛР_Фамилия Имя_исх», «ЛС_…», «Друг1_исх», «Друг2_исх».<br>В папку кладутся отчёт <kbd>_FOBOX_отчёт.csv</kbd> и, если есть, <kbd>_FOBOX_замечания.txt</kbd>.</p></div>`;
+ if(tab==='Интерфейс')body=`<div class="sg"><h3>Внешний вид</h3>${row('theme','Тема','',`<div class="seg" style="width:max-content"><button class="${s.theme==='dark'?'on':''}" onclick="setS('theme','dark')">Тёмная</button><button class="${s.theme==='light'?'on':''}" onclick="setS('theme','light')">Светлая</button></div>`)}
+  ${row('accent','Акцентный цвет','Цвета ошибок и предупреждений не меняются',`<div class="row">${['#7738FF','#4DB5FF','#E5484D','#2EB67D','#F59E0B'].map(c=>`<span class="sw ${s.accent.toUpperCase()===c?'on':''}" style="background:${c}" role="button" aria-label="${c}" onclick="setS('accent','${c}')"></span>`).join('')}<input id="accent" data-s="accent" value="${s.accent}" style="width:100px"></div>`)}
+  ${row('guide','Подсказки «Что дальше»','Короткая подсказка следующего шага на главных экранах',`<button class="btn sm" onclick="try{localStorage.removeItem('fobox.guide.off');localStorage.removeItem('fobox.coach')}catch(e){};toast('Подсказки включены')">Показывать снова</button>`)}</div>`;
+ if(tab==='Данные и резервные копии')body=`<div class="sg"><h3>Каталог</h3><p class="mut" style="line-height:1.6;margin:0 0 10px">Каталог — один файл SQLite: <kbd>%USERPROFILE%\\.fobox\\fobox4.sqlite3</kbd>. Резервная копия — копия этого файла. Удаление съёмки из каталога не трогает фото на диске.</p>${S.stats.sessions.map(x=>`<div class="sr2"><div><label>${esc(x.title)}</label><div class="h path">${esc(x.source||'')}</div></div><div><button class="btn sm danger" onclick="delSess('${x.id}')">Убрать из каталога</button></div></div>`).join('')||empty('Каталог пуст')}</div>`;
+ if(tab==='Компании')body=companiesTab();
+ if(tab==='Яндекс.Диск')body=`<div class="sg"><h3>Подключение</h3>${S.cfg.settings.yandex_token?'<div class="warn okb" style="margin-bottom:12px">Токен сохранён. «Проверить» покажет, чей это Диск.</div>':''}${diskSetup('s_')}</div><p class="mut">Папка на Диске для каждой среды задаётся в Настройки → Компании (поле «Папка на Яндекс.Диске»).</p>`;
+ if(tab==='О программе')body=`<div class="sg"><h3>LUMIO 4.0</h3><p class="mut" style="line-height:1.7;margin:0">Локальный сортировщик фото для фотографов: импорт, проверка качества, отбор, экспорт и статистика. Работает без интернета, ничего не отправляет. Горячие клавиши — <button class="lnk" onclick="helpDlg()">показать</button>.</p></div>`;
+ const savable=['Профиль','Предпочтения','Отбор и качество','Интерфейс'].includes(tab);
+ return `<div class="top"><h1>${tab==='Профиль'?'Профиль фотографа':'Настройки'}</h1>${savable?'<button class="btn pri" id="saveS">Сохранить</button>':''}</div><div class="sl"><div class="card snav">${SNAV.map(t=>`<button class="${t===tab?'on':''}" onclick="go('settings','${t}')">${t}</button>`).join('')}</div><div class="card">${body}</div></div>`}
+function companiesTab(){const cs=S.cfg.companies||[];const cur=cs.find(c=>c.id===S.cedit)||cs[0];if(!cur)return empty('Нет компаний');S.cedit=cur.id;const tpl=cur.layout==='template';
+ const n=(k,l,h)=>`<div class="sr2"><div><label for="c_${k}">${l}</label>${h?`<div class="h">${h}</div>`:''}</div><div><input id="c_${k}" data-c="${k}" type="number" value="${cur[k]}"></div></div>`;
+ const t=(k,l,h)=>`<div class="sr2"><div><label for="c_${k}">${l}</label>${h?`<div class="h">${h}</div>`:''}</div><div><input id="c_${k}" data-c="${k}" value="${esc(cur[k]||'')}" oninput="cPreview()"></div></div>`;
+ const b=(k,l)=>`<label class="chk2"><input type="checkbox" data-cb="${k}" ${cur[k]?'checked':''}> ${l}</label>`;
+ return `<div class="ctabs">${cs.map(c=>`<button class="${c.id===cur.id?'on':''}" onclick="S.cedit='${c.id}';render()">${esc(c.name)}</button>`).join('')}<button onclick="addCompany()">+ Компания</button></div>
+ <p class="mut" style="margin:0 0 14px">${esc(cur.note||'')} Компанию выбирают при импорте съёмки; её можно поменять и на экране съёмки.</p>
+ <div class="sg"><h3>Основное</h3><div class="sr2"><div><label for="c_name">Название</label></div><div><input id="c_name" data-c="name" value="${esc(cur.name)}"></div></div>
+ <div class="sr2"><div><label for="c_color">Цвет среды</label></div><div class="row"><input id="c_color" data-c="color" type="color" value="${esc(cur.color||'#7738FF')}" style="width:60px;padding:2px"></div></div>
+ <div class="sr2"><div><label for="c_disk_parent">Папка на Яндекс.Диске</label><div class="h">куда заливать заказы, например «ФОТОГРАФ СЕРГЕЙ»</div></div><div><input id="c_disk_parent" data-c="disk_parent" value="${esc(cur.disk_parent||'')}"></div></div>
+ <div class="sr2"><div><label for="c_layout">Структура экспорта</label></div><div><select id="c_layout" data-c="layout" onchange="S.cedit='${cur.id}';saveCompany(true)"><option value="vypusk" ${!tpl?'selected':''}>Полная школьная (как в Выпуске)</option><option value="template" ${tpl?'selected':''}>Простая, по шаблону</option><option value="sort" ${cur.layout==='sort'?'selected':''}>Всё без брака, RAW + JPEG по видам</option></select></div></div></div>
+ ${cur.layout==='sort'?`<div class="sg"><h3>Папки</h3><p class="mut" style="margin:0 0 8px">Подстановки: <kbd>{date}</kbd> <kbd>{school}</kbd> <kbd>{class}</kbd> <kbd>{order}</kbd>. Брак (пустые и нерезкие кадры) не копируется.</p>${t('root','Папка съёмки')}${t('raw_dir','Папка RAW')}${t('jpg_dir','Папка JPEG')}${t('cat_portrait','Вид 1')}${t('cat_group','Вид 2')}${t('cat_common','Вид 3')}${t('cat_teacher','Вид 4')}<div class="cprev" id="cprev"></div></div>`:`
+ <div class="sg"><h3>Комплект ученика</h3>${n('kit_min','Не меньше, кадров','вместе с 5 из ведомости')}${n('target','Цель, кадров','')}${n('kit_max','Не больше, кадров','')}</div>
+ <div class="sg"><h3>Что входит в заказ</h3><div class="row" style="gap:18px;padding:6px 0 10px">${b('teachers','Учителя')}${b('common','Общая фотография')}${b('report','Репортаж')}</div>${n('group_dups','Дублей общей','')}${n('report_count','Репортаж, кадров','')}${n('report_dups','Дублей репортажа','')}</div>`}
+ ${tpl?`<div class="sg"><h3>Папки и имена файлов</h3><p class="mut" style="margin:0 0 8px">Подстановки: <kbd>{order}</kbd> заказ, <kbd>{school}</kbd>, <kbd>{class}</kbd>, <kbd>{date}</kbd>, <kbd>{name}</kbd> фамилия имя, <kbd>{orig}</kbd> имя файла камеры, <kbd>{n}</kbd> номер роли 1–5, <kbd>{role}</kbd> Виньетка/ЛР/ЛС/Друг1/Друг2.</p>
+  ${t('root','Папка заказа')}${t('child_dir','Папка ребёнка')}${t('worksheet_file','Кадры из ведомости')}${t('extra_file','Дополнительные кадры')}${t('teacher_dir','Папка учителей')}${t('teacher_file','Кадры учителя')}${t('common_dir','Папка общей')}${t('report_dir','Папка репортажа')}
+  <div class="cprev" id="cprev"></div></div>`:''}
+ <div class="row" style="gap:8px"><button class="btn pri" onclick="saveCompany()">Сохранить компанию</button>${cs.length>1?`<button class="btn danger" onclick="delCompany('${cur.id}')">Удалить</button>`:''}</div>`}
+function cPreview(){const el=$('#cprev');if(!el)return;const v=k=>($('#c_'+k)?.value||'');
+ if($('#c_raw_dir')){const r=(v('root')||'').split('{date}').join('23.10.2026').split('{school}').join('Школа 2044').split('{class}').join('4').split('{order}').join('7425').replace(/\{[a-z_]+\}/g,'').trim();
+  el.innerHTML=`<div class="mut" style="margin-bottom:6px">Так будет выглядеть экспорт:</div><pre>${esc(r)}\\
+  ${esc(v('raw_dir'))}\\   все RAW без брака
+  ${esc(v('jpg_dir'))}\\
+${['cat_portrait','cat_group','cat_common','cat_teacher'].map(k=>'    '+esc(v(k))+'\\').join('\n')}</pre>`;return}const F=(tp,kw)=>{let o=tp;Object.entries(kw).forEach(([k,x])=>o=o.split('{'+k+'}').join(x));return o.replace(/\{[a-z_]+\}/g,'').replace(/\s{2,}/g,' ').replace(/^[ ._-]+|[ ._-]+$/g,'')};
+ const kw={order:'7425',school:'1363',class:'4',date:'16.10.2026'};const root=F(v('root'),kw)||'Съёмка',kid=F(v('child_dir'),{...kw,name:'Иванов Иван'})||'Иванов Иван';
+ el.innerHTML=`<div class="mut" style="margin-bottom:6px">Так будет выглядеть экспорт:</div><pre>${esc(root)}\\
+  ${esc(kid)}\\
+    ${esc(F(v('worksheet_file'),{...kw,name:'Иванов Иван',orig:'ANT00229',n:'1',role:'Виньетка'}))}.ARW
+    ${esc(F(v('worksheet_file'),{...kw,name:'Иванов Иван',orig:'ANT00223',n:'2',role:'ЛР'}))}.ARW
+    ${esc(F(v('extra_file'),{...kw,name:'Иванов Иван',orig:'ANT00226',n:'',role:''}))}.ARW
+  ${esc(v('teacher_dir')||'Учителя')}\\${esc(F(v('teacher_file'),{...kw,name:'Петрова Анна Сергеевна',orig:'ANT00143'}))}.ARW
+  ${esc(v('common_dir')||'Общая')}\\ANT00612.ARW</pre>`}
+async function saveCompany(quiet){const body={id:S.cedit};document.querySelectorAll('[data-c]').forEach(i=>body[i.dataset.c]=i.value.trim());document.querySelectorAll('[data-cb]').forEach(i=>body[i.dataset.cb]=i.checked);
+ try{await api('/api/company',body);await load();if(!quiet)toast('Компания сохранена')}catch(e){toast(e.message,1)}}
+async function addCompany(){const name=prompt('Название компании');if(!name)return;try{const r=await api('/api/company',{name,layout:'template'});S.cedit=r.id;await load()}catch(e){toast(e.message,1)}}
+async function delCompany(id){if(!confirm('Удалить компанию? Съёмки и файлы не трогаются.'))return;try{await api('/api/company',{delete:id});S.cedit=null;await load()}catch(e){toast(e.message,1)}}
+function bindSettings(){setTimeout(cPreview,0);const b=$('#saveS');if(b)b.onclick=async()=>{const st={},pr={};document.querySelectorAll('[data-s]').forEach(i=>st[i.dataset.s]=i.value.trim());document.querySelectorAll('[data-p]').forEach(i=>pr[i.dataset.p]=i.value.trim());
+ try{await api('/api/settings',Object.keys(pr).length?{settings:st,profile:pr}:{settings:st});toast('Сохранено');await load()}catch(e){toast(e.message,1)}}}
 async function setS(k,v){try{await api('/api/settings',{settings:{[k]:v}});await load()}catch(e){toast(e.message,1)}}
+async function setAvatar(file){let data='';if(file){data=await new Promise((res,rej)=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas'),n=320,k=Math.max(img.width,img.height)>n?n/Math.max(img.width,img.height):1;c.width=img.width*k;c.height=img.height*k;c.getContext('2d').drawImage(img,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.85))};img.onerror=()=>rej(Error('Не удалось прочитать изображение'));img.src=URL.createObjectURL(file)})}
+ try{await api('/api/settings',{settings:{},profile:{avatar:data}});await load();toast(data?'Фото обновлено':'Фото убрано')}catch(e){toast(e.message,1)}}
+function resetDlg(){const t=S.sess?.session?.title||'съёмку';
+ $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg" style="max-width:480px"><h2>Начать заказ заново?</h2>
+ <p class="mut" style="line-height:1.6">«${esc(t)}»: будут сброшены <b>все</b> ручные изменения — выбранные и снятые кадры, подтверждения детей, исправленные роли, разделители. Комплекты соберутся автоматически, как сразу после импорта.</p>
+ <p class="mut" style="line-height:1.6">Фото на диске и ведомость не трогаются. Если нужно заменить ведомость или папку — удалите съёмку и импортируйте заново.</p>
+ <div class="row" style="justify-content:space-between;gap:8px;margin-top:16px"><button class="btn danger" onclick="closeL();delSess('${S.sid}')">Удалить съёмку…</button><div class="row" style="gap:8px"><button class="btn" onclick="closeL()">Отмена</button><button class="btn pri" onclick="doReset()">Начать заново</button></div></div></div></div>`}
+async function doReset(){closeL();try{clearTimeout(S.saveT);S.pending=null;await api('/api/reset',{session:S.sid});S.sess=null;S.pi=0;await load();if(S.page==='shoot')go('shoot');toast('Заказ собран заново с нуля')}catch(e){toast(e.message,1)}}
 async function delSess(id){if(!confirm('Убрать съёмку из каталога? Файлы на диске останутся.'))return;await api('/api/delete',{session:id});if(S.sid===id){S.sid='';S.sess=null}await load()}
 // ---------- import
-function importDlg(){S.imode=S.imode||'general';const school=S.imode==='school';
- const f=(id,l,ph='',pick)=>`<div class="f"><label>${l}</label><div class="row"><input id="${id}" placeholder="${ph}">${pick?`<button class="btn" onclick="pick('${id}','${pick}')">Обзор…</button>`:''}</div></div>`;
- $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Новая съёмка</h2>
- <div class="seg"><button class="${school?'':'on'}" onclick="S.imode='general';importDlg()">Обычная съёмка</button><button class="${school?'on':''}" onclick="S.imode='school';importDlg()">Школьный заказ</button></div>
+function companyPick(){const cs=S.cfg.companies||[];if(!S.icomp){try{S.icomp=localStorage.getItem('lumio.company')}catch(e){}}if(!cs.some(c=>c.id===S.icomp))S.icomp=cs[0]?.id;
+ return `<div class="f"><label>Компания</label><div class="cpick">${cs.map(c=>`<button class="${c.id===S.icomp?'on':''}" onclick="S.icomp='${c.id}';try{localStorage.setItem('lumio.company','${c.id}')}catch(e){};importDlg()"><b>${esc(c.name)}</b><span>${c.layout==='vypusk'?`полная школьная структура · ${c.kit_min}–${c.kit_max} кадров`:c.layout==='sort'?'всё без брака: RAW + JPEG по видам, ведомость не нужна':`простая структура · ${c.kit_min}–${c.kit_max} кадров`}</span></button>`).join('')}</div></div>`}
+function importDlg(){const env=curEnv();const sortEnv=env.layout==='sort';S.icomp=env.id;if(sortEnv)S.imode='school';S.imode=S.imode||'school';const school=S.imode==='school';
+ const f=(id,l,ph='',pick)=>`<div class="f"><label for="${id}">${l}</label><div class="row"><input id="${id}" placeholder="${ph}">${pick?`<button class="btn" onclick="pick('${id}','${pick}')">Обзор…</button>`:''}</div></div>`;
+ const envLine=`<div class="envline"><span class="envd sm" style="background:${env.color}">${esc(env.name[0])}</span>Среда: <b>${esc(env.name)}</b><span class="mut">— переключается слева вверху</span></div>`;
+ const body=sortEnv?`${envLine}${f('i_src','Карта памяти или папка со съёмкой','E:\\DCIM','dir')}<div class="two">${f('i_school','Школа','Школа 2044')}${f('i_date','Дата съёмки','если пусто — из кадров')}</div>
+  <p class="mut">Ведомость не нужна. Все кадры встанут лентой по времени, брак уберётся сам. Вы расставите разделители — Портреты, Групповые, Общая, Педагоги — и нажмёте «Залить на Яндекс.Диск».</p>`
+ :`${envLine}<div class="segw"><button class="${school?'':'on'}" onclick="S.imode='general';importDlg()">Обычная съёмка</button><button class="${school?'on':''}" onclick="S.imode='school';importDlg()">Школьный заказ</button></div>
  ${f('i_src','Папка с исходниками (RAW и/или JPEG)','D:\\DCIM\\100MSDCF','dir')}${f('i_title','Название','Например: Свадьба Анны и Ильи')}
- ${school?`${f('i_students','Ведомость учеников — Excel или CSV (ФИО, Виньетка, Портрет 1, Портрет 2, Друг 1, Друг 2)','','csv')}${f('i_teachers','Учителя — Excel или CSV (ФИО, Должность, Начало, Конец), необязательно','','csv')}<div class="two">${f('i_order','Номер заказа')}${f('i_school','Школа')}${f('i_date','Дата','09.10.2026')}${f('i_class','Класс','9Л')}</div>`:f('i_loc','Локация — необязательно')}
- <p class="mut">${school?'Номера из ведомости подставятся сами: у каждого ребёнка две секции (портреты и друзья), 5 кадров отмечены ★. При экспорте они переименуются: «Фамилия Имя_», «ЛР_», «ЛС_», «Друг1_», «Друг2_».':'Кадры разобьются на серии по паузам между снимками. Программа отметит брак и предложит лучшие кадры каждой серии.'} Исходные файлы не изменяются.</p>
- <div id="i_prog"></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn ghost" onclick="closeL()">Отмена</button><button class="btn pri" id="i_go" onclick="doImport()">Импортировать</button></div></div></div>`;
- const keep=S.ivals||{};Object.entries(keep).forEach(([k,v])=>{const e=$('#'+k);if(e)e.value=v});document.querySelectorAll('.dlg input').forEach(i=>i.oninput=()=>{(S.ivals=S.ivals||{})[i.id]=i.value})}
-async function pick(id,kind){try{const r=await api('/api/pick',{kind});if(r.path){$('#'+id).value=r.path;(S.ivals=S.ivals||{})[id]=r.path}}catch(e){toast(e.message,1)}}
-const closeL=()=>$('#layer').innerHTML='';
+ ${school?`${f('i_students','Ведомость — Excel или CSV: фамилия, имя и 5 номеров. Учителя — строками «учителя» или на листе «Учителя»','','csv')}<div id="i_ws"></div>${f('i_teachers','Отдельный файл учителей — только если учителей нет в ведомости','','csv')}<div class="two">${f('i_order','Номер заказа')}${f('i_school','Школа')}${f('i_date','Дата','09.10.2026')}${f('i_class','Класс','9Л')}</div>`:f('i_loc','Локация — необязательно')}
+ <p class="mut">${school?'Номера из ведомости подставятся сами, комплект соберётся автоматически.':'Кадры разобьются на серии по паузам между снимками.'} Исходные файлы не изменяются.</p>`;
+ $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Новая съёмка</h2>${body}
+ <div id="i_prog"></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn ghost" onclick="closeL()">Отмена</button><button class="btn pri" id="i_go" onclick="doImport()">${sortEnv?'Загрузить с карты':'Импортировать'}</button></div></div></div>`;
+ const keep=S.ivals||{};Object.entries(keep).forEach(([k,v])=>{const e=$('#'+k);if(e)e.value=v});document.querySelectorAll('.dlg input').forEach(i=>i.oninput=()=>{(S.ivals=S.ivals||{})[i.id]=i.value});const ws=$('#i_students');if(ws){ws.onchange=wsCheck;if(ws.value)wsCheck()}}
+async function pick(id,kind){try{const r=await api('/api/pick',{kind});if(r.path){$('#'+id).value=r.path;(S.ivals=S.ivals||{})[id]=r.path;if(id==='i_students')wsCheck()}}catch(e){toast(e.message,1)}}
+async function wsCheck(){const el=$('#i_ws'),path=($('#i_students')?.value||'').trim();if(!el)return;if(!path){el.innerHTML='';return}
+ el.innerHTML='<div class="mut" style="margin:-4px 0 12px">Читаю ведомость…</div>';
+ try{const r=await api('/api/worksheet',{path});const m=r.meta||{};const fill=[['i_order',m.order],['i_school',m.school],['i_class',m.class_name],['i_date',m.date]];
+  const filled=[];fill.forEach(([id,v])=>{const e=$('#'+id);if(e&&v&&!e.value.trim()){e.value=v;(S.ivals=S.ivals||{})[id]=v;filled.push(id)}});
+  el.innerHTML=`<div class="warn okb" style="margin:-4px 0 12px;line-height:1.55"><b>Найдено: ${r.students} учеников${r.teachers?`, ${r.teachers} учителей`:''}</b>${r.sheets.length>1?` · листы: ${r.sheets.map(esc).join(', ')}`:''}<br>
+  ${r.sample.length?`<span style="color:var(--muted)">${r.sample.map(esc).join(', ')}…</span><br>`:''}
+  ${filled.length?`<span style="color:var(--muted)">Из шапки подставлено: ${[m.order&&'договор '+esc(m.order),m.school&&'учреждение '+esc(m.school),m.class_name&&'класс '+esc(m.class_name)].filter(Boolean).join(', ')}</span><br>`:''}
+  ${r.unsure?`<span style="color:var(--warn)">Ячеек с пометкой «неуверенно»: ${r.unsure} — программа покажет их при отборе</span>`:''}${r.no_numbers?`<br><span style="color:var(--muted)">Без номеров: ${r.no_numbers} (будут пропущены)</span>`:''}</div>`}
+ catch(e){el.innerHTML=`<div class="warn err" style="margin:-4px 0 12px">${esc(e.message)}</div>`}}
+const closeL=()=>{$('#layer').innerHTML='';S.pal=null};
 async function doImport(){const v=id=>($('#'+id)?.value||'').trim();const body={source:v('i_src'),title:v('i_title'),location:v('i_loc')};
- if(S.imode==='school')Object.assign(body,{students:v('i_students'),teachers:v('i_teachers'),order:v('i_order'),school:v('i_school'),date:v('i_date'),class_name:v('i_class')});
- if(!body.source)return toast('Укажите папку',1);if(S.imode==='school'&&!body.students)return toast('Укажите ведомость учеников',1);
+ if(S.imode==='school')Object.assign(body,{company:S.icomp,students:v('i_students'),teachers:v('i_teachers'),order:v('i_order'),school:v('i_school'),date:v('i_date'),class_name:v('i_class')});
+ const comp=curEnv();if(comp.layout==='sort')Object.assign(body,{company:comp.id,school:v('i_school'),date:v('i_date'),title:[v('i_date'),v('i_school')].filter(Boolean).join('. ')});if(!body.source)return toast('Укажите папку',1);if(S.imode==='school'&&!body.students&&comp.layout!=='sort')return toast('Укажите ведомость учеников',1);
  $('#i_go').disabled=true;try{const r=await api('/api/import',body);await watchJob(r.session,'#i_prog');S.ivals={};closeL();S.sid=r.session;localStorage.setItem('fobox.sid',r.session);S.sess=null;S.sec=0;await load();go('shoot')}catch(e){$('#i_prog').innerHTML=`<div class="warn err" style="margin:0">${esc(e.message)}</div>`;$('#i_go').disabled=false}}
 async function watchJob(id,el){for(;;){const j=await api('/api/job?id='+id);const pc=j.total?Math.round(j.done/j.total*100):5;if($(el))$(el).innerHTML=`<div class="mut">${esc(j.stage||'')} ${j.total?`${j.done} / ${j.total}`:''}</div><div class="prog"><span style="width:${pc}%"></span></div>`;if(j.error)throw Error(j.error);if(j.finished)return;await new Promise(r=>setTimeout(r,400))}}
-// ---------- review
-async function openSess(id){S.sid=id;localStorage.setItem('fobox.sid',id);S.sess=null;S.sec=0;go('shoot')}
-async function renderShoot(){const m=$('#main');if(!S.sid){m.innerHTML='<div class="page">'+head('Текущая съёмка','')+onboarding()+'</div>';return}
- if(!S.sess||S.sess.session.id!==S.sid){m.innerHTML='<div class="page mut">Загрузка…</div>';try{S.sess=await api('/api/session?id='+S.sid);S.fmap=Object.fromEntries(S.sess.files.map(f=>[f.path,f]));loadSec()}catch(e){S.sid='';localStorage.removeItem('fobox.sid');m.innerHTML='<div class="page">'+empty(esc(e.message))+'</div>';return}}
+// ---------- review: one person = one page (portraits + friends together)
+const ROLEKEYS={'1':'V','2':'P1','3':'P2','4':'D1','5':'D2'};
+const GLAB={portrait:'Портреты / виньетка',friends:'Фото с друзьями',teacher:'Портреты учителя',series:'Кадры серии'};
+async function openSess(id){await flush();S.sid=id;try{localStorage.setItem('fobox.sid',id)}catch(e){}S.sess=null;S.pi=0;S.undo=[];go('shoot')}
+async function renderShoot(){const m=$('#main');if(!S.sid){m.innerHTML='<div class="page">'+head('Текущая съёмка','')+guideHTML(nextStep())+onboarding()+'</div>';return}
+ if(!S.sess||S.sess.session.id!==S.sid){m.innerHTML='<div class="page"><div class="skel" style="height:40px;width:40%"></div><div class="skel" style="height:420px;margin-top:16px"></div></div>';try{await reloadSess()}catch(e){S.sid='';try{localStorage.removeItem('fobox.sid')}catch(_){}m.innerHTML='<div class="page">'+empty(esc(e.message))+'</div>';return}}
  drawShoot()}
-function loadSec(){const s=S.sess.sections[S.sec];S.sel=new Set(S.sess.selected[s.id]||[]);S.dirty=false}
-function secState(s){if(S.sess.approved[s.id])return'ok';return (S.sess.selected[s.id]||[]).length?'part':''}
-function drawShoot(){const d=S.sess,ss=d.session,s=d.sections[S.sec];const done=d.sections.filter(x=>d.approved[x.id]).length;const school=ss.mode==='school';
- const files=s.files.map(p=>S.fmap[p]).filter(Boolean);const flagged=files.filter(f=>f.flags);
- const list=S.tab==='kit'?files.filter(f=>S.sel.has(f.path)):S.tab==='bad'?flagged:files;
- const must=s.mandatory,sug=new Set(d.suggested[s.id]||[]);
- $('#main').innerHTML=`<div class="rv"><div class="rv-side"><div class="rv-head"><div style="font-weight:600">${esc(ss.title)}</div><div class="mut">${school?`Заказ ${esc(ss.order_no||'—')} · ${esc(ss.class_name||'')} · `:''}${fmt(d.files.length)} кадров</div>
- <div class="meter" style="margin:10px 0 4px"><span style="width:${done/d.sections.length*100}%"></span></div><div class="mut">Подтверждено ${done} из ${d.sections.length}</div>
- <div class="row" style="margin-top:10px"><select style="flex:1" onchange="openSess(this.value)">${S.stats.sessions.map(x=>`<option value="${x.id}" ${x.id===S.sid?'selected':''}>${esc(x.title)}</option>`).join('')}</select></div></div>
- <div class="secs">${d.sections.map((x,i)=>`<button class="sec ${i===S.sec?'on':''}" onclick="pickSec(${i})"><div class="t"><span style="display:flex"><span class="dot ${secState(x)}"></span>${esc(x.title)}</span><span class="mut">${(d.selected[x.id]||[]).length}</span></div><div class="s" style="padding-left:15px">${esc(x.subtitle)}</div></button>`).join('')}</div>
- <div style="padding:10px;border-top:1px solid var(--line);display:grid;gap:6px"><button class="btn pri" onclick="exportDlg()">Экспорт заказа…</button><button class="btn" onclick="reanalyze()">Перепроверить качество</button></div></div>
- <div class="rv-main"><div class="bar"><div><div style="font-size:18px;font-weight:600">${esc(s.title)} <span class="mut" style="font-size:14px;font-weight:400">${esc(s.subtitle)}</span></div><div class="mut">${S.sel.size} выбрано из ${files.length}${Object.keys(must).length?' · ★ обязательные из ведомости':''}${s.limit?` · максимум ${s.limit}`:''}</div></div>
- <div class="row"><div class="tabs">${[['kit','Комплект',S.sel.size],['all','Все кадры',files.length],['bad','На проверку',flagged.length]].map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';drawShoot()">${t} ${n}</button>`).join('')}</div>
- <select title="Размер плиток" onchange="document.documentElement.style.setProperty('--tile',this.value)"><option value="150px">S</option><option value="190px" selected>M</option><option value="260px">L</option></select></div></div>
- ${d.conflicts.length?`<div class="warn">Ведомость: ${esc(d.conflicts.slice(0,4).join('; '))}${d.conflicts.length>4?'…':''}. Экспорт заблокирован, пока ведомость не исправлена и съёмка не импортирована заново.</div>`:''}
- ${d.absent&&d.absent.length?`<div class="warn" style="background:var(--card2);color:var(--muted)">Без номеров в ведомости (пропущены, экспорт не мешают): ${esc(d.absent.join(', '))}</div>`:''}
- ${!d.pillow?'<div class="warn">Проверка качества выключена — установите Pillow: <kbd>py -m pip install pillow</kbd></div>':''}
- ${files.filter(f=>must[f.path]&&f.flags).map(f=>`<div class="warn">Обязательный кадр ${esc(f.name)} (${ALAB[must[f.path]]||must[f.path]}) помечен как «${esc(f.flags.split(',').map(x=>d.flag_names[x]).join(', '))}». Проверьте ведомость.</div>`).join('')}
- <div class="grid" id="grid">${list.length?list.map(f=>tile(f,must,sug)).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div>
- <div class="foot"><div class="mut">Клик — выбрать · двойной клик — крупно · <kbd>←</kbd><kbd>→</kbd> секции · <kbd>Enter</kbd> подтвердить</div><div class="row">${S.dirty?'<span class="mut">Есть несохранённые изменения</span>':''}<button class="btn" onclick="save(false)">Сохранить</button><button class="btn pri" onclick="save(true)">${d.approved[s.id]&&!S.dirty?'Подтверждено ✓':'Подтвердить и дальше'}</button></div></div></div></div>`}
-function tile(f,must,sug){const on=S.sel.has(f.path),m=must[f.path];const fl=f.flags?f.flags.split(',').map(x=>S.sess.flag_names[x]).join(', '):'';
- return `<div class="tile ${on?'on':'ctx'}" tabindex="0" data-p="${esc(f.path)}" onclick="tog(this)" ondblclick="lightbox(this.dataset.p)"><div class="im" style="${f.has_preview?`background-image:url('/api/preview?s=${S.sid}&p=${encodeURIComponent(f.path)}&size=480')`:''}">${f.has_preview?'':'Нет превью'}</div>
- ${m?`<span class="star" title="Обязательный: ${ALAB[m]||m}">★</span>`:''}${sug.has(f.path)?'<span class="sug" title="Предложено автоотбором">авто</span>':''}${fl?`<span class="flag">${esc(fl)}</span>`:''}<span class="chk"></span>
- <div class="cap"><b>${esc(f.name)}</b><span>${m?ALAB[m]||m:f.capture_at.slice(11,19)}</span></div></div>`}
-function tog(el){const p=el.dataset.p,s=S.sess.sections[S.sec];if(s.mandatory[p]){toast('Обязательный кадр из ведомости — его нельзя снять');return}
- if(S.sel.has(p))S.sel.delete(p);else{if(s.limit&&S.sel.size>=s.limit)return toast('Максимум '+s.limit+' кадров');S.sel.add(p)}
- S.dirty=true;el.classList.toggle('on',S.sel.has(p));el.classList.toggle('ctx',!S.sel.has(p));if(S.tab==='kit')drawShoot();else{const b=$('.bar .mut');if(b)b.firstChild.textContent=S.sel.size+' выбрано из '+s.files.length}}
-function pickSec(i){if(S.dirty&&!confirm('Есть несохранённые изменения. Перейти без сохранения?'))return;S.sec=i;loadSec();drawShoot();$('#grid').scrollTop=0}
-async function save(approved){const s=S.sess.sections[S.sec];try{await api('/api/review',{session:S.sid,section:s.id,selected:[...S.sel],approved});S.sess.selected[s.id]=[...S.sel];S.sess.approved[s.id]=approved;S.dirty=false;
- if(approved){toast('Подтверждено: '+s.title);const nx=S.sess.sections.findIndex((x,i)=>i>S.sec&&!S.sess.approved[x.id]);const any=nx<0?S.sess.sections.findIndex(x=>!S.sess.approved[x.id]):nx;if(any>=0){S.sec=any;loadSec()}else toast('Все секции подтверждены — можно экспортировать')}else toast('Сохранено');drawShoot();S.stats=await api('/api/stats')}catch(e){toast(e.message,1)}}
-function lightbox(p){const f=S.fmap[p];if(!f.has_preview)return;$('#layer').innerHTML=`<div class="lb" onclick="closeL()"><img src="/api/preview?s=${S.sid}&p=${encodeURIComponent(p)}&size=1800"><div>${esc(f.name)} · ${f.capture_at}${f.flags?' · '+esc(f.flags.split(',').map(x=>S.sess.flag_names[x]).join(', ')):''} · серия ${f.series}</div></div>`}
-async function reanalyze(){$('#layer').innerHTML=`<div class="modal"><div class="dlg"><h2>Проверка качества</h2><div id="ra"></div></div></div>`;try{await api('/api/reanalyze',{session:S.sid});await watchJob(S.sid,'#ra');closeL();S.sess=null;await load()}catch(e){closeL();toast(e.message,1)}}
-function exportDlg(){const ss=S.sess.session,meta=JSON.parse(ss.meta||'{}');const school=ss.mode==='school';
- $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Экспорт</h2><p class="mut">Подтверждённые кадры копируются в новую папку. Исходники не трогаются, существующие файлы не перезаписываются.</p>
- <div class="f"><label>Папка для экспорта</label><div class="row"><input id="e_out" value="${esc(meta.output||'')}" placeholder="F:\\FOBOX_EXPORT"><button class="btn" onclick="pick('e_out','dir')">Обзор…</button></div></div>
- ${school?`<div class="f"><label>Фон (один файл, необязательно)</label><div class="row"><input id="e_bg" value="${esc(meta.background||'')}" placeholder="Полный путь к файлу фона"><button class="btn" onclick="pick('e_bg','file')">Обзор…</button></div></div>`:''}
- <div id="e_info"></div><div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn ghost" onclick="closeL()">Закрыть</button><button class="btn" onclick="exp(true)">Проверить</button><button class="btn pri" onclick="exp(false)">Копировать</button></div></div></div>`}
-async function exp(dry){const out=$('#e_out').value.trim(),info=$('#e_info');try{const meta={session:S.sid,output:out};if($('#e_bg'))meta.background=$('#e_bg').value.trim();await api('/api/meta',meta);
- if(!dry&&!confirm('Скопировать выбранные файлы?'))return;const r=await api('/api/export',{session:S.sid,output:out,dry_run:dry});
- info.innerHTML=`<div class="warn" style="margin:0;background:#37c08a1f;color:var(--ok)">${dry?'Готово к экспорту':'Скопировано'}: ${r.files} файлов, ${(r.bytes/1048576).toFixed(1)} МБ${dry?` · свободно ${(r.free/1073741824).toFixed(1)} ГБ`:''}<br><span style="word-break:break-all">${esc(r.root)}</span></div>`;if(!dry){S.sess=null;S.stats=await api('/api/stats')}}catch(e){info.innerHTML=`<div class="warn err" style="margin:0">${esc(e.message)}</div>`}}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')return closeL();if(S.page!=='shoot'||!S.sess||$('#layer').innerHTML||/INPUT|SELECT/.test(e.target.tagName))return;
- if(e.key==='ArrowRight'&&e.altKey===false&&!e.target.classList.contains('tile')){pickSec(Math.min(S.sec+1,S.sess.sections.length-1))}
- else if(e.key==='ArrowLeft'&&!e.target.classList.contains('tile')){pickSec(Math.max(S.sec-1,0))}
- else if(e.key==='Enter'){e.preventDefault();save(true)}else if(e.key===' '&&e.target.classList.contains('tile')){e.preventDefault();tog(e.target)}});
+function buildPeople(){setTimeout(()=>{if(S.people&&S.people.length===1&&S.people[0].kind==='timeline'&&S.tab==='kit'&&!S._tlInit){S._tlInit=1;S.tab='all';drawShoot()}},0);const d=S.sess,out=[],idx={};const ord={group:2,reportage:3,teacher:1};d.sections.forEach((x,i)=>{const k=x.person||x.id;if(!(k in idx)){idx[k]=out.length;out.push({key:k,title:x.title,kind:x.kind,secs:[]})}out[idx[k]].secs.push(i)});const CO={portrait:0,group:1,common:2,teacher:3,skip:4};const cat=P=>d.sections[P.secs[0]].category;
+ out.sort((a,b)=>(a.kind==='cat'&&b.kind==='cat')?(CO[cat(a)]-CO[cat(b)])||(a.secs[0]-b.secs[0]):(ord[a.kind]||0)-(ord[b.kind]||0));S.people=out}
+const CATS=[['portrait','1'],['group','2'],['common','3'],['teacher','4'],['skip','0']];
+const catLabel=k=>{const c=(S.cfg.companies||[]).find(x=>x.id===S.sess?.session.company)||{};return k==='skip'?'Не включать':(c['cat_'+k]||k)};
+async function setCat(cat){const P=curP();const x=S.sess.sections[P.secs[0]];if(x.kind!=='cat')return;await flush();
+ try{await api('/api/category',{session:S.sid,section:x.id,cat});await reloadSess(P.key);drawShoot();toast(`${x.title}: ${catLabel(cat)}`)}catch(e){toast(e.message,1)}}
+async function reloadSess(keepKey){const k=keepKey||S._restoreKey||S.people?.[S.pi]?.key;S._restoreKey=null;S.sess=await api('/api/session?id='+S.sid);S.fmap=Object.fromEntries(S.sess.files.map(f=>[f.path,f]));buildPeople();
+ const i=k?S.people.findIndex(p=>p.key===k):-1;S.pi=i>=0?i:Math.min(S.pi||0,Math.max(0,S.people.length-1));S.undo=S.undo||[];loadPerson()}
+function loadPerson(){const P=S.people[S.pi];S.sels={};S.dsel={};if(!P)return;P.secs.forEach(i=>{const x=S.sess.sections[i];S.sels[x.id]=new Set(S.sess.selected[x.id]||[]);S.dsel[x.id]=new Set((S.sess.dups||{})[x.id]||[])});S.sec=P.secs[0];S.fi=0}
+const hasDups=x=>x&&x.dup_limit!=null;
+const mainCount=x=>[...S.sels[x.id]].filter(p=>!S.dsel[x.id].has(p)).length;
+const curP=()=>S.people[S.pi];const curSec=()=>S.sess.sections[S.sec];
+const secOf=p=>{const P=curP();return P?P.secs.find(i=>S.sess.sections[i].files.includes(p)||S.sess.sections[i].mandatory[p]):undefined};
+function setSaveState(t,cls){const e=$('#savest');if(e){e.textContent=t;e.className='savest '+(cls||'')}}
+function scheduleSave(si){const x=S.sess.sections[si];S.sess.selected[x.id]=[...S.sels[x.id]];(S.sess.dups=S.sess.dups||{})[x.id]=[...S.dsel[x.id]];if(S.sess.approved[x.id]){S.sess.approved[x.id]=false}
+ (S.pending=S.pending||{})[x.id]={sel:[...S.sels[x.id]],dups:[...S.dsel[x.id]]};setSaveState('Сохранение…');clearTimeout(S.saveT);S.saveT=setTimeout(flush,500)}
+async function flush(){clearTimeout(S.saveT);const p=S.pending;if(!p||!Object.keys(p).length)return;S.pending=null;
+ try{for(const [id,v] of Object.entries(p))await api('/api/review',{session:S.sid,section:id,selected:v.sel,dups:v.dups,approved:false});setSaveState('Сохранено','ok')}catch(e){setSaveState('Не сохранено','bad');toast(e.message,1)}}
+function pushUndo(si){const x=S.sess.sections[si];(S.undo=S.undo||[]).push({id:x.id,sel:[...S.sels[x.id]],dups:[...S.dsel[x.id]],pk:curP().key});if(S.undo.length>200)S.undo.shift()}
+async function undo(){const u=(S.undo||[]).pop();if(!u)return toast('Нечего отменять');await flush();const pi=S.people.findIndex(p=>p.key===u.pk);if(pi<0)return;
+ if(pi!==S.pi){S.pi=pi;loadPerson()}const si=S.sess.sections.findIndex(x=>x.id===u.id);S.sels[u.id]=new Set(u.sel);S.dsel[u.id]=new Set(u.dups||[]);scheduleSave(si);drawShoot();toast('Отменено')}
+const UNS={V:'Виньетка',P1:'ЛР',P2:'ЛС',D1:'Друг 1',D2:'Друг 2',T:'Номер портрета',Name:'ФИО',Role:'Должность'};
+const unsMsg=(k,t)=>k==='Note'?`Примечание в ведомости: «${t}»`:`${UNS[k]||k} в ведомости прочитан неуверенно${t?': «'+t+'»':''} — сверьте с листком`;
+function secIssues(x){const d=S.sess,out=[];if(x.person){const pre=x.title+', ';const c=d.conflicts.filter(t=>t.startsWith(pre));if(c.length)out.push(...c)}
+ Object.entries(x.unsure||{}).forEach(([k,t])=>out.push(unsMsg(k,t)));
+ // a worksheet frame that only looks like its neighbour ("Дубль") is fine — only real defects count
+ Object.entries(x.mandatory).forEach(([p,k])=>{const f=S.fmap[p];const fl=f&&f.flags?f.flags.split(',').filter(y=>y!=='dup'):[];if(fl.length)out.push(`${ALAB[k]||k}: ${fl.map(y=>d.flag_names[y]).join(', ')} — проверьте кадр`)});return out}
+function personIssues(P){return P.secs.flatMap(i=>secIssues(S.sess.sections[i]))}
+function personThumb(P){const d=S.sess;for(const k of['V','P1','P2','T','D1','D2'])for(const i of P.secs){const x=d.sections[i];const p=Object.keys(x.mandatory).find(q=>x.mandatory[q]===k);if(p&&S.fmap[p]?.has_preview)return p}
+ const x=d.sections[P.secs[0]];const sel=(d.selected[x.id]||[]).filter(p=>!((d.dups||{})[x.id]||[]).includes(p));return sel.find(p=>S.fmap[p]?.has_preview)||x.files.find(p=>S.fmap[p]?.has_preview)}
+const pDone=P=>P.secs.every(i=>S.sess.approved[S.sess.sections[i].id]);
+const pCount=P=>P.secs.reduce((a,i)=>a+(S.sels&&curP()===P?S.sels[S.sess.sections[i].id].size:(S.sess.selected[S.sess.sections[i].id]||[]).length),0);
+// ---------- sidebar: people with a face preview
+function segSide(){const P=curP(),x=S.sess.sections[P.secs[0]];const pos={};x.files.forEach((p,i)=>pos[p]=i);const dv=x.dividers||[];
+ return `<div class="sh">Части съёмки <span>${dv.length}</span></div>`+dv.map((v,k)=>{const a=pos[v.path],b=k+1<dv.length?pos[dv[k+1].path]:x.files.length;const fs=x.files.slice(a,b);const inc=fs.filter(p=>S.sels[x.id].has(p)).length;
+  return `<button class="pr seg cat-${v.cat}" onclick="segGo('${esc(v.path).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')"><span class="pth" data-bg="${prevURL(v.path,160)}"></span><span class="pt"><b>${esc(x.labels[v.cat])}</b><span class="mut">${v.cat==='skip'?'не войдут':inc+' из '+fs.length+' кадров'} · ${S.fmap[v.path]?.capture_at.slice(11,16)||''}</span></span><span class="segbar"></span></button>`}).join('')+
+  `<p class="mut" style="padding:10px;line-height:1.5;font-size:12px">Наведите на первый кадр новой части и нажмите <kbd>1</kbd> Портреты, <kbd>2</kbd> Групповые, <kbd>3</kbd> Общая, <kbd>4</kbd> Педагоги, <kbd>0</kbd> не включать.</p>`}
+function segGo(path){S.tab='all';const el=document.getElementById('seg-'+path.replace(/[^a-zA-Z0-9]/g,'_'));if(el)el.scrollIntoView({block:'start',behavior:'smooth'});else{drawShoot();setTimeout(()=>segGo(path),50)}}
+function sideHTML(){const d=S.sess;if(S.people.length===1&&S.people[0].kind==='timeline')return segSide();const q=(S.q||'').trim().toLowerCase();
+ const rows=S.people.map((P,pi)=>[P,pi]).filter(([P])=>!q||P.title.toLowerCase().includes(q));
+ const KG=P=>P.kind==='cat'?'cat:'+d.sections[P.secs[0]].category:P.kind==='teacher'?'t':P.kind==='series'?'s':(P.kind==='group'||P.kind==='reportage')?'g':'c';let lastKind='';const hdr=P=>{const k=KG(P);if(k===lastKind)return'';lastKind=k;const n=S.people.filter(Q=>KG(Q)===k).length;return k==='s'?'':`<div class="sh">${k.startsWith('cat:')?esc(catLabel(k.slice(4))):{t:'Учителя',c:'Ученики',g:'Общие кадры'}[k]} <span>${n}</span></div>`};
+ return rows.map(([P,pi])=>{const th=personThumb(P);const iss=personIssues(P);const done=pDone(P);const x0=d.sections[P.secs[0]];const sub=x0.kind==='cat'?`${x0.time} · ${(d.selected[x0.id]||[]).length} из ${x0.files.length} кадров`:hasDups(x0)?`${(d.selected[x0.id]||[]).length-((d.dups||{})[x0.id]||[]).length} из ${x0.main_limit} · дублей ${((d.dups||{})[x0.id]||[]).length}`:P.kind==='teacher'?d.sections[P.secs[0]].subtitle:P.secs.map(i=>{const x=d.sections[i];return `${x.kind==='friends'?'друзья':x.kind==='portrait'?'портреты':x.subtitle} ${(d.selected[x.id]||[]).length}`}).join(' · ');
+  return hdr(P)+`<button class="pr ${pi===S.pi?'on':''}" onclick="pickPerson(${pi})"><span class="pth" ${th?`data-bg="${prevURL(th,160)}"`:''}></span><span class="pt"><b>${esc(P.title)}</b><span class="mut">${esc(sub)}</span></span>${iss.length?`<span class="iss" title="${esc(iss.join('\n'))}">!</span>`:''}<span class="st ${done?'ok':''}">${done?'✓':''}</span></button>`}).join('')||'<div class="mut" style="padding:12px">Никого не найдено</div>'}
+function refreshSide(){const e=$('#secs');if(e){const t=e.scrollTop;e.innerHTML=sideHTML();e.scrollTop=t;e.querySelectorAll('[data-bg]').forEach(el=>{const im=new Image();im.onload=()=>el.style.backgroundImage=`url('${el.dataset.bg}')`;im.src=el.dataset.bg})}
+ const d=S.sess,done=S.people.filter(pDone).length;const m=$('#prog');if(m)m.innerHTML=`<div class="meter"><span style="width:${done/Math.max(1,S.people.length)*100}%"></span></div><div class="mut" style="margin-top:6px">Готово ${done} из ${S.people.length}</div>`}
+// ---------- main
+function prevURL(p,sz){return `/api/preview?s=${S.sid}&p=${encodeURIComponent(p)}&size=${sz}`}
+function timelineView(){const d=S.sess,P=curP(),si=P.secs[0],x=d.sections[si];const F=p=>S.fmap[p];const sel=S.sels[x.id];
+ const pos={};x.files.forEach((p,i)=>pos[p]=i);const divs=x.dividers||[];const groups=[];
+ divs.forEach((dv,k)=>{const a=pos[dv.path],b=k+1<divs.length?pos[divs[k+1].path]:x.files.length;const fs=x.files.slice(a,b).map(F).filter(Boolean);
+  const inc=fs.filter(f=>sel.has(f.path)).length;const list=S.tab==='kit'?fs.filter(f=>sel.has(f.path)):S.tab==='bad'?fs.filter(f=>!sel.has(f.path)):fs;
+  groups.push({title:x.labels[dv.cat]||dv.cat,divider:dv,first:k===0,si,meta:dv.cat==='skip'?`${fs.length} кадров не войдут в заказ`:`${inc} из ${fs.length} кадров · ${fs[0]?.capture_at.slice(11,16)}–${fs[fs.length-1]?.capture_at.slice(11,16)}`,items:list.map(f=>({f,si}))})});
+ S.flat=groups.flatMap(g=>g.items);return groups}
+async function setDivider(path,cat){await flush();try{await api('/api/divider',{session:S.sid,path,cat});const k=curP().key;await reloadSess(k);drawShoot();const i=S.flat.findIndex(y=>y.f.path===path);if(i>=0)focusTile(i);toast(cat?'Разделитель: '+(S.sess.sections[curP().secs[0]].labels[cat]||cat):'Разделитель убран')}catch(e){toast(e.message,1)}}
+function divMenu(btn){const el=btn.closest('.tile'),p=el.dataset.p,x=S.sess.sections[+el.dataset.s];closeMenu();const m=document.createElement('div');m.className='menu';m.id='rmenu';const isDiv=(x.dividers||[]).some(d=>d.path===p);
+ m.innerHTML=`<div class="h">Начать с этого кадра</div>`+CATS.map(([k,key])=>`<button data-c="${k}"><span>${esc(x.labels[k])}</span><kbd>${key}</kbd></button>`).join('')+(isDiv&&x.files[0]!==p?`<button class="bad" data-c="-"><span>Убрать разделитель</span><kbd>Del</kbd></button>`:'');
+ m.querySelectorAll('button').forEach(b=>b.onclick=()=>{closeMenu();setDivider(p,b.dataset.c==='-'?null:b.dataset.c)});document.body.append(m);
+ const r=btn.getBoundingClientRect();m.style.left=Math.max(8,Math.min(r.left,innerWidth-m.offsetWidth-10))+'px';m.style.top=Math.max(8,Math.min(r.bottom+4,innerHeight-m.offsetHeight-10))+'px';setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
+function personView(){const d=S.sess,P=curP();if(P.kind==='timeline')return timelineView();const RO={V:0,P1:1,P2:2,D1:3,D2:4,T:0};const groups=[];
+ const secs=P.secs.map(si=>({si,x:d.sections[si]}));const F=(p)=>S.fmap[p];
+ if(S.tab==='kit'){const why=(x,p)=>(d.reasons[x.id]||{})[p];
+  const ws=[];secs.forEach(({si,x})=>Object.keys(x.mandatory).forEach(p=>{if(F(p))ws.push({f:F(p),si,o:RO[x.mandatory[p]]})}));ws.sort((a,b)=>a.o-b.o);
+  const ext=(filter)=>{const out=[];secs.forEach(({si,x})=>[...S.sels[x.id]].forEach(p=>{if(!x.mandatory[p]&&F(p)&&filter(x,p))out.push({f:F(p),si})}));return out.sort((a,b)=>a.f.capture_at.localeCompare(b.f.capture_at))};
+  if(P.kind!=='cat'&&(ws.length||!(P.kind==='group'||P.kind==='reportage')))groups.push({title:'Из ведомости',meta:`${ws.length}`,items:ws});
+  if(P.kind==='cat'){groups.length=0;groups.push({title:'Входят в заказ',meta:'',items:ext(()=>true)})}
+  else if(P.kind==='teacher')groups.push({title:'Другие позы',meta:'',items:ext(()=>true)});
+  else if(P.kind==='group'||P.kind==='reportage'){const x=secs[0].x;groups.length=0;
+   groups.push({title:P.kind==='group'?'Общая фотография':'Репортаж',meta:`${mainCount(x)} из ${x.main_limit}`,items:ext((y,p)=>!S.dsel[y.id].has(p))});
+   groups.push({title:'Дубли',meta:`${S.dsel[x.id].size} из ${x.dup_limit} · клавиша D — сделать дублем / основным`,items:ext((y,p)=>S.dsel[y.id].has(p))})}
+  else{groups.push({title:'Дополнительная виньетка',meta:'не больше 3 виньеток вместе с основной',items:ext((x,p)=>x.kind==='portrait'&&why(x,p)==='vignette')});
+   groups.push({title:'Дополнительные портреты',meta:'',items:ext((x,p)=>x.kind==='portrait'&&why(x,p)!=='vignette')});
+   groups.push({title:'Дополнительные фото с друзьями',meta:'',items:ext((x,p)=>x.kind==='friends')})}
+ }else secs.forEach(({si,x})=>{const files=x.files.map(F).filter(Boolean);const list=S.tab==='bad'?files.filter(f=>f.flags&&!x.mandatory[f.path]):files;
+  groups.push({title:GLAB[x.kind]||esc(x.subtitle),si,meta:`${S.sels[x.id].size} выбрано из ${files.length}${x.limit?` · максимум ${x.limit}`:''}${files.length?` · ${files[0].name} – ${files[files.length-1].name}`:''}`,items:list.map(f=>({f,si}))})});
+ S.flat=groups.flatMap(g=>g.items);return groups}
+function drawShoot(){const d=S.sess,ss=d.session,P=curP();if(!P){$('#main').innerHTML='<div class="page">'+empty('В съёмке нет людей или серий для отбора')+'</div>';return}
+ const school=ss.mode==='school';const groups=personView();const iss=personIssues(P);const any=P.secs.some(i=>d.sections[i].overridden);
+ const gridTop=$('#grid')?.scrollTop||0,same=S.lastDrawn===P.key+S.tab;S.lastDrawn=P.key+S.tab;
+ const tot=k=>P.secs.reduce((a,si)=>{const x=d.sections[si];const files=x.files.map(p=>S.fmap[p]).filter(Boolean);return a+(k==='all'?files.length:k==='kit'?S.sels[x.id].size:x.kind==='timeline'?files.length-S.sels[x.id].size:files.filter(f=>f.flags&&!x.mandatory[f.path]).length)},0);
+ $('#main').innerHTML=`<div class="rv"><div class="rv-side"><div class="rv-head"><div class="ttl">${esc(ss.title)}</div><div class="mut">${school?`Заказ ${esc(ss.order_no||'—')} · `:''}${fmt(d.files.length)} кадров</div>
+ <div id="prog" style="margin-top:12px"></div><div class="srch"><input id="secq" placeholder="${school?'Найти ребёнка':'Найти серию'}" value="${esc(S.q||'')}" oninput="S.q=this.value;refreshSide()"><kbd>Ctrl K</kbd></div></div>
+ <div class="secs" id="secs"></div>
+ <div class="sidefoot"><button class="btn pri" onclick="exportDlg()">Экспорт заказа…</button><div class="row" style="gap:6px"><button class="btn" style="flex:1" onclick="reanalyze()">Перепроверить</button><button class="btn" style="flex:1" onclick="resetDlg()" title="Сбросить всё, что сделано вручную, и собрать заказ заново">Начать заново</button></div><select onchange="openSess(this.value)" title="Другая съёмка">${S.stats.sessions.map(x=>`<option value="${x.id}" ${x.id===S.sid?'selected':''}>${esc(x.title)}</option>`).join('')}</select></div></div>
+ <div class="rv-main"><div class="crumbs"><a onclick="go('history')">Съёмки</a><span>/</span><b>${ss.title.startsWith(fdate(ss.shoot_date))?esc(ss.title):fdate(ss.shoot_date)+' · '+esc(ss.title)}</b>${school?`<select class="csel" title="Компания: правила комплекта и структура экспорта" onchange="setCompany(this.value)">${(S.cfg.companies||[]).map(c=>`<option value="${c.id}" ${c.id===ss.company?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`:''}<span style="margin-left:auto" class="row"><button class="lnk" onclick="helpDlg()">Клавиши <kbd>?</kbd></button><button class="lnk" onclick="palette()">Поиск <kbd>Ctrl K</kbd></button></span></div>
+ <div class="bar"><div style="min-width:0"><div class="h1">${esc(P.title)}${P.kind==='teacher'?` <span>${esc(d.sections[P.secs[0]].subtitle)}</span>`:P.kind==='cat'?` <span>${esc(d.sections[P.secs[0]].time)}</span>`:''}</div>
+ ${P.kind==='cat'?`<div class="catbar">${CATS.map(([k,key])=>`<button class="${d.sections[P.secs[0]].category===k?'on':''} ${k==='skip'?'skip':''}" onclick="setCat('${k}')">${esc(catLabel(k))} <kbd>${key}</kbd></button>`).join('')}${d.sections[P.secs[0]].overridden?'':'<span class="mut" style="font-size:12px">определено автоматически</span>'}</div>`:''}<div class="mut">${P.kind==='timeline'?`${esc(d.sections[P.secs[0]].subtitle)} · кадры по порядку съёмки, разделители делят их на папки`:`${S.pi+1} из ${S.people.length} · <kbd>[</kbd> <kbd>]</kbd> — предыдущий / следующий`}</div></div>
+ <div class="row"><div class="tabs">${(P.kind==='timeline'?[['all','Вся съёмка',tot('all')],['kit','В заказе',tot('kit')],['bad','Брак и снятые',tot('bad')]]:[['kit',P.kind==='series'?'Отобранные':'Комплект',tot('kit')],['all','Вся серия',tot('all')],['bad','На проверку',tot('bad')]]).map(([k,t,n])=>`<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';S.fi=0;drawShoot()">${t} <b>${n}</b></button>`).join('')}</div>
+ <div class="seg2" title="Размер превью">${[['150px','S'],['200px','M'],['280px','L']].map(([v,t])=>`<button class="${(S.tsize||'200px')===v?'on':''}" onclick="S.tsize='${v}';document.documentElement.style.setProperty('--tile','${v}');drawShoot()">${t}</button>`).join('')}</div></div></div>
+
+ <div class="notes">${iss.length?`<div class="warn">${iss.map(esc).join('<br>')}</div>`:''}${any?`<div class="warn acc"><span>Роли исправлены вручную.</span><button class="btn sm" onclick="setRole(null,null,true)">Вернуть как в ведомости</button></div>`:''}${S.pi===0&&d.absent&&d.absent.length?`<div class="warn info">Без номеров в ведомости (пропущены): ${esc(d.absent.join(', '))}</div>`:''}${!d.pillow?'<div class="warn">Проверка качества выключена — установите Pillow: <kbd>py -m pip install pillow</kbd></div>':''}</div>
+ <div class="grid2" id="grid">${groups.map(g=>(S.tab==='kit'&&!g.items.length&&!g.divider&&g.title!=='Из ведомости'&&g.title!=='Дубли'&&g.title!=='Общая фотография'&&g.title!=='Репортаж')?'':`<section class="grp2" ${g.divider?`id="seg-${esc(g.divider.path).replace(/[^a-zA-Z0-9]/g,'_')}"`:''}><div class="gh2 ${g.divider?'divh cat-'+g.divider.cat:''}">${g.divider?`<span class="divmark"></span>`:''}<b>${g.title}</b><span class="mut">${g.divider?g.meta:S.tab==='kit'?(['Общая фотография','Репортаж','Дубли'].includes(g.title)?g.meta:`${g.items.length}${g.meta&&g.title!=='Из ведомости'?' · '+g.meta:''}`):g.meta}</span></div>
+  ${g.divider?`<div class="divchips">${CATS.map(([k,key])=>`<button class="${g.divider.cat===k?'on':''}" onclick="setDivider('${esc(g.divider.path).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${k}')">${esc(S.sess.sections[g.si].labels[k])} <kbd>${key}</kbd></button>`).join('')}${g.first?'':`<button class="rm" title="Убрать разделитель — кадры присоединятся к предыдущей части" onclick="setDivider('${esc(g.divider.path).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}',null)">× убрать</button>`}</div>`:''}
+  <div class="grid">${g.items.length?g.items.map(it=>tile(it.f,it.si)).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div></section>`).join('')}</div>
+ <div class="foot"><div class="kitsum"><div class="ki">${ico('kit')}</div><div><b id="kitn"></b><div class="mut" id="kitd"></div></div></div>
+ <div class="row"><span class="savest" id="savest"></span>${P.kind==='timeline'?`<button class="btn ghost" onclick="exportDlg()">Экспорт в папку</button><button class="btn pri" id="apbtn" onclick="uploadDlg()">Залить на Яндекс.Диск</button>`:`<button class="btn ghost" onclick="rebuildKit()" title="Собрать комплект заново автоматически">Собрать заново</button><button class="btn ghost" onclick="resetSel()" title="Оставить только кадры из ведомости">Сбросить выбор</button><button class="btn pri" id="apbtn" onclick="approve()">${pDone(P)?'Готово ✓ · дальше':P.kind==='series'?'Подтвердить серию':P.kind==='teacher'?'Подтвердить учителя':P.kind==='cat'?'Проверено · дальше':P.kind==='group'?'Подтвердить общую':P.kind==='reportage'?'Подтвердить репортаж':'Подтвердить ребёнка'} <kbd class="inv">Ctrl ↵</kbd></button>`}</div></div></div></div>`;
+ refreshSide();updCount();setTimeout(coach,600);const g=$('#grid');if(same)g.scrollTop=gridTop;
+ const on=$('#secs .pr.on');if(on&&!same)on.scrollIntoView({block:'nearest'});
+ hydrateSrc()}
+function hydrateSrc(){document.querySelectorAll('#main [data-src]:not(.ld)').forEach(el=>{const im=new Image();im.onload=()=>{el.style.backgroundImage=`url('${el.dataset.src}')`;el.classList.add('ld')};im.src=el.dataset.src})}
+function kitStrip(P){const d=S.sess;const slots=[];P.secs.forEach(si=>{const x=d.sections[si];(x.roles||[]).forEach(k=>{const p=Object.keys(x.mandatory).find(q=>x.mandatory[q]===k);slots.push({k,p,si})})});
+ if(!slots.length)return'';const extra=P.secs.reduce((a,si)=>{const x=d.sections[si];return a+[...S.sels[x.id]].filter(p=>!x.mandatory[p]).length},0);
+ return `<div class="kitbar">${slots.map(s=>{const uns=(d.sections[s.si].unsure||{})[s.k]!==undefined;const key=Object.keys(ROLEKEYS).find(x=>ROLEKEYS[x]===s.k)||'';
+  return s.p?`<button class="slot ${uns?'uns':''}" onclick="jumpTo('${esc(s.p).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" title="${esc(S.fmap[s.p]?.name||'')}${uns?' — прочитан неуверенно':''}"><span class="sth" data-src="${prevURL(s.p,240)}"></span><span class="sl">${s.k==='T'?'Из ведомости':ALAB[s.k]}${uns?' ?':''}</span><span class="sn">${esc((S.fmap[s.p]?.name||'').replace(/\.[^.]+$/,''))}</span></button>`
+  :`<div class="slot empty" title="Выделите нужный кадр и нажмите ${key}"><span class="sth"></span><span class="sl">${ALAB[s.k]}</span><span class="sn">нет кадра${key?` · клавиша ${key}`:''}</span></div>`}).join('')}
+  <div class="slot plus"><span class="pn">+${extra}</span><span class="sl">дополнительных</span><span class="sn">выбраны вами или «авто»</span></div></div>`}
+function jumpTo(p){S.tab='all';const i=S.flat?S.flat.findIndex(x=>x.f.path===p):-1;drawShoot();const fl=S.flat.findIndex(x=>x.f.path===p);if(fl>=0)focusTile(fl)}
+function updCount(){const P=curP();if(!P)return;const d=S.sess;const x0=d.sections[P.secs[0]];
+ if(x0.kind==='timeline'){const kn=$('#kitn'),kd=$('#kitd');const cnt={};x0.files.forEach(p=>{if(S.sels[x0.id].has(p)){const c=x0.cats[p];if(c!=='skip')cnt[c]=(cnt[c]||0)+1}});const n=Object.values(cnt).reduce((a,b)=>a+b,0);
+  if(kn)kn.textContent=`${n} из ${x0.files.length} кадров в заказе`;if(kd)kd.textContent=['portrait','group','common','teacher'].map(k=>`${x0.labels[k]} ${cnt[k]||0}`).join(' · ')+` · брак и снятые: ${x0.files.length-S.sels[x0.id].size}`;return}
+ if(x0.kind==='cat'){const kn=$('#kitn'),kd=$('#kitd');const bad=x0.files.filter(p=>!S.sels[x0.id].has(p)).length;if(kn)kn.textContent=x0.category==='skip'?'Серия не входит в заказ':`${S.sels[x0.id].size} из ${x0.files.length} кадров в заказе`;if(kd)kd.textContent=`${catLabel(x0.category)} · не входит: ${bad} (брак и снятые вами)`;return}
+ if(hasDups(x0)){const kn=$('#kitn'),kd=$('#kitd');if(kn)kn.textContent=P.kind==='group'?`${mainCount(x0)?'Общая выбрана':'Общая не выбрана'}`:`${mainCount(x0)} из ${x0.main_limit} репортажных`;if(kd)kd.textContent=`дублей ${S.dsel[x0.id].size} из ${x0.dup_limit} · D — дубль`;return}
+ let n=0,m=0;P.secs.forEach(si=>{const x=d.sections[si];S.sels[x.id].forEach(p=>{n++;if(x.mandatory[p])m++})});
+ const kn=$('#kitn'),kd=$('#kitd');if(kn)kn.textContent=`${n} фото в комплекте`;if(kd)kd.textContent=(m?`${m} из ведомости · `:'')+`${n-m} дополнительных`+(P.kind==='portrait'?` · обычно ${S.cfg.settings.kit_min}–${S.cfg.settings.kit_max}`:P.kind==='teacher'?' · всего 3–5':'');
+ if(S.tab!=='kit')document.querySelectorAll('.gh2 .mut').forEach((el,i)=>{const x=d.sections[P.secs[i]];if(x)el.textContent=el.textContent.replace(/^\d+ выбрано/,`${S.sels[x.id].size} выбрано`)})}
+function tile(f,si){const x=S.sess.sections[si];const fi=S.flat.findIndex(y=>y.f.path===f.path&&y.si===si);const on=S.sels[x.id].has(f.path),m=x.mandatory[f.path];const uns=m&&(x.unsure||{})[m]!==undefined;
+ const sug=(S.sess.suggested[x.id]||[]).includes(f.path);const fl=f.flags?f.flags.split(',').filter(y=>!((m||hasDups(x))&&y==='dup')).map(y=>S.sess.flag_names[y]).join(', '):'';
+ return `<div class="tile ${on?'on':'ctx'} ${fi===S.fi?'fc':''}" tabindex="-1" data-i="${fi}" data-s="${si}" data-p="${esc(f.path)}" onclick="S.fi=${fi};tog(this)" ondblclick="openViewer(${fi})">${x.kind==='timeline'?`<button class="more" title="Поставить разделитель перед этим кадром" onclick="event.stopPropagation();divMenu(this)">⋯</button>`:(x.roles||[]).length?`<button class="more ${m?'show':''}" title="Роль кадра / не тот человек" onclick="event.stopPropagation();roleMenu(this)">⋯</button>`:''}<div class="im" ${f.has_preview?`data-src="${prevURL(f.path,480)}"`:''}>${f.has_preview?'':'Нет превью'}</div>
+ ${m?`<span class="star ${uns?'uns':''}" title="Из ведомости: ${ALAB[m]||m}${uns?' — прочитан неуверенно':''}">${uns?'?':'★'}</span>`:''}${hasDups(x)&&S.dsel[x.id].has(f.path)?'<span class="dupb">Дубль</span>':''}${fl?`<span class="flag">${esc(fl)}</span>`:''}<span class="chk"></span>
+ <div class="cap"><b>${esc(f.name)}</b><span class="${m?'role':''}">${m?(m==='G'?'Общая':ALAB[m]||m):f.capture_at.slice(11,19)}</span></div></div>`}
+function togDup(p,si){const x=S.sess.sections[si];if(!hasDups(x)||!x.files.includes(p))return false;const sel=S.sels[x.id],ds=S.dsel[x.id];
+ if(ds.has(p)){if(mainCount(x)>=x.main_limit){toast(`Основных уже ${x.main_limit} — сначала снимите один`);return false}pushUndo(si);ds.delete(p)}
+ else{if(ds.size>=x.dup_limit){toast(`Дублей не больше ${x.dup_limit}`);return false}if(x.mandatory[p]){toast('Кадр из ведомости — главный');return false}pushUndo(si);sel.add(p);ds.add(p)}
+ scheduleSave(si);return true}
+function togPath(p,si){const x=S.sess.sections[si];if(!x||!(x.files.includes(p)||x.mandatory[p]))return false;S.sec=si;
+ if(hasDups(x)&&!x.mandatory[p]){const sel=S.sels[x.id],ds=S.dsel[x.id];pushUndo(si);
+  if(sel.has(p)){sel.delete(p);ds.delete(p)}
+  else if(mainCount(x)<x.main_limit)sel.add(p);
+  else if(ds.size<x.dup_limit){sel.add(p);ds.add(p);toast('Основных уже '+x.main_limit+' — добавлен как дубль')}
+  else{S.undo.pop();toast(`Уже ${x.main_limit} основных и ${x.dup_limit} дублей — сначала снимите какой-нибудь`);return false}
+  scheduleSave(si);return true}
+ if(x.mandatory[p]){toast('Кадр из ведомости. Если на нём другой человек — «⋯» → «Не тот человек» (или Delete)');return false}
+ const sel=S.sels[x.id];if(!sel.has(p)&&x.limit&&sel.size>=x.limit){toast('Максимум '+x.limit+' кадров');return false}
+ pushUndo(si);if(sel.has(p))sel.delete(p);else sel.add(p);scheduleSave(si);return true}
+function tog(el){const si=+el.dataset.s;if(!togPath(el.dataset.p,si))return;if(S.tab==='kit')return drawShoot();const on=S.sels[S.sess.sections[si].id].has(el.dataset.p);el.classList.toggle('on',on);el.classList.toggle('ctx',!on);updCount();refreshSide();}
+function focusTile(i){const ts=[...document.querySelectorAll('#grid .tile')];if(!ts.length)return;i=Math.max(0,Math.min(ts.length-1,i));S.fi=i;ts.forEach(t=>t.classList.remove('fc'));const t=ts.find(t=>+t.dataset.i===i)||ts[i];t.classList.add('fc');t.scrollIntoView({block:'nearest'})}
+function moveFocus(k){const ts=[...document.querySelectorAll('#grid .tile')];if(!ts.length)return;const cur=ts.find(t=>+t.dataset.i===(S.fi||0))||ts[0];
+ if(k==='ArrowRight'||k==='ArrowLeft')return focusTile((+cur.dataset.i)+(k==='ArrowRight'?1:-1));
+ const r=cur.getBoundingClientRect(),cx=r.left+r.width/2,dir=k==='ArrowDown'?1:-1;
+ const cand=ts.map(t=>[t,t.getBoundingClientRect()]).filter(([,q])=>dir>0?q.top>r.top+5:q.top<r.top-5);if(!cand.length)return;
+ const rowY=dir>0?Math.min(...cand.map(([,q])=>q.top)):Math.max(...cand.map(([,q])=>q.top));const row=cand.filter(([,q])=>Math.abs(q.top-rowY)<5);
+ const best=row.reduce((a,b)=>Math.abs(b[1].left+b[1].width/2-cx)<Math.abs(a[1].left+a[1].width/2-cx)?b:a);focusTile(+best[0].dataset.i)}
+async function pickPerson(pi){await flush();if(pi<0||pi>=S.people.length)return;S.pi=pi;S.tab=S.people[pi].kind==='timeline'?'all':'kit';loadPerson();drawShoot();$('#grid').scrollTop=0}
+function pickSec(i){const pi=S.people.findIndex(P=>P.secs.includes(i));if(pi>=0)return pickPerson(pi)}
+async function approve(){await flush();const P=curP();try{for(const si of P.secs){const x=S.sess.sections[si];await api('/api/review',{session:S.sid,section:x.id,selected:[...S.sels[x.id]],dups:hasDups(x)?[...S.dsel[x.id]]:undefined,approved:true});S.sess.selected[x.id]=[...S.sels[x.id]];S.sess.approved[x.id]=true}
+ const nx=S.people.findIndex((Q,i)=>i>S.pi&&!pDone(Q));const any=nx<0?S.people.findIndex(Q=>!pDone(Q)):nx;
+ if(any>=0){toast('Готово: '+P.title);S.pi=any;loadPerson();S.tab='kit';document.querySelector('.coach')?.remove()}else toast('Все подтверждены — можно собирать заказ');drawShoot();api('/api/stats').then(x=>S.stats=x)}catch(e){toast(e.message,1)}}
+async function setCompany(cid){const c=(S.cfg.companies||[]).find(x=>x.id===cid);if(!confirm(`Перевести съёмку в «${c.name}»? Правила комплекта и структура экспорта поменяются. Комплекты, которые вы правили, останутся как есть.`)){drawShoot();return}
+ await flush();try{await api('/api/set-company',{session:S.sid,company:cid});await reloadSess(curP()?.key);drawShoot();toast('Компания: '+c.name)}catch(e){toast(e.message,1)}}
+async function rebuildKit(){const P=curP();await flush();try{await api('/api/rebuild',{session:S.sid,sections:P.secs.map(i=>S.sess.sections[i].id)});await reloadSess(P.key);S.tab='kit';drawShoot();toast('Комплект собран заново')}catch(e){toast(e.message,1)}}
+function resetSel(){const P=curP();let ch=false;P.secs.forEach(si=>{const x=S.sess.sections[si];const keep=Object.keys(x.mandatory);if(S.sels[x.id].size!==keep.length){pushUndo(si);S.sels[x.id]=new Set(keep);scheduleSave(si);ch=true}});
+ if(!ch)return toast('В комплекте только кадры из ведомости');drawShoot();toast('Выбор сброшен · Ctrl+Z — вернуть')}
+function reviewGuide(P,iss){try{if(localStorage.getItem('fobox.guide.off')==='1')return''}catch(e){}const d=S.sess;
+ const g=(cls,ic,t,sub,btn)=>`<div class="guide ${cls}" style="padding:9px 12px"><div class="ic" style="width:28px;height:28px">${ic}</div><div><div class="gt" style="font-size:13px">${t}</div>${sub?`<div class="gs">${sub}</div>`:''}</div><div class="row">${btn||''}</div></div>`;
+ const conf=P.secs.flatMap(i=>{const x=d.sections[i];return x.person?d.conflicts.filter(t=>t.startsWith(x.title+', ')):[]});
+ if(conf.length){const k=Object.entries(ALAB).find(([key,l])=>conf[0].includes(', '+l+':'));const key=k?Object.keys(ROLEKEYS).find(x=>ROLEKEYS[x]===k[0]):'';
+  return g('warnc','!',esc(conf[0]),`Найдите правильный кадр, выделите его и нажмите ${key?`<kbd>${key}</kbd>`:'«⋯» → «Сделать …»'}. Или исправьте ведомость и импортируйте заново.`)}
+ const left=S.people.filter(Q=>!pDone(Q)).length;
+ if(!left)return g('okc','✓','Все подтверждены','Осталось собрать заказ — копии уйдут в новую папку.',`<button class="btn pri sm" onclick="exportDlg()">Экспорт заказа</button>`);
+ if(pDone(P))return g('','→',`Готово. Осталось ${left}`,'',`<button class="btn pri sm" onclick="approve()">К следующему</button>`);
+ return g('','→',P.kind==='teacher'?'Оставьте 3–5 кадров в разных позах и нажмите «Подтвердить учителя»':'Проверьте кадры и нажмите «Подтвердить ребёнка»',`Осталось: ${left}. ★ — кадры из ведомости. Клик — выбрать, двойной клик — крупно.`)}
+function coach(){try{if(localStorage.getItem('fobox.coach')==='1'||localStorage.getItem('fobox.guide.off')==='1')return}catch(e){return}const b=$('#apbtn');if(!b||$('.coach'))return;const r=b.getBoundingClientRect();
+ const c=document.createElement('div');c.className='coach';c.innerHTML='Здесь вся серия ребёнка: портреты и фото с друзьями, ★ — кадры из ведомости. Поправьте выбор кликом и нажмите здесь. Всё сохраняется само.<br><button>Понятно</button>';
+ c.style.right=(innerWidth-r.right)+'px';c.style.bottom=(innerHeight-r.top+10)+'px';c.querySelector('button').onclick=()=>{try{localStorage.setItem('fobox.coach','1')}catch(e){}c.remove()};document.body.append(c)}
+// ---------- role menu
+function roleMenu(btn){const el=btn.closest('.tile');roleMenuAt(el.dataset.p,+el.dataset.s,btn.getBoundingClientRect())}
+function roleMenuAt(p,si,r){const x=S.sess.sections[si],cur=x.mandatory[p];closeMenu();const m=document.createElement('div');m.className='menu';m.id='rmenu';
+ m.innerHTML=`<div class="h">${esc(S.fmap[p].name)}</div>`+x.roles.filter(k=>k!==cur).map(k=>`<button data-r="${k}"><span>Сделать: ${k==='T'?'фото из ведомости':ALAB[k]}${Object.values(x.mandatory).includes(k)?' <span class="mut">(заменить)</span>':''}</span><kbd>${Object.keys(ROLEKEYS).find(y=>ROLEKEYS[y]===k)||''}</kbd></button>`).join('')+(cur?`<button class="bad" data-r=""><span>Не тот человек — снять ${ALAB[cur]}</span><kbd>Del</kbd></button>`:'');
+ m.querySelectorAll('button').forEach(b=>b.onclick=()=>{closeMenu();setRole(p,b.dataset.r||null,false,si)});document.body.append(m);
+ m.style.left=Math.max(8,Math.min(r.left,innerWidth-m.offsetWidth-10))+'px';m.style.top=Math.max(8,Math.min(r.bottom+4,innerHeight-m.offsetHeight-10))+'px';
+ setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
+function closeMenu(){const m=$('#rmenu');if(m)m.remove()}
+async function setRole(path,role,reset,si){const P=curP();if(reset){try{await flush();for(const i of P.secs){const x=S.sess.sections[i];if(x.overridden)await api('/api/role',{session:S.sid,section:x.id,reset:true})}await reloadSess(P.key);drawShoot();toast('Роли как в ведомости')}catch(e){toast(e.message,1)}return}
+ si=si??secOf(path);const x=S.sess.sections[si];if(!x)return;
+ if(role&&!(x.roles||[]).includes(role)){const other=P.secs.find(i=>(S.sess.sections[i].roles||[]).includes(role));return toast(other!==undefined?`${ALAB[role]} назначается кадру из блока «${GLAB[S.sess.sections[other].kind]}»`:`Здесь нет роли ${ALAB[role]}`)}
+ if(!role&&!x.mandatory[path])return toast('Это не кадр из ведомости — просто снимите выбор');
+ try{await flush();await api('/api/role',{session:S.sid,section:x.id,path,role:role||null});await reloadSess(P.key);if(S.viewer)renderViewer();else drawShoot();
+ toast(role?'Назначено: '+ALAB[role]:'Снято. Назначьте правильный кадр или оставьте пустым')}catch(e){toast(e.message,1)}}
+// ---------- viewer (loupe / compare)
+function openViewer(i){personView();if(!S.flat.length)return;S.viewer={list:S.flat.map(x=>x.f.path),sis:S.flat.map(x=>x.si),i:Math.max(0,Math.min(i,S.flat.length-1)),zoom:false,cmp:false};renderViewer()}
+function closeViewer(){S.viewer=null;closeL();drawShoot();focusTile(S.fi)}
+function renderViewer(){const v=S.viewer;if(!v)return;personView();v.list=S.flat.map(x=>x.f.path);v.sis=S.flat.map(x=>x.si);if(!v.list.length)return closeViewer();v.i=Math.min(v.i,v.list.length-1);
+ const p=v.list[v.i],si=v.sis[v.i],x=S.sess.sections[si],f=S.fmap[p];const m=x.mandatory[p],on=S.sels[x.id].has(p);
+ const q=v.cmp&&v.list[v.i+1]?[[p,si],[v.list[v.i+1],v.sis[v.i+1]]]:[[p,si]];
+ $('#layer').innerHTML=`<div class="vw"><div class="vtop"><div class="vt"><b>${esc(curP().title)}</b> <span class="mut">${GLAB[x.kind]||esc(x.subtitle)}</span></div>
+ <div class="row" style="gap:6px">${q.length>1?'<span class="pill">Сравнение</span>':''}<span class="mut">${v.i+1} / ${v.list.length}</span><button class="btn sm" onclick="vCmp()">Сравнить <kbd>C</kbd></button><button class="btn sm" onclick="vZoom()">${v.zoom?'Вписать':'100%'} <kbd>Z</kbd></button><button class="btn sm" onclick="closeViewer()">Закрыть <kbd>Esc</kbd></button></div></div>
+ <div class="vstage ${v.zoom?'zoom':''} ${q.length>1?'two':''}">${q.map(([y,ysi],j)=>{const fx=S.fmap[y],yx=S.sess.sections[ysi],mx=yx.mandatory[y];return `<figure class="vf ${S.sels[yx.id].has(y)?'on':''}" onclick="${j?'vGo(1)':'vZoom(event)'}"><img src="${prevURL(y,v.zoom?2048:1800)}" alt="" draggable="false"><figcaption>${mx?`<span class="rb">★ ${ALAB[mx]}</span>`:''}${S.sels[yx.id].has(y)?'<span class="sb">✓ В комплекте</span>':''} ${esc(fx.name)} · ${fx.capture_at.slice(11)}${fx.flags?` · <span style="color:var(--bad)">${esc(fx.flags.split(',').map(z=>S.sess.flag_names[z]).join(', '))}</span>`:''}</figcaption></figure>`}).join('')}</div>
+ <button class="vnav l" onclick="vGo(-1)" aria-label="Предыдущий">‹</button><button class="vnav r" onclick="vGo(1)" aria-label="Следующий">›</button>
+ <div class="vbar"><div class="row" style="gap:8px"><button class="btn ${on?'pri':''}" onclick="vTog()">${on?'✓ В комплекте':'Выбрать'} <kbd class="${on?'inv':''}">Пробел</kbd></button>
+ ${(x.roles||[]).map(k=>`<button class="btn sm ${m===k?'pri':''}" onclick="vRole('${k}')">${k==='T'?'Фото из ведомости':ALAB[k]} <kbd class="${m===k?'inv':''}">${Object.keys(ROLEKEYS).find(y=>ROLEKEYS[y]===k)||''}</kbd></button>`).join('')}
+ ${m?`<button class="btn sm danger" onclick="vNotThis()">Не тот человек <kbd>Del</kbd></button>`:''}</div>
+ <div class="strip" id="strip">${v.list.map((y,j)=>`<img class="${j===v.i?'cur':''} ${S.sels[S.sess.sections[v.sis[j]].id].has(y)?'on':''}" src="${prevURL(y,320)}" loading="lazy" onclick="S.viewer.i=${j};renderViewer()" alt="">`).join('')}</div></div></div>`;
+ const c=$('#strip .cur');if(c)c.scrollIntoView({inline:'center',block:'nearest'});[v.list[v.i+1],v.list[v.i+2],v.list[v.i-1]].filter(Boolean).forEach(y=>{const im=new Image();im.src=prevURL(y,1800)})}
+function vGo(dl){const v=S.viewer;v.i=Math.max(0,Math.min(v.list.length-1,v.i+dl));S.fi=v.i;renderViewer()}
+function vTog(){const v=S.viewer;if(togPath(v.list[v.i],v.sis[v.i])){refreshSide();renderViewer()}}
+function vRole(k){const v=S.viewer;setRole(v.list[v.i],k,false,v.sis[v.i])}
+function vZoom(e){S.viewer.zoom=!S.viewer.zoom;renderViewer();if(S.viewer.zoom&&e){const st=$('.vstage'),fig=st.querySelector('img');if(fig){fig.onload=()=>{const r=st.getBoundingClientRect();st.scrollLeft=(e.clientX-r.left)/r.width*fig.width-r.width/2;st.scrollTop=(e.clientY-r.top)/r.height*fig.height-r.height/2}}}}
+function vCmp(){S.viewer.cmp=!S.viewer.cmp;S.viewer.zoom=false;renderViewer()}
+function vNotThis(){const v=S.viewer;setRole(v.list[v.i],null,false,v.sis[v.i])}
+// ---------- command palette, help
+function palette(){S.pal={q:'',i:0};closeMenu();$('#layer').innerHTML=`<div class="modal top" onclick="if(event.target===this)closeL()"><div class="pal"><input id="palq" placeholder="Ребёнок, серия или команда…" autocomplete="off"><div id="pall"></div><div class="palf"><span><kbd>↑↓</kbd> выбрать</span><span><kbd>Enter</kbd> открыть</span><span><kbd>Esc</kbd> закрыть</span></div></div></div>`;
+ const i=$('#palq');i.oninput=()=>{S.pal.q=i.value;S.pal.i=0;palDraw()};i.focus();palDraw()}
+function palItems(){const q=S.pal.q.trim().toLowerCase();const it=[];
+ if(S.sess&&S.page==='shoot')S.people.forEach((P,i)=>it.push({t:P.title,s:(P.kind==='teacher'?S.sess.sections[P.secs[0]].subtitle:P.kind==='series'?'серия':'ученик')+(pDone(P)?' · ✓':''),k:P.kind==='teacher'?'Учитель':P.kind==='series'?'Серия':'Ребёнок',run:()=>{closeL();pickPerson(i)}}));
+ [['Экспорт заказа…','Проверка и копирование',()=>{closeL();if(S.page!=='shoot')go('shoot');setTimeout(exportDlg,50)}],['Новая съёмка','Импорт папки',()=>importDlg()],['Перепроверить качество','С текущими порогами',()=>{closeL();reanalyze()}],['Начать заказ заново','Сбросить все ручные изменения',()=>{closeL();resetDlg()}],['Отменить последнее действие','Ctrl+Z',()=>{closeL();undo()}],['Горячие клавиши','?',()=>helpDlg()]].forEach(([t,s,run])=>it.push({t,s,k:'Команда',run}));
+ PAGES.forEach(([k,t])=>it.push({t,s:'Перейти',k:'Экран',run:()=>{closeL();go(k)}}));
+ return q?it.filter(x=>(x.t+' '+x.s).toLowerCase().includes(q)):it}
+function palDraw(){const it=palItems();S.pal.items=it;S.pal.i=Math.min(S.pal.i,Math.max(0,it.length-1));$('#pall').innerHTML=it.slice(0,60).map((x,i)=>`<div class="pi ${i===S.pal.i?'on':''}" onmousemove="if(S.pal.i!==${i}){S.pal.i=${i};palDraw()}" onclick="S.pal.items[${i}].run()"><span><b>${esc(x.t)}</b> <span class="mut">${esc(x.s)}</span></span><span class="pk">${x.k}</span></div>`).join('')||'<div class="mut" style="padding:14px">Ничего не найдено</div>';const c=$('#pall .on');if(c)c.scrollIntoView({block:'nearest'})}
+function helpDlg(){const rows=[['Сетка',[['← ↑ → ↓','перейти между кадрами'],['Пробел или P','выбрать / снять'],['Enter','открыть крупно'],['1 2 3','Виньетка, ЛР, ЛС'],['4 5','Друг 1, Друг 2'],['Delete','«не тот человек» для кадра со ★'],['Ctrl + Enter','подтвердить ребёнка и дальше'],['[  ]','предыдущий / следующий ребёнок'],['D','дубль ↔ основной (общая, репортаж)'],['Ctrl + Z','отменить']]],['Крупный просмотр',[['← →','листать'],['Пробел','выбрать / снять'],['1–5, Delete','роли, как в сетке'],['Z или клик','увеличение 100%'],['C','сравнить с соседним'],['Esc','закрыть']]],['Везде',[['Ctrl + K или /','поиск ребёнка и команд'],['?','эта подсказка']]]];
+ $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg wide"><h2 style="font-size:18px">Горячие клавиши</h2><div class="keys">${rows.map(([h,r])=>`<div><div class="kh">${h}</div>${r.map(([k,t])=>`<div class="kr"><span>${k.split(' ').map(x=>x==='+'||x==='или'||x===','?`<span class="mut">${x}</span>`:`<kbd>${x}</kbd>`).join(' ')}</span><span>${t}</span></div>`).join('')}</div>`).join('')}</div><div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeL()">Понятно</button></div></div></div>`}
+// ---------- quality, export with preflight
+async function reanalyze(){await flush();$('#layer').innerHTML=`<div class="modal"><div class="dlg"><h2>Проверка качества</h2><div id="ra"></div></div></div>`;try{await api('/api/reanalyze',{session:S.sid});await watchJob(S.sid,'#ra');closeL();S.sess=null;await load()}catch(e){closeL();toast(e.message,1)}}
+function preflight(){const d=S.sess;const un=d.sections.map((x,i)=>[x,i]).filter(([x])=>!d.approved[x.id]);const items=[];
+ d.sections.forEach((x,i)=>Object.entries(x.unsure||{}).forEach(([k,t])=>{if(!d.approved[x.id])items.push({lvl:'info',t:`${x.title}: ${unsMsg(k,t)}`,i})}));
+ d.conflicts.forEach(t=>{const i=d.sections.findIndex(x=>x.person&&t.startsWith(x.title+', '));items.push({lvl:'bad',t,i})});
+ un.forEach(([x,i])=>items.push({lvl:'warn',t:`Не подтверждено: ${x.title} — ${x.subtitle}`,i}));
+ d.sections.forEach((x,i)=>Object.entries(x.mandatory).forEach(([p,k])=>{const f=S.fmap[p];if(f&&f.flags)items.push({lvl:'info',t:`${x.title}: ${ALAB[k]} помечен «${f.flags.split(',').map(y=>d.flag_names[y]).join(', ')}» — проверьте`,i})}));
+ return items}
+async function exportDlg(){await flush();const ss=S.sess.session,meta=JSON.parse(ss.meta||'{}');const school=ss.mode==='school';const pf=preflight();const blocking=pf.filter(x=>x.lvl!=='info');
+ const tot=S.sess.sections.reduce((a,x)=>a+(S.sess.selected[x.id]||[]).length,0);
+ $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Экспорт заказа</h2>
+ <div class="pf ${blocking.length?'':'okk'}"><div class="pfh">${blocking.length?`Замечаний: ${blocking.length} — можно собрать сейчас и исправить позже`:'Всё готово к экспорту'}<span class="mut">${tot} кадров выбрано · ${S.sess.sections.length} секций</span></div>
+ ${pf.length?`<div class="pfl">${pf.slice(0,40).map(x=>`<button class="pfi lv-${x.lvl}" ${x.i>=0?`onclick="closeL();pickSec(${x.i})"`:''}><span class="lv"></span>${esc(x.t)}${x.i>=0?'<span class="go">Открыть →</span>':''}</button>`).join('')}${pf.length>40?`<div class="mut" style="padding:6px 10px">и ещё ${pf.length-40}</div>`:''}</div>`:''}</div>
+ <div class="f"><label for="e_out">Папка для экспорта</label><div class="row"><input id="e_out" value="${esc(meta.output||'')}" placeholder="F:\\FOBOX_EXPORT"><button class="btn" onclick="pick('e_out','dir')">Обзор…</button></div></div>
+ ${school?`<div class="f"><label for="e_bg">Фон (один файл, необязательно)</label><div class="row"><input id="e_bg" value="${esc(meta.background||'')}" placeholder="Полный путь к файлу фона"><button class="btn" onclick="pick('e_bg','file')">Обзор…</button></div></div>`:''}
+ <p class="mut" style="margin:0">Копии кладутся в новую папку заказа вместе с отчётом <kbd>_FOBOX_отчёт.csv</kbd>. Исходники не меняются, перезапись запрещена. Повторный экспорт в тот же заказ докопирует только новое.${blocking.length?' Незакрытые замечания сохранятся в <kbd>_FOBOX_замечания.txt</kbd>.':''}</p>
+ <div id="e_info" style="margin-top:12px"></div><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" onclick="closeL()">Закрыть</button><button class="btn" onclick="exp(true)">Проверить место</button><button class="btn pri" id="e_go" onclick="exp(false)">${blocking.length?'Собрать с замечаниями':'Копировать'}</button></div></div></div>`}
+async function exp(dry){const out=$('#e_out').value.trim(),info=$('#e_info');try{const meta={session:S.sid,output:out};if($('#e_bg'))meta.background=$('#e_bg').value.trim();await api('/api/meta',meta);S.sess.session.meta=JSON.stringify({...JSON.parse(S.sess.session.meta||'{}'),output:out});
+ if(dry){const r=await api('/api/export',{session:S.sid,output:out,dry_run:true});info.innerHTML=`<div class="warn okb">${r.update?`Заказ уже собирался — докопируется ${r.new} новых из ${r.files}, остальное на месте. `:''}${r.warnings&&r.warnings.length?`Замечаний: ${r.warnings.length}. `:''}Всего ${r.files} файлов, ${(r.bytes/1048576).toFixed(1)} МБ · свободно ${(r.free/1073741824).toFixed(1)} ГБ<br><span class="path">${esc(r.root)}</span></div>`;return}
+ $('#e_go').disabled=true;const r=await api('/api/export',{session:S.sid,output:out});const t0=Date.now();
+ for(;;){const j=await api('/api/job?id='+encodeURIComponent(r.job));const pc=j.total?j.done/j.total*100:2;const el=(Date.now()-t0)/1000;const eta=j.done&&j.total?Math.round(el/j.done*(j.total-j.done)):null;
+  info.innerHTML=`<div class="mut">${esc(j.stage||'')} ${j.total?`${j.done} из ${j.total}`:''}${j.bytes_total?` · ${(j.bytes_done/1048576).toFixed(0)} из ${(j.bytes_total/1048576).toFixed(0)} МБ`:''}${eta!=null&&j.done<j.total?` · осталось ~${eta<60?eta+' с':Math.ceil(eta/60)+' мин'}`:''}</div><div class="prog"><span style="width:${pc}%"></span></div>`;
+  if(j.error)throw Error(j.error);if(j.finished){const x=j.result;info.innerHTML=`<div class="warn okb"><b>${x.update?`Досборка готова: добавлено ${x.new}, всего в заказе ${x.files} файлов.`:`Готово: скопировано ${x.files} файлов, ${(x.bytes/1048576).toFixed(1)} МБ.`}</b><br><span class="path">${esc(x.root)}</span><div class="row" style="margin-top:10px"><button class="btn pri sm" onclick="openOut()">Открыть папку</button><span class="mut">Отчёт: _FOBOX_отчёт.csv${x.warnings&&x.warnings.length?` · замечаний: ${x.warnings.length} (_FOBOX_замечания.txt)`:''}</span></div></div>`;S.sess.session.status='exported';const g=$('#e_go');if(g){g.disabled=false;g.textContent='Дособрать'};api('/api/stats').then(s=>S.stats=s);return}
+  await new Promise(r=>setTimeout(r,300))}}catch(e){info.innerHTML=`<div class="warn err" style="margin:0">${esc(e.message)}</div>`;const g=$('#e_go');if(g)g.disabled=false}}
+function diskSetup(prefix){const s=S.cfg.settings;const cid=s.yandex_client_id||'';return `<div class="disk">
+ <ol class="mut" style="line-height:1.7;margin:0 0 10px;padding-left:18px"><li>Один раз создайте приложение на <a href="https://oauth.yandex.ru/client/new" target="_blank">oauth.yandex.ru/client/new</a>: платформа «Веб-сервисы», адрес <kbd>https://oauth.yandex.ru/verification_code</kbd>, доступы «Яндекс.Диск REST API» — запись в любом месте и чтение всего Диска.</li><li>Вставьте его ClientID ниже и нажмите «Получить токен» — Яндекс покажет токен, скопируйте его сюда.</li></ol>
+ <div class="f"><label for="${prefix}cid">ClientID приложения</label><div class="row"><input id="${prefix}cid" value="${esc(cid)}" placeholder="например 1a2b3c…"><button class="btn" onclick="getToken('${prefix}')">Получить токен</button></div></div>
+ <div class="f"><label for="${prefix}tok">Токен</label><div class="row"><input id="${prefix}tok" value="${esc(s.yandex_token||'')}" placeholder="y0_…" type="password"><button class="btn" onclick="checkDisk('${prefix}')">Проверить и сохранить</button></div></div><div id="${prefix}st"></div></div>`}
+function getToken(prefix){const cid=$('#'+prefix+'cid').value.trim();if(!cid)return toast('Сначала вставьте ClientID',1);api('/api/settings',{settings:{yandex_client_id:cid}}).catch(()=>{});window.open('https://oauth.yandex.ru/authorize?response_type=token&client_id='+encodeURIComponent(cid),'_blank')}
+async function checkDisk(prefix){const tok=$('#'+prefix+'tok').value.trim(),cid=$('#'+prefix+'cid').value.trim(),st=$('#'+prefix+'st');st.innerHTML='<div class="mut">Проверяю…</div>';
+ try{const r=await api('/api/disk-check',{token:tok});await api('/api/settings',{settings:{yandex_token:tok,yandex_client_id:cid}});S.cfg.settings.yandex_token=tok;S.cfg.settings.yandex_client_id=cid;
+  st.innerHTML=`<div class="warn okb">Подключено: ${esc(r.user||'Яндекс.Диск')}${r.total?` · свободно ${((r.total-r.used)/1073741824).toFixed(0)} ГБ`:''}</div>`;if(prefix==='u_')setTimeout(uploadDlg,600)}catch(e){st.innerHTML=`<div class="warn err">${esc(e.message)}</div>`}}
+async function uploadDlg(){await flush();const has=!!S.cfg.settings.yandex_token;let target='';try{target=(await api('/api/disk-target',{session:S.sid})).target}catch(e){return toast(e.message,1)}
+ const meta=JSON.parse(S.sess.session.meta||'{}');
+ $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg"><h2 style="font-size:18px">Залить на Яндекс.Диск</h2>
+ <div class="dpath">${esc(target.replace('disk:/','Диск / ').split('/').join(' / '))}</div>
+ <p class="mut" style="margin:6px 0 12px">Внутри: RAW — все кадры без брака, JPG — по папкам видов. Файлы идут прямо с карты, ничего не копируется на компьютер. Если заливка прервётся — запустите снова, загруженное пропустится. Папку на Диске и школу/дату можно поменять в Настройки → Компании.</p>
+ ${has?'':diskSetup('u_')}${meta.disk_link?`<div class="warn info">Уже заливалось: <a href="${esc(meta.disk_link)}" target="_blank">${esc(meta.disk_link)}</a></div>`:''}
+ <div id="up_info" style="margin-top:12px"></div><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" onclick="closeL()">Закрыть</button><button class="btn pri" id="up_go" onclick="doUpload()" ${has?'':'disabled'}>Залить</button></div></div></div>`}
+async function doUpload(){const info=$('#up_info');$('#up_go').disabled=true;try{const r=await api('/api/upload',{session:S.sid});const t0=Date.now();
+ for(;;){const j=await api('/api/job?id='+encodeURIComponent(r.job));const pc=j.total?j.done/j.total*100:2;const el=(Date.now()-t0)/1000;const eta=j.done&&j.total?Math.round(el/j.done*(j.total-j.done)):null;
+  info.innerHTML=`<div class="mut">${esc(j.stage||'')} ${j.total?`${j.done} из ${j.total}`:''}${j.bytes_total?` · ${(j.bytes_done/1048576).toFixed(0)} из ${(j.bytes_total/1048576).toFixed(0)} МБ`:''}${eta!=null&&j.done<j.total?` · осталось ~${eta<60?eta+' с':Math.ceil(eta/60)+' мин'}`:''}</div><div class="prog"><span style="width:${pc}%"></span></div>`;
+  if(j.error)throw Error(j.error);if(j.finished){const x=j.result;info.innerHTML=`<div class="warn okb"><b>Готово: залито ${x.uploaded}${x.skipped?`, уже было ${x.skipped}`:''}.</b><br>Ссылка: <span class="path" id="dlink">${esc(x.link)}</span><div class="row" style="margin-top:8px"><button class="btn pri sm" onclick="copyLink()">Скопировать ссылку</button><a class="btn sm" href="${esc(x.link)}" target="_blank">Открыть</a></div>${x.warnings&&x.warnings.length?`<div class="mut" style="margin-top:6px">${x.warnings.map(esc).join('<br>')}</div>`:''}</div>`;$('#up_go').disabled=false;$('#up_go').textContent='Залить ещё раз';S.sess.session.meta=JSON.stringify({...JSON.parse(S.sess.session.meta||'{}'),disk_link:x.link});return}
+  await new Promise(r=>setTimeout(r,500))}}catch(e){info.innerHTML=`<div class="warn err">${esc(e.message)}</div>`;$('#up_go').disabled=false}}
+async function copyLink(){const t=$('#dlink').textContent;try{await navigator.clipboard.writeText(t);toast('Ссылка скопирована')}catch(e){const r=document.createRange();r.selectNodeContents($('#dlink'));getSelection().removeAllRanges();getSelection().addRange(r);toast('Выделено — нажмите Ctrl+C')}}
+async function openOut(){try{await api('/api/open',{session:S.sid})}catch(e){toast(e.message,1)}}
+// ---------- keyboard
+document.addEventListener('keydown',e=>{const k=e.key,mod=e.ctrlKey||e.metaKey;const typing=/INPUT|SELECT|TEXTAREA/.test(e.target.tagName);
+ if(S.pal&&$('#palq')){if(k==='ArrowDown'||k==='ArrowUp'){e.preventDefault();S.pal.i=Math.max(0,Math.min(S.pal.items.length-1,S.pal.i+(k==='ArrowDown'?1:-1)));palDraw()}else if(k==='Enter'){e.preventDefault();const it=S.pal.items[S.pal.i];if(it)it.run()}else if(k==='Escape'){closeL();S.pal=null}return}
+ if(mod&&(k==='k'||k==='K'||k==='л'||k==='Л')){e.preventDefault();palette();return}
+ if(k==='Escape'){if($('#rmenu'))return closeMenu();if(S.viewer)return closeViewer();return closeL()}
+ if(S.viewer){if(k==='ArrowRight'){e.preventDefault();vGo(1)}else if(k==='ArrowLeft'){e.preventDefault();vGo(-1)}else if(k===' '||k==='p'||k==='з'){e.preventDefault();vTog()}
+  else if(k==='z'||k==='я'){vZoom()}else if(k==='c'||k==='с'){vCmp()}else if(ROLEKEYS[k]){vRole(ROLEKEYS[k])}else if(k==='Delete'||k==='Backspace'){vNotThis()}else if(k==='Enter'){closeViewer()}return}
+ if(typing){if(k==='Escape')e.target.blur();return}
+ if($('#layer').innerHTML)return;
+ if(k==='/'){e.preventDefault();palette();return}
+ if(k==='?'){helpDlg();return}
+ if(S.page!=='shoot'||!S.sess)return;
+ if(mod&&(k==='z'||k==='я')){e.preventDefault();undo();return}
+ if(mod&&k==='Enter'){e.preventDefault();approve();return}
+ if(['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(k)){e.preventDefault();moveFocus(k);return}
+ const t=document.querySelector(`#grid .tile[data-i="${S.fi||0}"]`);
+ if(k===' '||k==='p'||k==='з'){e.preventDefault();if(t)t.click();return}
+ if(k==='Enter'){e.preventDefault();openViewer(S.fi||0);return}
+ if(curP()&&curP().kind==='timeline'&&k.length===1&&'01234'.includes(k)&&t){const c=CATS.find(([,key])=>key===k);if(c)setDivider(t.dataset.p,c[0]);return}
+ if(curP()&&curP().kind==='timeline'&&(k==='Delete'||k==='Backspace')&&t){setDivider(t.dataset.p,null);return}
+ if(curP()&&curP().kind==='cat'&&'01234'.includes(k)&&k.length===1){const c=CATS.find(([,key])=>key===k);if(c)setCat(c[0]);return}
+ if(ROLEKEYS[k]&&t){setRole(t.dataset.p,ROLEKEYS[k],false,+t.dataset.s);return}
+ if((k==='d'||k==='D'||k==='в'||k==='В')&&t){if(togDup(t.dataset.p,+t.dataset.s)){drawShoot();focusTile(S.fi)}return}
+ if((k==='Delete'||k==='Backspace')&&t){setRole(t.dataset.p,null,false,+t.dataset.s);return}
+ if(k===']'||k==='PageDown'||k==='ъ'){e.preventDefault();pickPerson(S.pi+1);return}
+ if(k==='['||k==='PageUp'||k==='х'){e.preventDefault();pickPerson(S.pi-1);return}});
+window.addEventListener('beforeunload',()=>{const p=S.pending;if(p&&navigator.sendBeacon)Object.entries(p).forEach(([id,v])=>navigator.sendBeacon('/api/review-beacon',JSON.stringify({session:S.sid,section:id,selected:v.sel,dups:v.dups})))});
+// live update: when program files change the page reloads itself and returns to the same place
+(function(){let build=null,fails=0;
+ try{const st=JSON.parse(sessionStorage.getItem('fobox.place')||'null');if(st){sessionStorage.removeItem('fobox.place');S.page=st.page||S.page;S.sub=st.sub||null;S.tab=st.tab||S.tab;S.atab=st.atab||S.atab;S._restoreKey=st.pk}}catch(e){}
+ setInterval(async()=>{try{const r=await fetch('/api/build',{cache:'no-store'});if(!r.ok)return;const j=await r.json();fails=0;
+  if(build&&j.build!==build){if(typeof flush==='function')await flush();try{sessionStorage.setItem('fobox.place',JSON.stringify({page:S.page,sub:S.sub,tab:S.tab,atab:S.atab,pk:S.people&&S.people[S.pi]&&S.people[S.pi].key}))}catch(e){}location.reload()}
+  build=j.build}catch(e){fails++}},1500)})();
 load().catch(e=>{$('#main').innerHTML='<div class="page">'+empty('Сервер недоступен: '+esc(e.message))+'</div>'});
 </script>
 </body>
