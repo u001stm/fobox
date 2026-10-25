@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS marks (
  PRIMARY KEY(session_id, section_id, file_path));
 CREATE TABLE IF NOT EXISTS dividers (
  session_id TEXT NOT NULL, file_path TEXT NOT NULL, cat TEXT NOT NULL, PRIMARY KEY(session_id, file_path));
+CREATE TABLE IF NOT EXISTS flag_ok (
+ session_id TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY(session_id, path));
 CREATE TABLE IF NOT EXISTS faces (
  session_id TEXT NOT NULL, path TEXT NOT NULL, n INTEGER NOT NULL, meta TEXT, emb BLOB,
  PRIMARY KEY(session_id, path));
@@ -1289,17 +1291,34 @@ class Engine:
             x['closed'] = closed
             x['strangers'] = gone
 
+    def not_defect(self, sid, path, ok=True):
+        """The photographer says «не брак»: the frame loses its defect marks and keeps them off on re-checks."""
+        with self.conn() as c:
+            r = c.execute('SELECT flags FROM files WHERE session_id=? AND path=?', (sid, path)).fetchone()
+            if not r:
+                raise ValueError('Кадр не найден')
+            if ok:
+                c.execute('INSERT OR REPLACE INTO flag_ok VALUES(?,?)', (sid, path))
+                fl = [x for x in (r['flags'] or '').split(',') if x and x not in DEFECTS]
+                c.execute('UPDATE files SET flags=? WHERE session_id=? AND path=?', (','.join(fl) or None, sid, path))
+            else:
+                c.execute('DELETE FROM flag_ok WHERE session_id=? AND path=?', (sid, path))
+            self.event(c, sid, 'review', 'not-defect' if ok else 'defect-again')
+        self.suggest(sid)                 # kits not touched by hand may now use the frame
+        return {'ok': True}
+
     def _mark_noface(self, sid):
         """«Без лица»: nobody's face on the frame while the frames around it have faces — a back, a passer-by,
         a hand over the lens. A far-away group (no face found on the neighbours either) is not marked."""
         F = self._faces(sid)
         with self.conn() as c:
             rows = c.execute('SELECT path, flags, wide FROM files WHERE session_id=? ORDER BY capture_at, name', (sid,)).fetchall()
+            okset = {r_[0] for r_ in c.execute('SELECT path FROM flag_ok WHERE session_id=?', (sid,))}
             for i, r in enumerate(rows):
                 fl = [x for x in (r['flags'] or '').split(',') if x and x != 'noface']
                 p = r['path']
                 # only vertical (portrait) frames: in group photos a missed small face must not make a frame «брак»
-                if p in F and not F[p] and r['wide'] == 0 and not any(x in DEFECTS for x in fl):
+                if p in F and not F[p] and r['wide'] == 0 and p not in okset and not any(x in DEFECTS for x in fl):
                     near = [rows[j]['path'] for j in range(max(0, i - 2), min(len(rows), i + 3)) if j != i]
                     # neighbours with clearly visible faces (portrait / small group scale), not a far-away crowd
                     if sum(1 for q in near if any(f['h'] >= 0.06 for f in F.get(q, []))) >= 2:
@@ -1455,6 +1474,7 @@ class Engine:
                 odd.add(ok[i][0]['path'])
         prev = None
         with self.conn() as c:
+            okset = {r_[0] for r_ in c.execute('SELECT path FROM flag_ok WHERE session_id=?', (sid,))}
             for r, res in results:
                 if not res:
                     c.execute('UPDATE files SET analyzed=0, flags=NULL WHERE session_id=? AND path=?', (sid, r['path']))
@@ -1483,6 +1503,8 @@ class Engine:
                             prev = (r, res)
                     elif not flags:
                         prev = (r, res)
+                if r['path'] in okset:              # «не брак» said by the photographer
+                    flags = [x for x in flags if x not in DEFECTS]
                 c.execute('''UPDATE files SET brightness=?, sharpness=?, clip_hi=?, clip_lo=?, dhash=?,
                              flags=?, analyzed=1, wide=?, detail=? WHERE session_id=? AND path=?''',
                           (res['brightness'], res['detail'], res['clip_hi'], res['clip_lo'], res['dhash'],
@@ -1638,9 +1660,10 @@ class Engine:
             for r in c.execute('SELECT person,key,file_path FROM anchor_overrides WHERE session_id=?', (sid,)):
                 ov[r['person']][r['key']] = r['file_path']
         radius = self.setting('radius', int)
-        # when the card has RAW files, standalone JPEGs are not offered for orders (RAW only)
+        # when the card has RAW files, stray JPEGs (not camera frames) are not offered; a camera frame whose RAW
+        # is missing (deleted, not copied) is still offered as JPEG and marked — a frame is never hidden silently
         if any(f['kind'] == 'raw' for f in files):
-            files = [f for f in files if f['kind'] == 'raw']
+            files = [f for f in files if f['kind'] == 'raw' or f['frame'] is not None]
         out, conflicts = [], []
         if people:
             frames = [f for f in files if f['frame'] is not None]
@@ -2265,7 +2288,9 @@ class Engine:
                 'selected': sel, 'approved': appr, 'absent': absent, 'reasons': reasons, 'dups': dmarks, 'suggested': sugg, 'pillow': Image is not None,
                 'flag_names': FLAG_NAMES,
                 'plan': next((self.plan_check(sid, x) for x in secs if x['kind'] == 'timeline'), []),
-                'faces': self._faces_info(sid, len(files))}
+                'faces': self._faces_info(sid, len(files)),
+                'jpeg_only': [f['name'] for f in files if f['kind'] != 'raw' and f['frame'] is not None]
+                             if any(f['kind'] == 'raw' for f in files) else []}
 
     def review(self, sid, body):
         secs, _ = self.sections(sid)
@@ -2776,7 +2801,7 @@ class Engine:
         """Removes the session from the catalog only. Source files are not touched."""
         with self.conn() as c:
             for t in ('files', 'students', 'selection_events', 'workflow_events', 'ai_suggestions', 'selections', 'approvals',
-                      'anchor_overrides', 'marks', 'dividers', 'series_cat', 'renames'):
+                      'anchor_overrides', 'marks', 'dividers', 'series_cat', 'renames', 'faces', 'flag_ok'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             c.execute('DELETE FROM sessions WHERE id=?', (sid,))
 

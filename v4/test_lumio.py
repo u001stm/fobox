@@ -447,6 +447,22 @@ class EngineTest(unittest.TestCase):
         offered = {p for s in st['sections'] for p in s['files']}
         self.assertFalse(any(p.endswith('.JPG') for p in offered))
 
+    def test_frame_with_lost_raw_is_offered_as_jpeg_and_listed(self):
+        (self.src / 'ABC0111.ARW').unlink()                       # RAW of a worksheet frame disappeared from the card
+        sid = self.school()
+        st = self.e.session(sid)
+        offered = {p for s in st['sections'] for p in s['files'] + list(s['mandatory'])}
+        self.assertIn(str(self.src / 'ABC0111.JPG'), offered)
+        self.assertEqual(st['jpeg_only'], ['ABC0111.JPG'])
+
+    def test_not_defect_survives_recheck(self):
+        sid = self.e.import_folder(self.src)
+        blank = next(f['path'] for f in self.e.session(sid)['files'] if f['name'] == 'ABC0105.ARW')
+        self.e.not_defect(sid, blank)
+        self.e.analyze(sid)
+        f = next(f for f in self.e.session(sid)['files'] if f['path'] == blank)
+        self.assertNotIn('white', f['flags'] or '')
+
     def test_vertical_raw_preview_is_rotated(self):
         d = self.tmp / 'vert'
         d.mkdir()
