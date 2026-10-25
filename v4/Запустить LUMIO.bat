@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title FoboX 4.0
+title LUMIO
 rem Run from the folder of this file, wherever it was unpacked
 cd /d "%~dp0"
 where py >nul 2>nul
@@ -13,5 +13,5 @@ py -3 -c "import PIL" 2>nul || (
   echo Первый запуск: устанавливаю Pillow для проверки качества...
   py -3 -m pip install --quiet --disable-pip-version-check pillow
 )
-py -3 fobox4.py %*
+py -3 lumio.py %*
 if errorlevel 1 pause

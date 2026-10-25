@@ -9,6 +9,7 @@ import hashlib
 import io
 import json
 import mmap
+import os
 import re
 import shutil
 import sqlite3
@@ -38,6 +39,9 @@ DEFAULT_SETTINGS = {
     'series_gap_sec': '90',        # new series when pause between frames is longer
     'radius': '12',                # school mode: frames around worksheet anchors
     'target_per_student': '18',    # school mode: kit size goal incl. the 5 worksheet frames
+    'group_dups': '6',             # common class photo: 1 main frame + this many duplicates (5–7)
+    'report_count': '15',          # reportage: frames in the order
+    'report_dups': '6',            # reportage: extra duplicates (5–7)
     'kit_min': '15',               # automatic kit: at least this many frames when the series has them
     'kit_max': '20',               # automatic kit: never more than this (15–20 incl. the 5 worksheet frames)
     'blur_threshold': '20',        # strongest-edge level below -> "blur"
@@ -81,6 +85,9 @@ CREATE TABLE IF NOT EXISTS selections (
 CREATE TABLE IF NOT EXISTS anchor_overrides (
  session_id TEXT NOT NULL, person TEXT NOT NULL, key TEXT NOT NULL, file_path TEXT NOT NULL,
  at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(session_id, person, key));
+CREATE TABLE IF NOT EXISTS marks (
+ session_id TEXT NOT NULL, section_id TEXT NOT NULL, file_path TEXT NOT NULL, mark TEXT NOT NULL,
+ PRIMARY KEY(session_id, section_id, file_path));
 CREATE TABLE IF NOT EXISTS approvals (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, approved INTEGER NOT NULL,
  at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(session_id, section_id));
@@ -619,7 +626,7 @@ class Engine:
                     raise ValueError('Неизвестная настройка: ' + k)
                 if k == 'accent' and not re.fullmatch(r'#[0-9A-Fa-f]{6}', str(v)):
                     raise ValueError('Цвет в формате #RRGGBB')
-                if k in ('series_gap_sec', 'teacher_gap_sec', 'person_gap_sec', 'radius', 'target_per_student', 'kit_min', 'kit_max', 'dup_distance'):
+                if k in ('series_gap_sec', 'teacher_gap_sec', 'person_gap_sec', 'radius', 'target_per_student', 'kit_min', 'kit_max', 'group_dups', 'report_count', 'report_dups', 'dup_distance'):
                     if not str(v).isdigit() or int(v) <= 0:
                         raise ValueError('Положительное целое число: ' + k)
                 c.execute('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)', (k, str(v)))
@@ -790,8 +797,14 @@ class Engine:
                           (sid, f't{nt}', safe_name(' '.join(r['Name'].split())), 'teacher', json.dumps(anchors, ensure_ascii=False)))
                 nt += 1
                 continue
+            if typ.startswith(('общ', 'груп', 'репорт')):
+                nums = ' '.join(r.get(k, '') for k in ('V', 'P1', 'P2', 'D1', 'D2', 'T')).strip()
+                kind = 'report' if typ.startswith('репорт') else 'group'
+                c.execute('INSERT OR REPLACE INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
+                          (sid, 'x' + kind, r['Name'], kind, json.dumps({'nums': nums}, ensure_ascii=False)))
+                continue
             if typ and not typ.startswith(('учен', 'дет', 'реб', 'stud', 'kid')):
-                continue  # other categories (документы, общая …) are not personal pages
+                continue  # other categories (документы …) are not personal pages
             anchors = {k: r.get(k, '') for k in ('V', 'P1', 'P2', 'D1', 'D2')}
             anchors['unsure'] = unsure
             c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
@@ -963,6 +976,38 @@ class Engine:
                     must.setdefault(f['path'], k)
         return must
 
+    def _common_sections(self, files, frames, people, out, conflicts):
+        """«Общая фотография» and «Репортаж»: frames that belong to nobody's series.
+        Worksheet rows typed «общая» / «репортаж» may give numbers ('612', '640-700', '640 641')."""
+        used = {p for x in out for p in x['files']} | {p for x in out for p in x['mandatory']}
+        free = [f for f in frames if f['path'] not in used]
+        sheet = {p['role']: json.loads(p['anchors'] or '{}').get('nums', '') for p in people if p['role'] in ('group', 'report')}
+        fnum = {f['frame']: f for f in frames if f['frame'] is not None}
+
+        def nums_of(text):
+            out_ = []
+            for a, b in re.findall(r'(\d+)\s*(?:[-–]\s*(\d+))?', text or ''):
+                lo, hi = int(a), int(b or a)
+                out_ += [fnum[n]['path'] for n in range(min(lo, hi), max(lo, hi) + 1) if n in fnum]
+            return out_
+        st = self.settings()
+        res = []
+        g_must = nums_of(sheet.get('group'))[:1]
+        r_range = nums_of(sheet.get('report'))
+        g_files = [f['path'] for f in free] if not g_must else sorted(set(g_must) | {f['path'] for f in free}, key=lambda p: next((f['capture_at'] for f in frames if f['path'] == p), ''))
+        r_files = [p for p in r_range if p not in g_must] if r_range else [f['path'] for f in free]
+        dg, dr = int(st['group_dups']), int(st['report_dups'])
+        if g_files:
+            res.append({'id': 'common', 'title': 'Общая фотография', 'subtitle': f'1 кадр + {dg} дублей', 'kind': 'group',
+                        'person': None, 'files': g_files, 'mandatory': {p: 'G' for p in g_must}, 'limit': 1 + dg,
+                        'main_limit': 1, 'dup_limit': dg, 'roles': [], 'overridden': False, 'unsure': {}})
+        if r_files:
+            n = int(st['report_count'])
+            res.append({'id': 'report', 'title': 'Репортаж', 'subtitle': f'{n} кадров + {dr} дублей', 'kind': 'reportage',
+                        'person': None, 'files': r_files, 'mandatory': {}, 'limit': n + dr,
+                        'main_limit': n, 'dup_limit': dr, 'roles': [], 'overridden': False, 'unsure': {}})
+        return res
+
     def _teacher_series(self, frames, own, anchors_all, gap=None, max_side=10):
         return self._series(frames, own, anchors_all, self.setting('teacher_gap_sec', int) if gap is None else gap, max_side)
 
@@ -1128,6 +1173,7 @@ class Engine:
             for x in out:
                 if x['kind'] == 'teacher':
                     x['files'] = [p for p in x['files'] if tmand.get(p, x['id']) == x['id']]
+            out += self._common_sections(files, frames, people, out, conflicts)
         else:
             by = defaultdict(list)
             for f in files:
@@ -1159,6 +1205,45 @@ class Engine:
             picks.append(best)
             pool.remove(best)
         return picks
+
+    def _pick_common(self, s, info, dup_d, picks_by):
+        """Common photo: the sharpest frame of the longest run of near-identical frames (a group shot is a burst),
+        plus its closest repeats as duplicates. Reportage: diverse frames, plus a few near-repeats as duplicates."""
+        bad = lambda f: any(x and x != 'dup' for x in (f['flags'] or '').split(','))
+        taken = {f['path'] for v in picks_by.values() for f in v}
+        cand = [info[p] for p in s['files'] if p in info and not bad(info[p]) and p not in taken and info[p]['dhash']]
+        cand.sort(key=lambda f: (f['capture_at'], f['name']))
+        if not cand:
+            return [], []
+        if s['kind'] == 'group':
+            must = [info[p] for p in s['mandatory'] if p in info]
+            if must:
+                main = must[0]
+            else:
+                runs, cur = [], [cand[0]]
+                for a, b in zip(cand, cand[1:]):
+                    if hamming(a['dhash'], b['dhash']) <= dup_d + 7:
+                        cur.append(b)
+                    else:
+                        runs.append(cur)
+                        cur = [b]
+                runs.append(cur)
+                run = max(runs, key=len)
+                main = max(run, key=lambda f: f['sharpness'] or 0)
+            rest = sorted((f for f in cand if f['path'] != main['path']), key=lambda f: hamming(f['dhash'], main['dhash']))
+            dups = [f for f in rest if hamming(f['dhash'], main['dhash']) <= dup_d + 12][:s['dup_limit']]
+            return ([] if main['path'] in s['mandatory'] else [main]), dups
+        main = self._pick_diverse(cand, [], s['main_limit'], hard=2)
+        left = [f for f in cand if f not in main]
+        dups = []
+        for m in main:
+            if len(dups) >= s['dup_limit']:
+                break
+            near = min(left, key=lambda f: hamming(f['dhash'], m['dhash']), default=None)
+            if near and hamming(near['dhash'], m['dhash']) <= dup_d + 8:
+                dups.append(near)
+                left.remove(near)
+        return main, dups
 
     def suggest(self, sid):
         """Assemble kits automatically. A child gets 15–20 frames in total, the 5 worksheet frames included:
@@ -1207,7 +1292,7 @@ class Engine:
                             or (f['frame'] < sp[0] and left) or (f['frame'] > sp[1] and right)]
                 return pool
             by_person = defaultdict(list)
-            for s in secs:
+            for s in sorted(secs, key=lambda x: {'group': 1, 'reportage': 2}.get(x['kind'], 0)):
                 by_person[s['person'] or s['id']].append(s)
             for person, group in by_person.items():
                 kinds = {s['kind']: s for s in group}
@@ -1248,12 +1333,25 @@ class Engine:
                     if s['id'] in picks_by:
                         continue
                     chosen = [info[p] for p in s['mandatory'] if p in info]
+                    if s['kind'] in ('group', 'reportage'):
+                        main, dups = self._pick_common(s, info, dup_d, picks_by)
+                        picks_by[s['id']] = main + dups
+                        reason.update({(s['id'], f['path']): 'main' for f in main})
+                        reason.update({(s['id'], f['path']): 'dup' for f in dups})
+                        continue
                     if s['kind'] == 'teacher':
                         picks_by[s['id']] = self._pick_diverse(pool_of(s), chosen, max(0, 5 - len(chosen)), stop=dup_d + 7)
                     else:
                         picks_by[s['id']] = self._pick_diverse(pool_of(s), chosen, max(1, round(len(s['files']) * 0.35)), stop=dup_d + 3)
+            # common photo first, then reportage: they share the free frames
+            order = {'group': 0, 'reportage': 1}
+            secs_sorted = sorted(secs, key=lambda x: order.get(x['kind'], -1))
             for s in secs:
                 picks = picks_by.get(s['id'], [])
+                if s['kind'] in ('group', 'reportage') and s['id'] not in edited and s['id'] not in approved:
+                    c.execute('DELETE FROM marks WHERE session_id=? AND section_id=?', (sid, s['id']))
+                    c.executemany("INSERT INTO marks VALUES(?,?,?,'dup')",
+                                  [(sid, s['id'], f['path']) for f in picks if reason.get((s['id'], f['path'])) == 'dup'])
                 for f in picks:
                     c.execute('INSERT OR IGNORE INTO ai_suggestions VALUES(?,?,?,?)', (sid, s['id'], f['path'], reason.get((s['id'], f['path']), 'extra')))
                 for p in s['mandatory']:   # worksheet frames are always in the kit
@@ -1277,6 +1375,9 @@ class Engine:
             for r in c.execute('SELECT section_id,file_path FROM selections WHERE session_id=?', (sid,)):
                 sel[r['section_id']].append(r['file_path'])
             appr = {r['section_id']: bool(r['approved']) for r in c.execute('SELECT section_id,approved FROM approvals WHERE session_id=?', (sid,))}
+            dmarks = defaultdict(list)
+            for r in c.execute("SELECT section_id,file_path FROM marks WHERE session_id=? AND mark='dup'", (sid,)):
+                dmarks[r['section_id']].append(r['file_path'])
             sugg, reasons = defaultdict(list), defaultdict(dict)
             for r in c.execute('SELECT section_id,file_path,reason FROM ai_suggestions WHERE session_id=?', (sid,)):
                 sugg[r['section_id']].append(r['file_path'])
@@ -1293,7 +1394,7 @@ class Engine:
         slim = [{k: f[k] for k in ('path', 'name', 'capture_at', 'kind', 'frame', 'series', 'flags', 'sharpness', 'brightness', 'analyzed')}
                 | {'has_preview': bool(f['preview'])} for f in files]
         return {'session': dict(s), 'files': slim, 'sections': secs, 'conflicts': conflicts,
-                'selected': sel, 'approved': appr, 'absent': absent, 'reasons': reasons, 'suggested': sugg, 'pillow': Image is not None,
+                'selected': sel, 'approved': appr, 'absent': absent, 'reasons': reasons, 'dups': dmarks, 'suggested': sugg, 'pillow': Image is not None,
                 'flag_names': FLAG_NAMES}
 
     def review(self, sid, body):
@@ -1304,7 +1405,17 @@ class Engine:
         chosen = body.get('selected')
         if not isinstance(chosen, list) or not set(chosen) <= set(s['files']):
             raise ValueError('Неверный набор кадров')
-        if s['limit'] and len(chosen) > s['limit']:
+        dups = body.get('dups')
+        if s.get('dup_limit') is not None:
+            if dups is None:   # caller did not send duplicates: keep the stored marks
+                with self.conn() as c:
+                    dups = [r[0] for r in c.execute("SELECT file_path FROM marks WHERE session_id=? AND section_id=? AND mark='dup'", (sid, s['id']))]
+            dups = [p for p in dups if p in chosen]
+            if len(dups) > s['dup_limit']:
+                raise ValueError(f'Дублей не больше {s["dup_limit"]}')
+            if len(chosen) - len(dups) > s['main_limit']:
+                raise ValueError(f'Основных кадров не больше {s["main_limit"]} — остальные отметьте как дубли (клавиша D)')
+        elif s['limit'] and len(chosen) > s['limit']:
             raise ValueError(f'Максимум {s["limit"]} кадров')
         approve = bool(body.get('approved'))
         if any(p not in chosen for p in s['mandatory']):
@@ -1318,6 +1429,9 @@ class Engine:
                 c.execute('INSERT INTO selection_events(session_id,file_path,actor,action,section_id,at) VALUES(?,?,?,?,?,?)', (sid, p, 'user', 'deselect', s['id'], now()))
             c.execute('DELETE FROM selections WHERE session_id=? AND section_id=?', (sid, s['id']))
             c.executemany('INSERT INTO selections VALUES(?,?,?)', [(sid, s['id'], p) for p in after])
+            if dups is not None:
+                c.execute('DELETE FROM marks WHERE session_id=? AND section_id=?', (sid, s['id']))
+                c.executemany("INSERT INTO marks VALUES(?,?,?,'dup')", [(sid, s['id'], p) for p in dups])
             c.execute('INSERT OR REPLACE INTO approvals(session_id,section_id,approved,at) VALUES(?,?,?,?)', (sid, s['id'], int(approve), now()))
             self.event(c, sid, 'review', ('approve:' if approve else 'save:') + s['id'])
             if approve:
@@ -1437,6 +1551,14 @@ class Engine:
             by_person, subs = defaultdict(set), {}
             mand, roles, teacher_done = {}, {}, set()
             for sec in st['sections']:
+                if sec['kind'] in ('group', 'reportage'):
+                    cat = CATS[2] if sec['kind'] == 'group' else CATS[3]
+                    dset = set(st['dups'].get(sec['id'], []))
+                    for p in sorted(st['selected'].get(sec['id'], []), key=lambda x: files[x]['name'] if x in files else x):
+                        if p in files:
+                            rel = root / cat / ('Дубли' if p in dset else '') / files[p]['name']
+                            add(p, rel, sec['title'], sec['title'], 'дубль' if p in dset else 'основной')
+                    continue
                 key = (sec['person'], sec['kind'] == 'teacher', sec['title'])
                 subs[key] = sec['subtitle']
                 for p in [x for x in st['selected'].get(sec['id'], []) if x in sec['files'] or x in sec['mandatory']]:

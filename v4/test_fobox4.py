@@ -272,7 +272,7 @@ class EngineTest(unittest.TestCase):
         f.write_text('ФИО;В;ЛР;ЛС;Друг1;Друг2\nИванов Иван;110;111;112;;\nОтсутствующий Пётр;;;;;\n', encoding='utf-8')
         sid = self.e.import_folder(self.src, {'students': str(f)})
         st = self.e.session(sid)
-        self.assertEqual([s['id'] for s in st['sections']], ['s0p'])   # no friends section, nothing for the absent child
+        self.assertEqual([s['id'] for s in st['sections'] if s['person']], ['s0p'])   # no friends section, nothing for the absent child
         self.assertEqual(st['absent'], ['Отсутствующий Пётр'])
         self.assertEqual(st['conflicts'], [])
         self.approve_all(sid)
@@ -360,7 +360,7 @@ class EngineTest(unittest.TestCase):
         f.write_text('Иванов Иван;110;111;112;125;999\n', encoding='utf-8')   # 999 is not on the card
         sid = self.e.import_folder(self.src, {'students': str(f), 'order': '1', 'school': 'Ш', 'class_name': '1А'})
         r = self.e.export(sid, self.tmp / 'out')                                # nothing approved, one conflict
-        self.assertEqual(len(r['warnings']), 3)
+        self.assertEqual(len([w for w in r['warnings'] if 'Общая' not in w and 'Репортаж' not in w]), 3)
         root = Path(r['root'])
         self.assertIn('999', (root / '_FOBOX_замечания.txt').read_text(encoding='utf-8-sig'))
         self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
@@ -478,6 +478,50 @@ class EngineTest(unittest.TestCase):
         sel = st['selected'][t['id']]
         self.assertTrue(1 <= len(sel) <= 5)
         self.assertIn(next(iter(t['mandatory'])), sel)
+
+    def test_common_photo_and_reportage(self):
+        """Free frames (nobody's series) become «Общая фотография» (1 + 5–7 duplicates) and «Репортаж» (15 + 5–7)."""
+        from PIL import ImageDraw
+        d = self.tmp / 'card5'
+        d.mkdir()
+        t = datetime(2026, 10, 16, 12, 0, 0)
+        for n in range(100, 160):
+            t += timedelta(seconds=90 if n in (110, 120, 128) else 4)
+            im = Image.new('RGB', (450, 300), (50, 70, 90))
+            dr = ImageDraw.Draw(im)
+            if 120 <= n < 128:            # group burst: same composition, tiny changes
+                for k in range(6):
+                    dr.ellipse([20 + k * 70, 80 + (n % 2), 70 + k * 70, 130], fill=(230, 200, 180))
+            else:                         # reportage / portraits: every frame different
+                k = n % 31
+                dr.ellipse([k * 11, (k * 7) % 200, k * 11 + 90, (k * 7) % 200 + 90], fill=(200, 60 + k * 5, 90))
+                dr.line([0, (k * 37) % 300, 450, 300 - (k * 53) % 300], fill=(255, 255, 255), width=8)
+            ex = Image.Exif()
+            ex.get_ifd(0x8769)[0x9003] = t.strftime('%Y:%m:%d %H:%M:%S')
+            buf = io.BytesIO()
+            im.save(buf, 'JPEG', exif=ex)
+            (d / f'ANT0{n}.JPG').write_bytes(buf.getvalue())
+            (d / f'ANT0{n}.ARW').write_bytes(b'RAW' + bytes([n % 256]))
+        f = self.tmp / 'v.csv'
+        f.write_text('ФИО;В;ЛР;ЛС;Д1;Д2\nИванов Иван;102;104;106;;\nПетров Пётр;112;114;116;;\n', encoding='utf-8')
+        sid = self.e.import_folder(d, {'students': str(f), 'order': '1', 'school': 'Ш', 'class_name': '1А'})
+        st = self.e.session(sid)
+        g = next(x for x in st['sections'] if x['id'] == 'common')
+        r = next(x for x in st['sections'] if x['id'] == 'report')
+        gsel, gdup = st['selected']['common'], st['dups']['common']
+        self.assertEqual(len(gsel) - len(gdup), 1)
+        self.assertTrue(5 <= len(gdup) <= 7, gdup)
+        self.assertTrue(all(120 <= int(Path(p).stem[3:]) < 128 for p in gsel))     # all from the group burst
+        rsel, rdup = st['selected']['report'], st['dups']['report']
+        self.assertEqual(len(rsel) - len(rdup), 15)
+        self.assertTrue(not set(rsel) & set(gsel))
+        self.approve_all(sid)
+        root = Path(self.e.export(sid, self.tmp / 'out')['root'])
+        self.assertEqual(len([x for x in (root / '03_ОБЩАЯ').iterdir() if x.is_file()]), 1)
+        self.assertEqual(len(list((root / '03_ОБЩАЯ' / 'Дубли').iterdir())), len(gdup))
+        self.assertEqual(len([x for x in (root / '04_РЕПОРТАЖ').iterdir() if x.is_file()]), 15)
+        with self.assertRaises(ValueError):                                     # 2 main group photos are not allowed
+            self.e.review(sid, {'section': 'common', 'selected': gsel, 'dups': gdup[1:], 'approved': True})
 
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'

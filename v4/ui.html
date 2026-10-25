@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FoboX 4.0</title>
+<title>LUMIO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-/* Design tokens follow the FoboX 4.0 mockup: blue-black graphite, violet #7738FF, sky #4DB5FF */
+/* LUMIO. Design tokens follow the original mockup: blue-black graphite, violet #7738FF, sky #4DB5FF */
 :root{--bg:#0b0f17;--side:#0d121b;--card:#121823;--card2:#182030;--card3:#1e2738;--line:#1f2838;--line2:#2a3446;--text:#e9ecf4;--muted:#8a94a8;--dim:#5f6a80;
  --accent:#7738FF;--accent-soft:#7738ff24;--blue:#4DB5FF;--ok:#2fd18b;--warn:#f3b44c;--bad:#ff5d70;--gold:#ffc940;
  --c1:#7738FF;--c2:#4DB5FF;--c3:#2fd18b;--c4:#f3b44c;--c5:#ff5d70;--c6:#8a94a8;
@@ -145,6 +145,7 @@ td .tt{display:flex;align-items:center;gap:10px}td .th{width:36px;height:36px;bo
 .tile.on .chk{background:var(--accent);border-color:#fff}.tile.on .chk:after{content:'';width:9px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
 .star{position:absolute;top:7px;left:8px;width:22px;height:22px;border-radius:6px;background:#0008;color:var(--gold);font-size:14px;display:grid;place-items:center}
 .star.uns{background:var(--warn);color:#2a1b00;font-weight:800}
+.dupb{position:absolute;top:9px;left:8px;background:#f3b44ce6;color:#2a1b00;border-radius:6px;font-size:10.5px;padding:2px 7px;font-weight:700}
 .sug{position:absolute;top:9px;left:8px;background:#4db5ffe6;color:#04121f;border-radius:6px;font-size:10.5px;padding:2px 7px;font-weight:600}
 .flag{position:absolute;bottom:38px;left:8px;background:#ff5d70e6;color:#fff;font-size:10.5px;border-radius:6px;padding:2px 7px}
 .other{position:absolute;bottom:38px;left:8px;background:#000b;color:#fff;font-size:10.5px;border-radius:6px;padding:2px 7px}
@@ -238,17 +239,17 @@ const secs=v=>v==null?'—':v<90?Math.round(v)+' с':v<5400?Math.round(v/60)+' �
 function initials(n){return (n||'Ф').split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,2).toUpperCase()}
 function avatarStyle(p){return p&&p.avatar?`style="background-image:url('${p.avatar}');color:transparent"`:''}
 function side(){const p=S.cfg?.profile||{};
- $('#side').innerHTML=`<div class="brand" onclick="$('#side').classList.toggle('open')" title="Развернуть меню"><span class="logo">F</span><span class="bname">Fobo<b>X</b> 4.0</span></div>
+ $('#side').innerHTML=`<div class="brand" onclick="$('#side').classList.toggle('open')" title="Развернуть меню"><span class="logo">L</span><span class="bname">LUMI<b>O</b></span></div>
  <nav><button class="nb new" title="Новая съёмка" onclick="importDlg()">${ico('plus')}<span>Новая съёмка</span></button>${PAGES.map(([k,t,i])=>`<button class="nb ${S.page===k?'on':''}" title="${t}" onclick="go('${k}')">${ico(i)}<span>${t}</span></button>`).join('')}</nav>
  <div class="sp"></div><button class="nb me" title="Профиль фотографа" onclick="go('settings','Профиль')"><span class="av" ${avatarStyle(p)}>${esc(initials(p.name))}</span><span>${esc(p.name||'Профиль фотографа')}</span></button>`}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-const UI_VERSION='4.0a2.8';
+const UI_VERSION='4.1.0';
 async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;document.documentElement.style.setProperty('--accent',s.accent);document.documentElement.style.setProperty('--c1',s.accent);document.documentElement.style.setProperty('--accent-soft',s.accent+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
 function render(){document.querySelector('.coach')?.remove();const m=$('#main');if(S.page==='shoot')return renderShoot();const f={overview,analytics,history,settings}[S.page]||overview;m.innerHTML='<div class="page">'+f()+'</div>';if(S.page==='settings')bindSettings();hydrate()}
 function hydrate(){document.querySelectorAll('[data-bg]').forEach(el=>{const im=new Image();im.onload=()=>el.style.backgroundImage=`url('${el.dataset.bg}')`;im.src=el.dataset.bg})}
 function staleBanner(){if($('#stale'))return;const d=document.createElement('div');d.id='stale';d.className='toast';d.style.cssText='left:50%;right:auto;transform:translateX(-50%);top:16px;bottom:auto;border-color:var(--warn);max-width:560px';
- d.innerHTML='<b>Программа обновилась — перезапустите её.</b><br><span class="mut">В окне PowerShell нажмите Ctrl+C, снова запустите <kbd>py -3 fobox4.py</kbd> и обновите страницу.</span>';document.body.append(d)}
+ d.innerHTML='<b>Программа обновилась — перезапустите её.</b><br><span class="mut">Закройте чёрное окно программы и снова запустите «Запустить LUMIO.bat».</span>';document.body.append(d)}
 const empty=t=>`<div class="empty">${t}</div>`;
 const head=(t,sub)=>`<div class="top"><div><h1>${t}</h1>${sub?`<div class="mut">${sub}</div>`:''}</div></div>`;
 const NODATA='Нет данных за этот период';
@@ -332,7 +333,7 @@ function overviewChart(){const d=S.stats.days;
 function records(){const r=S.stats.records;const rows=[['Самая длинная съёмка',r.longest&&dur(r.longest.value),r.longest&&`${esc(r.longest.title)} · ${fdate(r.longest.date)}`],['Больше всего кадров за день',r.max_day&&fmt(r.max_day.value),r.max_day&&fdate(r.max_day.date)],['Самый активный месяц',r.active_month&&fmt(r.active_month.value)+' кадров',r.active_month&&`${MONTHS[+r.active_month.month.slice(5)-1]} ${r.active_month.month.slice(0,4)}`],['Самый большой класс',r.biggest_class&&r.biggest_class.value+' учеников',r.biggest_class&&esc(r.biggest_class.title)]];
  return rows.map(([t,v,s])=>`<div class="rec"><div>${t}<div class="mut">${s||'Нет данных'}</div></div><b>${v||'—'}</b></div>`).join('')}
 function onboarding(){return `<div class="card" style="padding:26px"><h2 style="font-size:17px">Как это работает</h2><div class="kpis" style="margin-top:14px">
- ${[['1','Импорт','Папка с карты и, для школы, список детей с 5 номерами. FoboX найдёт RAW, прочитает время, разобьёт на серии.'],['2','Проверка','Сам отметит пустые, тёмные, нерезкие кадры и дубли. Ничего не удаляет.'],['3','Отбор','Предложит лучшие кадры. Вы правите кликами или клавишами и подтверждаете.'],['4','Экспорт','Копии в папку заказа с правильными именами и отчётом. Исходники не меняются.']].map(([n,t,d])=>`<div><div class="guide" style="display:inline-flex;padding:0;border:0;background:none"><span class="ic" style="width:28px;height:28px">${n}</span></div><div style="font-weight:600;margin:10px 0 4px">${t}</div><div class="mut" style="line-height:1.55">${d}</div></div>`).join('')}</div></div>`}
+ ${[['1','Импорт','Папка с карты и, для школы, список детей с 5 номерами. LUMIO найдёт RAW, прочитает время, разобьёт на серии.'],['2','Проверка','Сам отметит пустые, тёмные, нерезкие кадры и дубли. Ничего не удаляет.'],['3','Отбор','Предложит лучшие кадры. Вы правите кликами или клавишами и подтверждаете.'],['4','Экспорт','Копии в папку заказа с правильными именами и отчётом. Исходники не меняются.']].map(([n,t,d])=>`<div><div class="guide" style="display:inline-flex;padding:0;border:0;background:none"><span class="ic" style="width:28px;height:28px">${n}</span></div><div style="font-weight:600;margin:10px 0 4px">${t}</div><div class="mut" style="line-height:1.55">${d}</div></div>`).join('')}</div></div>`}
 // ---------- analytics (sub tabs)
 function analytics(){const st=S.stats;const tabs=[['perf','Производительность'],['quality','Качество'],['ai','Отбор ИИ'],['flow','Рабочий процесс']];
  const body=!st.sessions.length?guideHTML(nextStep())+onboarding():{perf:aPerf,quality:aQual,ai:aAI,flow:aFlow}[S.atab]();
@@ -399,7 +400,7 @@ function settings(){const s=S.cfg.settings,p=S.cfg.profile,tab=S.sub||'Проф�
   ${row('accent','Акцентный цвет','Цвета ошибок и предупреждений не меняются',`<div class="row">${['#7738FF','#4DB5FF','#E5484D','#2EB67D','#F59E0B'].map(c=>`<span class="sw ${s.accent.toUpperCase()===c?'on':''}" style="background:${c}" role="button" aria-label="${c}" onclick="setS('accent','${c}')"></span>`).join('')}<input id="accent" data-s="accent" value="${s.accent}" style="width:100px"></div>`)}
   ${row('guide','Подсказки «Что дальше»','Короткая подсказка следующего шага на главных экранах',`<button class="btn sm" onclick="try{localStorage.removeItem('fobox.guide.off');localStorage.removeItem('fobox.coach')}catch(e){};toast('Подсказки включены')">Показывать снова</button>`)}</div>`;
  if(tab==='Данные и резервные копии')body=`<div class="sg"><h3>Каталог</h3><p class="mut" style="line-height:1.6;margin:0 0 10px">Каталог — один файл SQLite: <kbd>%USERPROFILE%\\.fobox\\fobox4.sqlite3</kbd>. Резервная копия — копия этого файла. Удаление съёмки из каталога не трогает фото на диске.</p>${S.stats.sessions.map(x=>`<div class="sr2"><div><label>${esc(x.title)}</label><div class="h path">${esc(x.source||'')}</div></div><div><button class="btn sm danger" onclick="delSess('${x.id}')">Убрать из каталога</button></div></div>`).join('')||empty('Каталог пуст')}</div>`;
- if(tab==='О программе')body=`<div class="sg"><h3>FoboX 4.0 alpha.2</h3><p class="mut" style="line-height:1.7;margin:0">Локальный сортировщик фото для фотографов: импорт, проверка качества, отбор, экспорт и статистика. Работает без интернета, ничего не отправляет. Горячие клавиши — <button class="lnk" onclick="helpDlg()">показать</button>.</p></div>`;
+ if(tab==='О программе')body=`<div class="sg"><h3>LUMIO 4.0</h3><p class="mut" style="line-height:1.7;margin:0">Локальный сортировщик фото для фотографов: импорт, проверка качества, отбор, экспорт и статистика. Работает без интернета, ничего не отправляет. Горячие клавиши — <button class="lnk" onclick="helpDlg()">показать</button>.</p></div>`;
  const savable=['Профиль','Предпочтения','Отбор и качество','Интерфейс'].includes(tab);
  return `<div class="top"><h1>${tab==='Профиль'?'Профиль фотографа':'Настройки'}</h1>${savable?'<button class="btn pri" id="saveS">Сохранить</button>':''}</div><div class="sl"><div class="card snav">${SNAV.map(t=>`<button class="${t===tab?'on':''}" onclick="go('settings','${t}')">${t}</button>`).join('')}</div><div class="card">${body}</div></div>`}
 function bindSettings(){const b=$('#saveS');if(b)b.onclick=async()=>{const st={},pr={};document.querySelectorAll('[data-s]').forEach(i=>st[i.dataset.s]=i.value.trim());document.querySelectorAll('[data-p]').forEach(i=>pr[i.dataset.p]=i.value.trim());
@@ -441,20 +442,22 @@ async function openSess(id){await flush();S.sid=id;try{localStorage.setItem('fob
 async function renderShoot(){const m=$('#main');if(!S.sid){m.innerHTML='<div class="page">'+head('Текущая съёмка','')+guideHTML(nextStep())+onboarding()+'</div>';return}
  if(!S.sess||S.sess.session.id!==S.sid){m.innerHTML='<div class="page"><div class="skel" style="height:40px;width:40%"></div><div class="skel" style="height:420px;margin-top:16px"></div></div>';try{await reloadSess()}catch(e){S.sid='';try{localStorage.removeItem('fobox.sid')}catch(_){}m.innerHTML='<div class="page">'+empty(esc(e.message))+'</div>';return}}
  drawShoot()}
-function buildPeople(){const d=S.sess,out=[],idx={};d.sections.forEach((x,i)=>{const k=x.person||x.id;if(!(k in idx)){idx[k]=out.length;out.push({key:k,title:x.title,kind:x.kind,secs:[]})}out[idx[k]].secs.push(i)});S.people=out}
-async function reloadSess(keepKey){const k=keepKey||S.people?.[S.pi]?.key;S.sess=await api('/api/session?id='+S.sid);S.fmap=Object.fromEntries(S.sess.files.map(f=>[f.path,f]));buildPeople();
+function buildPeople(){const d=S.sess,out=[],idx={};const ord={group:2,reportage:3,teacher:1};d.sections.forEach((x,i)=>{const k=x.person||x.id;if(!(k in idx)){idx[k]=out.length;out.push({key:k,title:x.title,kind:x.kind,secs:[]})}out[idx[k]].secs.push(i)});out.sort((a,b)=>(ord[a.kind]||0)-(ord[b.kind]||0));S.people=out}
+async function reloadSess(keepKey){const k=keepKey||S._restoreKey||S.people?.[S.pi]?.key;S._restoreKey=null;S.sess=await api('/api/session?id='+S.sid);S.fmap=Object.fromEntries(S.sess.files.map(f=>[f.path,f]));buildPeople();
  const i=k?S.people.findIndex(p=>p.key===k):-1;S.pi=i>=0?i:Math.min(S.pi||0,Math.max(0,S.people.length-1));S.undo=S.undo||[];loadPerson()}
-function loadPerson(){const P=S.people[S.pi];S.sels={};if(!P)return;P.secs.forEach(i=>{const x=S.sess.sections[i];S.sels[x.id]=new Set(S.sess.selected[x.id]||[])});S.sec=P.secs[0];S.fi=0}
+function loadPerson(){const P=S.people[S.pi];S.sels={};S.dsel={};if(!P)return;P.secs.forEach(i=>{const x=S.sess.sections[i];S.sels[x.id]=new Set(S.sess.selected[x.id]||[]);S.dsel[x.id]=new Set((S.sess.dups||{})[x.id]||[])});S.sec=P.secs[0];S.fi=0}
+const hasDups=x=>x&&x.dup_limit!=null;
+const mainCount=x=>[...S.sels[x.id]].filter(p=>!S.dsel[x.id].has(p)).length;
 const curP=()=>S.people[S.pi];const curSec=()=>S.sess.sections[S.sec];
 const secOf=p=>{const P=curP();return P?P.secs.find(i=>S.sess.sections[i].files.includes(p)||S.sess.sections[i].mandatory[p]):undefined};
 function setSaveState(t,cls){const e=$('#savest');if(e){e.textContent=t;e.className='savest '+(cls||'')}}
-function scheduleSave(si){const x=S.sess.sections[si];S.sess.selected[x.id]=[...S.sels[x.id]];if(S.sess.approved[x.id]){S.sess.approved[x.id]=false}
- (S.pending=S.pending||{})[x.id]=[...S.sels[x.id]];setSaveState('Сохранение…');clearTimeout(S.saveT);S.saveT=setTimeout(flush,500)}
+function scheduleSave(si){const x=S.sess.sections[si];S.sess.selected[x.id]=[...S.sels[x.id]];(S.sess.dups=S.sess.dups||{})[x.id]=[...S.dsel[x.id]];if(S.sess.approved[x.id]){S.sess.approved[x.id]=false}
+ (S.pending=S.pending||{})[x.id]={sel:[...S.sels[x.id]],dups:[...S.dsel[x.id]]};setSaveState('Сохранение…');clearTimeout(S.saveT);S.saveT=setTimeout(flush,500)}
 async function flush(){clearTimeout(S.saveT);const p=S.pending;if(!p||!Object.keys(p).length)return;S.pending=null;
- try{for(const [id,sel] of Object.entries(p))await api('/api/review',{session:S.sid,section:id,selected:sel,approved:false});setSaveState('Сохранено','ok')}catch(e){setSaveState('Не сохранено','bad');toast(e.message,1)}}
-function pushUndo(si){const x=S.sess.sections[si];(S.undo=S.undo||[]).push({id:x.id,sel:[...S.sels[x.id]],pk:curP().key});if(S.undo.length>200)S.undo.shift()}
+ try{for(const [id,v] of Object.entries(p))await api('/api/review',{session:S.sid,section:id,selected:v.sel,dups:v.dups,approved:false});setSaveState('Сохранено','ok')}catch(e){setSaveState('Не сохранено','bad');toast(e.message,1)}}
+function pushUndo(si){const x=S.sess.sections[si];(S.undo=S.undo||[]).push({id:x.id,sel:[...S.sels[x.id]],dups:[...S.dsel[x.id]],pk:curP().key});if(S.undo.length>200)S.undo.shift()}
 async function undo(){const u=(S.undo||[]).pop();if(!u)return toast('Нечего отменять');await flush();const pi=S.people.findIndex(p=>p.key===u.pk);if(pi<0)return;
- if(pi!==S.pi){S.pi=pi;loadPerson()}const si=S.sess.sections.findIndex(x=>x.id===u.id);S.sels[u.id]=new Set(u.sel);scheduleSave(si);drawShoot();toast('Отменено')}
+ if(pi!==S.pi){S.pi=pi;loadPerson()}const si=S.sess.sections.findIndex(x=>x.id===u.id);S.sels[u.id]=new Set(u.sel);S.dsel[u.id]=new Set(u.dups||[]);scheduleSave(si);drawShoot();toast('Отменено')}
 const UNS={V:'Виньетка',P1:'ЛР',P2:'ЛС',D1:'Друг 1',D2:'Друг 2',T:'Номер портрета',Name:'ФИО',Role:'Должность'};
 const unsMsg=(k,t)=>k==='Note'?`Примечание в ведомости: «${t}»`:`${UNS[k]||k} в ведомости прочитан неуверенно${t?': «'+t+'»':''} — сверьте с листком`;
 function secIssues(x){const d=S.sess,out=[];if(x.person){const pre=x.title+', ';const c=d.conflicts.filter(t=>t.startsWith(pre));if(c.length)out.push(...c)}
@@ -463,14 +466,14 @@ function secIssues(x){const d=S.sess,out=[];if(x.person){const pre=x.title+', ';
  Object.entries(x.mandatory).forEach(([p,k])=>{const f=S.fmap[p];const fl=f&&f.flags?f.flags.split(',').filter(y=>y!=='dup'):[];if(fl.length)out.push(`${ALAB[k]||k}: ${fl.map(y=>d.flag_names[y]).join(', ')} — проверьте кадр`)});return out}
 function personIssues(P){return P.secs.flatMap(i=>secIssues(S.sess.sections[i]))}
 function personThumb(P){const d=S.sess;for(const k of['V','P1','P2','T','D1','D2'])for(const i of P.secs){const x=d.sections[i];const p=Object.keys(x.mandatory).find(q=>x.mandatory[q]===k);if(p&&S.fmap[p]?.has_preview)return p}
- const x=d.sections[P.secs[0]];return x.files.find(p=>S.fmap[p]?.has_preview)}
+ const x=d.sections[P.secs[0]];const sel=(d.selected[x.id]||[]).filter(p=>!((d.dups||{})[x.id]||[]).includes(p));return sel.find(p=>S.fmap[p]?.has_preview)||x.files.find(p=>S.fmap[p]?.has_preview)}
 const pDone=P=>P.secs.every(i=>S.sess.approved[S.sess.sections[i].id]);
 const pCount=P=>P.secs.reduce((a,i)=>a+(S.sels&&curP()===P?S.sels[S.sess.sections[i].id].size:(S.sess.selected[S.sess.sections[i].id]||[]).length),0);
 // ---------- sidebar: people with a face preview
 function sideHTML(){const d=S.sess;const q=(S.q||'').trim().toLowerCase();
  const rows=S.people.map((P,pi)=>[P,pi]).filter(([P])=>!q||P.title.toLowerCase().includes(q));
- let lastKind='';const hdr=P=>{const k=P.kind==='teacher'?'t':P.kind==='series'?'s':'c';if(k===lastKind)return'';lastKind=k;const n=S.people.filter(Q=>(Q.kind==='teacher'?'t':Q.kind==='series'?'s':'c')===k).length;return k==='s'?'':`<div class="sh">${k==='t'?'Учителя':'Ученики'} <span>${n}</span></div>`};
- return rows.map(([P,pi])=>{const th=personThumb(P);const iss=personIssues(P);const done=pDone(P);const sub=P.kind==='teacher'?d.sections[P.secs[0]].subtitle:P.secs.map(i=>{const x=d.sections[i];return `${x.kind==='friends'?'друзья':x.kind==='portrait'?'портреты':x.subtitle} ${(d.selected[x.id]||[]).length}`}).join(' · ');
+ const KG=K=>K==='teacher'?'t':K==='series'?'s':(K==='group'||K==='reportage')?'g':'c';let lastKind='';const hdr=P=>{const k=KG(P.kind);if(k===lastKind)return'';lastKind=k;const n=S.people.filter(Q=>KG(Q.kind)===k).length;return k==='s'?'':`<div class="sh">${{t:'Учителя',c:'Ученики',g:'Общие кадры'}[k]} <span>${n}</span></div>`};
+ return rows.map(([P,pi])=>{const th=personThumb(P);const iss=personIssues(P);const done=pDone(P);const x0=d.sections[P.secs[0]];const sub=hasDups(x0)?`${(d.selected[x0.id]||[]).length-((d.dups||{})[x0.id]||[]).length} из ${x0.main_limit} · дублей ${((d.dups||{})[x0.id]||[]).length}`:P.kind==='teacher'?d.sections[P.secs[0]].subtitle:P.secs.map(i=>{const x=d.sections[i];return `${x.kind==='friends'?'друзья':x.kind==='portrait'?'портреты':x.subtitle} ${(d.selected[x.id]||[]).length}`}).join(' · ');
   return hdr(P)+`<button class="pr ${pi===S.pi?'on':''}" onclick="pickPerson(${pi})"><span class="pth" ${th?`data-bg="${prevURL(th,160)}"`:''}></span><span class="pt"><b>${esc(P.title)}</b><span class="mut">${esc(sub)}</span></span>${iss.length?`<span class="iss" title="${esc(iss.join('\n'))}">!</span>`:''}<span class="st ${done?'ok':''}">${done?'✓':''}</span></button>`}).join('')||'<div class="mut" style="padding:12px">Никого не найдено</div>'}
 function refreshSide(){const e=$('#secs');if(e){const t=e.scrollTop;e.innerHTML=sideHTML();e.scrollTop=t;e.querySelectorAll('[data-bg]').forEach(el=>{const im=new Image();im.onload=()=>el.style.backgroundImage=`url('${el.dataset.bg}')`;im.src=el.dataset.bg})}
  const d=S.sess,done=S.people.filter(pDone).length;const m=$('#prog');if(m)m.innerHTML=`<div class="meter"><span style="width:${done/Math.max(1,S.people.length)*100}%"></span></div><div class="mut" style="margin-top:6px">Готово ${done} из ${S.people.length}</div>`}
@@ -481,8 +484,11 @@ function personView(){const d=S.sess,P=curP();const RO={V:0,P1:1,P2:2,D1:3,D2:4,
  if(S.tab==='kit'){const why=(x,p)=>(d.reasons[x.id]||{})[p];
   const ws=[];secs.forEach(({si,x})=>Object.keys(x.mandatory).forEach(p=>{if(F(p))ws.push({f:F(p),si,o:RO[x.mandatory[p]]})}));ws.sort((a,b)=>a.o-b.o);
   const ext=(filter)=>{const out=[];secs.forEach(({si,x})=>[...S.sels[x.id]].forEach(p=>{if(!x.mandatory[p]&&F(p)&&filter(x,p))out.push({f:F(p),si})}));return out.sort((a,b)=>a.f.capture_at.localeCompare(b.f.capture_at))};
-  groups.push({title:'Из ведомости',meta:`${ws.length}`,items:ws});
+  if(ws.length||!(P.kind==='group'||P.kind==='reportage'))groups.push({title:'Из ведомости',meta:`${ws.length}`,items:ws});
   if(P.kind==='teacher')groups.push({title:'Другие позы',meta:'',items:ext(()=>true)});
+  else if(P.kind==='group'||P.kind==='reportage'){const x=secs[0].x;groups.length=0;
+   groups.push({title:P.kind==='group'?'Общая фотография':'Репортаж',meta:`${mainCount(x)} из ${x.main_limit}`,items:ext((y,p)=>!S.dsel[y.id].has(p))});
+   groups.push({title:'Дубли',meta:`${S.dsel[x.id].size} из ${x.dup_limit} · клавиша D — сделать дублем / основным`,items:ext((y,p)=>S.dsel[y.id].has(p))})}
   else{groups.push({title:'Дополнительная виньетка',meta:'не больше 3 виньеток вместе с основной',items:ext((x,p)=>x.kind==='portrait'&&why(x,p)==='vignette')});
    groups.push({title:'Дополнительные портреты',meta:'',items:ext((x,p)=>x.kind==='portrait'&&why(x,p)!=='vignette')});
    groups.push({title:'Дополнительные фото с друзьями',meta:'',items:ext((x,p)=>x.kind==='friends')})}
@@ -503,10 +509,10 @@ function drawShoot(){const d=S.sess,ss=d.session,P=curP();if(!P){$('#main').inne
  <div class="seg2" title="Размер превью">${[['150px','S'],['200px','M'],['280px','L']].map(([v,t])=>`<button class="${(S.tsize||'200px')===v?'on':''}" onclick="S.tsize='${v}';document.documentElement.style.setProperty('--tile','${v}');drawShoot()">${t}</button>`).join('')}</div></div></div>
 
  <div class="notes">${iss.length?`<div class="warn">${iss.map(esc).join('<br>')}</div>`:''}${any?`<div class="warn acc"><span>Роли исправлены вручную.</span><button class="btn sm" onclick="setRole(null,null,true)">Вернуть как в ведомости</button></div>`:''}${S.pi===0&&d.absent&&d.absent.length?`<div class="warn info">Без номеров в ведомости (пропущены): ${esc(d.absent.join(', '))}</div>`:''}${!d.pillow?'<div class="warn">Проверка качества выключена — установите Pillow: <kbd>py -m pip install pillow</kbd></div>':''}</div>
- <div class="grid2" id="grid">${groups.map(g=>(S.tab==='kit'&&!g.items.length&&g.title!=='Из ведомости')?'':`<section class="grp2"><div class="gh2"><b>${g.title}</b><span class="mut">${S.tab==='kit'?`${g.items.length}${g.meta&&g.title!=='Из ведомости'?' · '+g.meta:''}`:g.meta}</span></div>
+ <div class="grid2" id="grid">${groups.map(g=>(S.tab==='kit'&&!g.items.length&&g.title!=='Из ведомости'&&g.title!=='Дубли'&&g.title!=='Общая фотография'&&g.title!=='Репортаж')?'':`<section class="grp2"><div class="gh2"><b>${g.title}</b><span class="mut">${S.tab==='kit'?(['Общая фотография','Репортаж','Дубли'].includes(g.title)?g.meta:`${g.items.length}${g.meta&&g.title!=='Из ведомости'?' · '+g.meta:''}`):g.meta}</span></div>
   <div class="grid">${g.items.length?g.items.map(it=>tile(it.f,it.si)).join(''):`<div class="empty" style="grid-column:1/-1">${S.tab==='bad'?'Проблемных кадров нет':S.tab==='kit'?'Пока ничего не выбрано':'Нет кадров'}</div>`}</div></section>`).join('')}</div>
  <div class="foot"><div class="kitsum"><div class="ki">${ico('kit')}</div><div><b id="kitn"></b><div class="mut" id="kitd"></div></div></div>
- <div class="row"><span class="savest" id="savest"></span><button class="btn ghost" onclick="rebuildKit()" title="Собрать комплект заново автоматически">Собрать заново</button><button class="btn ghost" onclick="resetSel()" title="Оставить только кадры из ведомости">Сбросить выбор</button><button class="btn pri" id="apbtn" onclick="approve()">${pDone(P)?'Готово ✓ · дальше':P.kind==='series'?'Подтвердить серию':P.kind==='teacher'?'Подтвердить учителя':'Подтвердить ребёнка'} <kbd class="inv">Ctrl ↵</kbd></button></div></div></div></div>`;
+ <div class="row"><span class="savest" id="savest"></span><button class="btn ghost" onclick="rebuildKit()" title="Собрать комплект заново автоматически">Собрать заново</button><button class="btn ghost" onclick="resetSel()" title="Оставить только кадры из ведомости">Сбросить выбор</button><button class="btn pri" id="apbtn" onclick="approve()">${pDone(P)?'Готово ✓ · дальше':P.kind==='series'?'Подтвердить серию':P.kind==='teacher'?'Подтвердить учителя':P.kind==='group'?'Подтвердить общую':P.kind==='reportage'?'Подтвердить репортаж':'Подтвердить ребёнка'} <kbd class="inv">Ctrl ↵</kbd></button></div></div></div></div>`;
  refreshSide();updCount();setTimeout(coach,600);const g=$('#grid');if(same)g.scrollTop=gridTop;
  const on=$('#secs .pr.on');if(on&&!same)on.scrollIntoView({block:'nearest'});
  hydrateSrc()}
@@ -518,15 +524,27 @@ function kitStrip(P){const d=S.sess;const slots=[];P.secs.forEach(si=>{const x=d
   :`<div class="slot empty" title="Выделите нужный кадр и нажмите ${key}"><span class="sth"></span><span class="sl">${ALAB[s.k]}</span><span class="sn">нет кадра${key?` · клавиша ${key}`:''}</span></div>`}).join('')}
   <div class="slot plus"><span class="pn">+${extra}</span><span class="sl">дополнительных</span><span class="sn">выбраны вами или «авто»</span></div></div>`}
 function jumpTo(p){S.tab='all';const i=S.flat?S.flat.findIndex(x=>x.f.path===p):-1;drawShoot();const fl=S.flat.findIndex(x=>x.f.path===p);if(fl>=0)focusTile(fl)}
-function updCount(){const P=curP();if(!P)return;const d=S.sess;let n=0,m=0;P.secs.forEach(si=>{const x=d.sections[si];S.sels[x.id].forEach(p=>{n++;if(x.mandatory[p])m++})});
+function updCount(){const P=curP();if(!P)return;const d=S.sess;const x0=d.sections[P.secs[0]];
+ if(hasDups(x0)){const kn=$('#kitn'),kd=$('#kitd');if(kn)kn.textContent=P.kind==='group'?`${mainCount(x0)?'Общая выбрана':'Общая не выбрана'}`:`${mainCount(x0)} из ${x0.main_limit} репортажных`;if(kd)kd.textContent=`дублей ${S.dsel[x0.id].size} из ${x0.dup_limit} · D — дубль`;return}
+ let n=0,m=0;P.secs.forEach(si=>{const x=d.sections[si];S.sels[x.id].forEach(p=>{n++;if(x.mandatory[p])m++})});
  const kn=$('#kitn'),kd=$('#kitd');if(kn)kn.textContent=`${n} фото в комплекте`;if(kd)kd.textContent=(m?`${m} из ведомости · `:'')+`${n-m} дополнительных`+(P.kind==='portrait'?` · обычно ${S.cfg.settings.kit_min}–${S.cfg.settings.kit_max}`:P.kind==='teacher'?' · всего 3–5':'');
  if(S.tab!=='kit')document.querySelectorAll('.gh2 .mut').forEach((el,i)=>{const x=d.sections[P.secs[i]];if(x)el.textContent=el.textContent.replace(/^\d+ выбрано/,`${S.sels[x.id].size} выбрано`)})}
 function tile(f,si){const x=S.sess.sections[si];const fi=S.flat.findIndex(y=>y.f.path===f.path&&y.si===si);const on=S.sels[x.id].has(f.path),m=x.mandatory[f.path];const uns=m&&(x.unsure||{})[m]!==undefined;
- const sug=(S.sess.suggested[x.id]||[]).includes(f.path);const fl=f.flags?f.flags.split(',').filter(y=>!(m&&y==='dup')).map(y=>S.sess.flag_names[y]).join(', '):'';
+ const sug=(S.sess.suggested[x.id]||[]).includes(f.path);const fl=f.flags?f.flags.split(',').filter(y=>!((m||hasDups(x))&&y==='dup')).map(y=>S.sess.flag_names[y]).join(', '):'';
  return `<div class="tile ${on?'on':'ctx'} ${fi===S.fi?'fc':''}" tabindex="-1" data-i="${fi}" data-s="${si}" data-p="${esc(f.path)}" onclick="S.fi=${fi};tog(this)" ondblclick="openViewer(${fi})">${(x.roles||[]).length?`<button class="more ${m?'show':''}" title="Роль кадра / не тот человек" onclick="event.stopPropagation();roleMenu(this)">⋯</button>`:''}<div class="im" ${f.has_preview?`data-src="${prevURL(f.path,480)}"`:''}>${f.has_preview?'':'Нет превью'}</div>
- ${m?`<span class="star ${uns?'uns':''}" title="Из ведомости: ${ALAB[m]||m}${uns?' — прочитан неуверенно':''}">${uns?'?':'★'}</span>`:''}${fl?`<span class="flag">${esc(fl)}</span>`:''}<span class="chk"></span>
- <div class="cap"><b>${esc(f.name)}</b><span class="${m?'role':''}">${m?ALAB[m]||m:f.capture_at.slice(11,19)}</span></div></div>`}
+ ${m?`<span class="star ${uns?'uns':''}" title="Из ведомости: ${ALAB[m]||m}${uns?' — прочитан неуверенно':''}">${uns?'?':'★'}</span>`:''}${hasDups(x)&&S.dsel[x.id].has(f.path)?'<span class="dupb">Дубль</span>':''}${fl?`<span class="flag">${esc(fl)}</span>`:''}<span class="chk"></span>
+ <div class="cap"><b>${esc(f.name)}</b><span class="${m?'role':''}">${m?(m==='G'?'Общая':ALAB[m]||m):f.capture_at.slice(11,19)}</span></div></div>`}
+function togDup(p,si){const x=S.sess.sections[si];if(!hasDups(x)||!x.files.includes(p))return false;const sel=S.sels[x.id],ds=S.dsel[x.id];
+ if(ds.has(p)){if(mainCount(x)>=x.main_limit){toast(`Основных уже ${x.main_limit} — сначала снимите один`);return false}pushUndo(si);ds.delete(p)}
+ else{if(ds.size>=x.dup_limit){toast(`Дублей не больше ${x.dup_limit}`);return false}if(x.mandatory[p]){toast('Кадр из ведомости — главный');return false}pushUndo(si);sel.add(p);ds.add(p)}
+ scheduleSave(si);return true}
 function togPath(p,si){const x=S.sess.sections[si];if(!x||!(x.files.includes(p)||x.mandatory[p]))return false;S.sec=si;
+ if(hasDups(x)&&!x.mandatory[p]){const sel=S.sels[x.id],ds=S.dsel[x.id];pushUndo(si);
+  if(sel.has(p)){sel.delete(p);ds.delete(p)}
+  else if(mainCount(x)<x.main_limit)sel.add(p);
+  else if(ds.size<x.dup_limit){sel.add(p);ds.add(p);toast('Основных уже '+x.main_limit+' — добавлен как дубль')}
+  else{S.undo.pop();toast(`Уже ${x.main_limit} основных и ${x.dup_limit} дублей — сначала снимите какой-нибудь`);return false}
+  scheduleSave(si);return true}
  if(x.mandatory[p]){toast('Кадр из ведомости. Если на нём другой человек — «⋯» → «Не тот человек» (или Delete)');return false}
  const sel=S.sels[x.id];if(!sel.has(p)&&x.limit&&sel.size>=x.limit){toast('Максимум '+x.limit+' кадров');return false}
  pushUndo(si);if(sel.has(p))sel.delete(p);else sel.add(p);scheduleSave(si);return true}
@@ -540,7 +558,7 @@ function moveFocus(k){const ts=[...document.querySelectorAll('#grid .tile')];if(
  const best=row.reduce((a,b)=>Math.abs(b[1].left+b[1].width/2-cx)<Math.abs(a[1].left+a[1].width/2-cx)?b:a);focusTile(+best[0].dataset.i)}
 async function pickPerson(pi){await flush();if(pi<0||pi>=S.people.length)return;S.pi=pi;S.tab='kit';loadPerson();drawShoot();$('#grid').scrollTop=0}
 function pickSec(i){const pi=S.people.findIndex(P=>P.secs.includes(i));if(pi>=0)return pickPerson(pi)}
-async function approve(){await flush();const P=curP();try{for(const si of P.secs){const x=S.sess.sections[si];await api('/api/review',{session:S.sid,section:x.id,selected:[...S.sels[x.id]],approved:true});S.sess.selected[x.id]=[...S.sels[x.id]];S.sess.approved[x.id]=true}
+async function approve(){await flush();const P=curP();try{for(const si of P.secs){const x=S.sess.sections[si];await api('/api/review',{session:S.sid,section:x.id,selected:[...S.sels[x.id]],dups:hasDups(x)?[...S.dsel[x.id]]:undefined,approved:true});S.sess.selected[x.id]=[...S.sels[x.id]];S.sess.approved[x.id]=true}
  const nx=S.people.findIndex((Q,i)=>i>S.pi&&!pDone(Q));const any=nx<0?S.people.findIndex(Q=>!pDone(Q)):nx;
  if(any>=0){toast('Готово: '+P.title);S.pi=any;loadPerson();S.tab='kit';document.querySelector('.coach')?.remove()}else toast('Все подтверждены — можно собирать заказ');drawShoot();api('/api/stats').then(x=>S.stats=x)}catch(e){toast(e.message,1)}}
 async function rebuildKit(){const P=curP();await flush();try{await api('/api/rebuild',{session:S.sid,sections:P.secs.map(i=>S.sess.sections[i].id)});await reloadSess(P.key);S.tab='kit';drawShoot();toast('Комплект собран заново')}catch(e){toast(e.message,1)}}
@@ -602,7 +620,7 @@ function palItems(){const q=S.pal.q.trim().toLowerCase();const it=[];
  PAGES.forEach(([k,t])=>it.push({t,s:'Перейти',k:'Экран',run:()=>{closeL();go(k)}}));
  return q?it.filter(x=>(x.t+' '+x.s).toLowerCase().includes(q)):it}
 function palDraw(){const it=palItems();S.pal.items=it;S.pal.i=Math.min(S.pal.i,Math.max(0,it.length-1));$('#pall').innerHTML=it.slice(0,60).map((x,i)=>`<div class="pi ${i===S.pal.i?'on':''}" onmousemove="if(S.pal.i!==${i}){S.pal.i=${i};palDraw()}" onclick="S.pal.items[${i}].run()"><span><b>${esc(x.t)}</b> <span class="mut">${esc(x.s)}</span></span><span class="pk">${x.k}</span></div>`).join('')||'<div class="mut" style="padding:14px">Ничего не найдено</div>';const c=$('#pall .on');if(c)c.scrollIntoView({block:'nearest'})}
-function helpDlg(){const rows=[['Сетка',[['← ↑ → ↓','перейти между кадрами'],['Пробел или P','выбрать / снять'],['Enter','открыть крупно'],['1 2 3','Виньетка, ЛР, ЛС'],['4 5','Друг 1, Друг 2'],['Delete','«не тот человек» для кадра со ★'],['Ctrl + Enter','подтвердить ребёнка и дальше'],['[  ]','предыдущий / следующий ребёнок'],['Ctrl + Z','отменить']]],['Крупный просмотр',[['← →','листать'],['Пробел','выбрать / снять'],['1–5, Delete','роли, как в сетке'],['Z или клик','увеличение 100%'],['C','сравнить с соседним'],['Esc','закрыть']]],['Везде',[['Ctrl + K или /','поиск ребёнка и команд'],['?','эта подсказка']]]];
+function helpDlg(){const rows=[['Сетка',[['← ↑ → ↓','перейти между кадрами'],['Пробел или P','выбрать / снять'],['Enter','открыть крупно'],['1 2 3','Виньетка, ЛР, ЛС'],['4 5','Друг 1, Друг 2'],['Delete','«не тот человек» для кадра со ★'],['Ctrl + Enter','подтвердить ребёнка и дальше'],['[  ]','предыдущий / следующий ребёнок'],['D','дубль ↔ основной (общая, репортаж)'],['Ctrl + Z','отменить']]],['Крупный просмотр',[['← →','листать'],['Пробел','выбрать / снять'],['1–5, Delete','роли, как в сетке'],['Z или клик','увеличение 100%'],['C','сравнить с соседним'],['Esc','закрыть']]],['Везде',[['Ctrl + K или /','поиск ребёнка и команд'],['?','эта подсказка']]]];
  $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg wide"><h2 style="font-size:18px">Горячие клавиши</h2><div class="keys">${rows.map(([h,r])=>`<div><div class="kh">${h}</div>${r.map(([k,t])=>`<div class="kr"><span>${k.split(' ').map(x=>x==='+'||x==='или'||x===','?`<span class="mut">${x}</span>`:`<kbd>${x}</kbd>`).join(' ')}</span><span>${t}</span></div>`).join('')}</div>`).join('')}</div><div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeL()">Понятно</button></div></div></div>`}
 // ---------- quality, export with preflight
 async function reanalyze(){await flush();$('#layer').innerHTML=`<div class="modal"><div class="dlg"><h2>Проверка качества</h2><div id="ra"></div></div></div>`;try{await api('/api/reanalyze',{session:S.sid});await watchJob(S.sid,'#ra');closeL();S.sess=null;await load()}catch(e){closeL();toast(e.message,1)}}
@@ -648,10 +666,17 @@ document.addEventListener('keydown',e=>{const k=e.key,mod=e.ctrlKey||e.metaKey;c
  if(k===' '||k==='p'||k==='з'){e.preventDefault();if(t)t.click();return}
  if(k==='Enter'){e.preventDefault();openViewer(S.fi||0);return}
  if(ROLEKEYS[k]&&t){setRole(t.dataset.p,ROLEKEYS[k],false,+t.dataset.s);return}
+ if((k==='d'||k==='D'||k==='в'||k==='В')&&t){if(togDup(t.dataset.p,+t.dataset.s)){drawShoot();focusTile(S.fi)}return}
  if((k==='Delete'||k==='Backspace')&&t){setRole(t.dataset.p,null,false,+t.dataset.s);return}
  if(k===']'||k==='PageDown'||k==='ъ'){e.preventDefault();pickPerson(S.pi+1);return}
  if(k==='['||k==='PageUp'||k==='х'){e.preventDefault();pickPerson(S.pi-1);return}});
-window.addEventListener('beforeunload',()=>{const p=S.pending;if(p&&navigator.sendBeacon)Object.entries(p).forEach(([id,sel])=>navigator.sendBeacon('/api/review-beacon',JSON.stringify({session:S.sid,section:id,selected:sel})))});
+window.addEventListener('beforeunload',()=>{const p=S.pending;if(p&&navigator.sendBeacon)Object.entries(p).forEach(([id,v])=>navigator.sendBeacon('/api/review-beacon',JSON.stringify({session:S.sid,section:id,selected:v.sel,dups:v.dups})))});
+// live update: when program files change the page reloads itself and returns to the same place
+(function(){let build=null,fails=0;
+ try{const st=JSON.parse(sessionStorage.getItem('fobox.place')||'null');if(st){sessionStorage.removeItem('fobox.place');S.page=st.page||S.page;S.sub=st.sub||null;S.tab=st.tab||S.tab;S.atab=st.atab||S.atab;S._restoreKey=st.pk}}catch(e){}
+ setInterval(async()=>{try{const r=await fetch('/api/build',{cache:'no-store'});if(!r.ok)return;const j=await r.json();fails=0;
+  if(build&&j.build!==build){if(typeof flush==='function')await flush();try{sessionStorage.setItem('fobox.place',JSON.stringify({page:S.page,sub:S.sub,tab:S.tab,atab:S.atab,pk:S.people&&S.people[S.pi]&&S.people[S.pi].key}))}catch(e){}location.reload()}
+  build=j.build}catch(e){fails++}},1500)})();
 load().catch(e=>{$('#main').innerHTML='<div class="page">'+empty('Сервер недоступен: '+esc(e.message))+'</div>'});
 </script>
 </body>
