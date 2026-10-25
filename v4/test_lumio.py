@@ -340,6 +340,22 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(com['mandatory'], {pick: 'G'})
         self.assertIn(pick, st['selected']['common'])
 
+    def test_auto_exposure_sidecar_for_lightroom(self):
+        from engine import exposure_fix, xmp_sidecar
+        dark = Image.new('RGB', (200, 300), (40, 40, 45))
+        for y in range(80, 140):                                     # a face, too dark
+            for x in range(80, 120):
+                dark.putpixel((x, y), (120, 85, 70))
+        fix = exposure_fix(dark)
+        self.assertEqual(fix['by'], 'skin')
+        self.assertGreater(fix['exposure'], 0.8)                     # brighten
+        bright = Image.new('RGB', (200, 300), (250, 250, 250))
+        self.assertLess(exposure_fix(bright)['exposure'], 0)          # no face: whites to L 95 -> darker
+        x = xmp_sidecar(fix)
+        self.assertIn('crs:Exposure2012="+', x)
+        self.assertIn('crs:Whites2012=', x)
+        self.assertIn('crs:Blacks2012=', x)
+
     def test_scenes_split_by_pause_and_picture(self):
         from engine import Engine
         f = lambda n, t, h: {'name': f'A{n}', 'capture_at': f'2026-10-16 09:{t}', 'dhash': h}
@@ -478,7 +494,7 @@ class EngineTest(unittest.TestCase):
             self.e.review(sid, {'section': s['id'], 'selected': sel, 'approved': True})
         root = Path(self.e.export(sid, self.tmp / 'out')['root'])
         tdir = root / 'учителя' / 'Петрова Анна Сергеевна учитель английского языка'
-        names = {x.name for x in tdir.iterdir()}
+        names = {x.name for x in tdir.iterdir() if x.suffix != '.xmp'}
         self.assertIn('Петрова Анна Сергеевна учитель английского языка.ARW', names)
         self.assertEqual(len(names), 4)                      # worksheet photo + 3 other poses
         self.assertTrue({Path(p).name for p in extra} <= names)
@@ -570,10 +586,11 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(not set(rsel) & set(gsel))
         self.approve_all(sid)
         root = Path(self.e.export(sid, self.tmp / 'out')['root'])
-        common = sorted(x.name for x in (root / 'общая').iterdir())
+        common = sorted(x.name for x in (root / 'общая').iterdir() if x.suffix != '.xmp')
+        self.assertTrue(all((root / 'общая' / n).with_suffix('.xmp').exists() for n in common))   # Lightroom sidecars
         self.assertEqual(len(common), 1 + len(gdup))                       # duplicates next to the main frame
         self.assertEqual([n for n in common if n.startswith('Общая ')], ['Общая ' + Path(next(p for p in gsel if p not in gdup)).name])
-        rep = [x.name for x in (root / 'репортаж').iterdir()]
+        rep = [x.name for x in (root / 'репортаж').iterdir() if x.suffix != '.xmp']
         self.assertEqual(len([n for n in rep if n.startswith('Репортаж_')]), 15)
         self.assertEqual(len(rep), 15 + len(rdup))
         self.assertEqual(sorted(x.name for x in root.iterdir() if x.is_dir()),

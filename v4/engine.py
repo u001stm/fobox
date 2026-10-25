@@ -8,6 +8,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import mmap
 import os
 import re
@@ -136,8 +137,10 @@ def frame_number(stem):
 COMPANY_DEFAULTS = {
     'vypusk': {'name': 'Выпуск', 'layout': 'vypusk', 'color': '#7738FF', 'disk_parent': '', 'kit_min': 15, 'kit_max': 20, 'target': 18,
                'teachers': True, 'common': True, 'report': True, 'report_count': 15, 'group_dups': 6, 'report_dups': 6,
+               'auto_exposure': True, 'exp_white': 95, 'exp_skin': 87, 'exp_black': 5, 'exp_bias': 0,
                'note': 'Школьная структура: доки, здание, общая, репортаж, ученики, учителя, фон; ЛР_/ЛС_/Друг1_/Друг2_; учитель — своя папка; «Общая …» и «Репортаж_…» для основных кадров, дубли рядом под своими именами.'},
     'crous': {'name': 'Crous', 'layout': 'sort', 'color': '#E5484D', 'disk_parent': 'ФОТОГРАФ СЕРГЕЙ', 'kit_min': 0, 'kit_max': 0, 'target': 0,
+              'auto_exposure': False, 'exp_white': 95, 'exp_skin': 87, 'exp_black': 5, 'exp_bias': 0,
               'teachers': True, 'common': True, 'report': False, 'report_count': 0, 'group_dups': 0, 'report_dups': 0,
               'root': '{date}. {school}', 'raw_dir': 'RAW', 'jpg_dir': 'JPG',
               'cat_portrait': 'Портреты', 'cat_group': 'Групповые', 'cat_common': 'Общая', 'cat_teacher': 'Педагоги',
@@ -312,6 +315,76 @@ def analyze_image(img):
     bits = ''.join('1' if px[r * 9 + c] > px[r * 9 + c + 1] else '0' for r in range(8) for c in range(8))
     return {'brightness': round(mean, 2), 'std': std, 'sharpness': round(sharp, 2),
             'clip_hi': round(clip_hi, 4), 'clip_lo': round(clip_lo, 4), 'dhash': '%016x' % int(bits, 2), 'detail': detail}
+
+
+# ---------------------------------------------------------------- auto exposure (Lightroom / Camera Raw)
+def _srgb_to_lin(v):
+    v /= 255.0
+    return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+
+
+_LIN = [_srgb_to_lin(float(i)) for i in range(256)]
+
+
+def _L_of_Y(y):
+    f = y ** (1 / 3) if y > 0.008856 else 7.787 * y + 16 / 116
+    return 116 * f - 16
+
+
+def _Y_of_L(L):
+    f = (L + 16) / 116
+    return f ** 3 if f ** 3 > 0.008856 else (f - 16 / 116) / 7.787
+
+
+def exposure_fix(img, white=95.0, skin=87.0, black=5.0, bias=0.0):
+    """Measure a frame (camera preview, sRGB) and return Camera Raw settings that bring
+    the bright skin to L*≈skin (or, with no skin in the frame, the brightest whites to L*≈white),
+    then pull whites to ≤white and blacks to ≈black. Values are approximate: the preview is the
+    camera's rendering, so `bias` (EV) calibrates it to the photographer's own look."""
+    im = img.convert('RGB')
+    im.thumbnail((200, 200))
+    w, h = im.size
+    px = list(im.getdata())
+    ycc = list(im.convert('YCbCr').getdata())
+    Ls, skinL = [], []
+    for i, ((r, g, b), (yy, cb, cr)) in enumerate(zip(px, ycc)):
+        Y = 0.2126 * _LIN[r] + 0.7152 * _LIN[g] + 0.0722 * _LIN[b]
+        L = _L_of_Y(Y)
+        Ls.append(L)
+        x, y = i % w, i // w
+        # skin: classic YCbCr box, central 80% of the frame, not in deep shadow
+        if 77 <= cb <= 127 and 137 <= cr <= 170 and yy > 60 and r > g > b and \
+                0.1 * w < x < 0.9 * w and 0.05 * h < y < 0.85 * h:
+            skinL.append(L)
+    Ls.sort()
+    pct = lambda a, q: a[min(len(a) - 1, int(len(a) * q))]
+    l_white, l_black = pct(Ls, 0.995), pct(Ls, 0.005)
+    if len(skinL) >= len(Ls) * 0.004:
+        skinL.sort()
+        base, target, used = pct(skinL, 0.9), skin, 'skin'
+    else:
+        base, target, used = l_white, white, 'white'
+    ev = math.log2(max(_Y_of_L(target), 1e-4) / max(_Y_of_L(base), 1e-4)) + bias
+    ev = max(-2.0, min(2.0, ev))
+    k = 2 ** ev
+    lw, lb = _L_of_Y(min(1.0, _Y_of_L(l_white) * k)), _L_of_Y(_Y_of_L(l_black) * k)
+    whites = max(-60, min(40, round((white - lw) * 6))) if lw > white or used == 'white' else 0
+    blacks = max(-50, min(30, round((black - lb) * 5)))
+    return {'exposure': round(ev, 2), 'whites': whites, 'blacks': blacks, 'by': used,
+            'l_base': round(base, 1), 'l_white': round(lw, 1), 'l_black': round(lb, 1)}
+
+
+def xmp_sidecar(fix):
+    """Camera Raw / Lightroom sidecar with the exposure settings (process 2012+)."""
+    return ('<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="LUMIO">\n'
+            ' <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n'
+            '  <rdf:Description rdf:about=""\n'
+            '    xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"\n'
+            '   crs:Version="15.0" crs:ProcessVersion="11.0" crs:HasSettings="True" crs:AlreadyApplied="False"\n'
+            '   crs:WhiteBalance="As Shot"\n'
+            f'   crs:Exposure2012="{fix["exposure"]:+.2f}" crs:Whites2012="{fix["whites"]:+d}" crs:Blacks2012="{fix["blacks"]:+d}"/>\n'
+            ' </rdf:RDF>\n'
+            '</x:xmpmeta>\n')
 
 
 def hamming(a, b):
@@ -692,6 +765,8 @@ class Engine:
         out = []
         for r in rows:
             cfg = {**COMPANY_DEFAULTS.get(r['id'], COMPANY_DEFAULTS['crous']), **json.loads(r['config'] or '{}')}
+            if r['id'] in COMPANY_DEFAULTS:
+                cfg['note'] = COMPANY_DEFAULTS[r['id']]['note']      # the description follows the program version
             out.append({**cfg, 'id': r['id'], 'name': r['name']})
         return out
 
@@ -712,9 +787,18 @@ class Engine:
                 if not v.isdigit():
                     raise ValueError('Число: ' + k)
                 base[k] = int(v)
-        for k in ('teachers', 'common', 'report'):
+        for k in ('teachers', 'common', 'report', 'auto_exposure'):
             if k in data:
                 base[k] = bool(data[k])
+        for k, lo, hi in (('exp_white', 80, 100), ('exp_skin', 60, 97), ('exp_black', 0, 30), ('exp_bias', -2, 2)):
+            if k in data:
+                try:
+                    v = float(str(data[k]).replace(',', '.'))
+                except ValueError:
+                    raise ValueError('Число: ' + k)
+                if not lo <= v <= hi:
+                    raise ValueError(f'{k}: от {lo} до {hi}')
+                base[k] = v
         for k in TEMPLATE_KEYS + ('note',):
             if k in data:
                 base[k] = str(data[k])[:200]
@@ -1998,7 +2082,7 @@ class Engine:
         if update:
             wanted = {str(out / op[1]).casefold() for op in ops}
             for f in (out / root).rglob('*'):
-                if f.is_file() and not f.name.startswith(('_LUMIO_', '_FOBOX_')) and str(f).casefold() not in wanted:
+                if f.is_file() and not f.name.startswith(('_LUMIO_', '_FOBOX_')) and f.suffix.lower() != '.xmp' and str(f).casefold() not in wanted:
                     warnings.append(f'Лишний файл в заказе (снят с выбора, удалите вручную): {f.relative_to(out / root)}')
         need = sum(Path(op[0]).stat().st_size for op in ops if str(op[1]) not in skip)
         free = shutil.disk_usage(out if out.exists() else out.parent if out.parent.exists() else Path.home()).free
@@ -2076,10 +2160,29 @@ class Engine:
         root = plan['out'] / plan['rootrel']
         job.update(stage='Копирование', total=len(plan['ops']), done=0, bytes_total=plan['bytes'], bytes_done=0)
         report = []
+        cfg = self.company(self.session(sid)['session'].get('company'))
+        auto = bool(cfg.get('auto_exposure')) and cfg.get('layout') != 'sort' and Image is not None
+
+        def sidecar(p, d):
+            """Lightroom / Camera Raw picks up «name.xmp» next to the RAW on import. An existing sidecar
+            (the photographer's own edits) is never replaced."""
+            if not auto or Path(p).suffix.lower() not in RAW_EXT:
+                return ''
+            x = d.with_suffix('.xmp')
+            data = self.preview_bytes(sid, p, 640)
+            if x.exists() or not data:
+                return ''
+            try:
+                fix = exposure_fix(Image.open(io.BytesIO(data)), float(cfg.get('exp_white', 95)), float(cfg.get('exp_skin', 87)),
+                                   float(cfg.get('exp_black', 5)), float(cfg.get('exp_bias', 0)))
+            except Exception:
+                return ''
+            x.write_text(xmp_sidecar(fix), encoding='utf-8')
+            return f"{fix['exposure']:+.2f} EV, белые {fix['whites']:+d}, чёрные {fix['blacks']:+d} ({'по лицу' if fix['by'] == 'skin' else 'по белому'})"
         for p, rel, who, what, role in plan['ops']:
             d = plan['out'] / rel
             if str(rel) in plan['skip']:      # already copied by an earlier export
-                report.append([what, who, role, str(rel.relative_to(plan['rootrel'])), str(p), d.stat().st_size])
+                report.append([what, who, role, str(rel.relative_to(plan['rootrel'])), str(p), d.stat().st_size, sidecar(p, d)])
                 job['done'] += 1
                 continue
             d.parent.mkdir(parents=True, exist_ok=True)
@@ -2089,7 +2192,7 @@ class Engine:
             size = d.stat().st_size
             if size != Path(p).stat().st_size:
                 raise ValueError('Копия не совпадает по размеру с исходником: ' + str(d))
-            report.append([what, who, role, str(rel.relative_to(plan['rootrel'])), str(p), size])
+            report.append([what, who, role, str(rel.relative_to(plan['rootrel'])), str(p), size, sidecar(p, d)])
             job['done'] += 1
             job['bytes_done'] += size
         if plan['categories']:
@@ -2098,7 +2201,7 @@ class Engine:
         # order manifest: opens in Russian Excel as a table (UTF-8 BOM, ';')
         with open(root / '_LUMIO_отчёт.csv', 'w', encoding='utf-8-sig', newline='') as f:
             w = csv.writer(f, delimiter=';')
-            w.writerow(['Тип', 'Кто', 'Роль', 'Файл в заказе', 'Исходный файл', 'Размер, байт'])
+            w.writerow(['Тип', 'Кто', 'Роль', 'Файл в заказе', 'Исходный файл', 'Размер, байт', 'Автоэкспозиция (.xmp)'])
             w.writerows(sorted(report, key=lambda r: (r[0], r[1], r[3])))
         notes = root / '_LUMIO_замечания.txt'
         if not plan['warnings'] and notes.exists():
