@@ -9,6 +9,7 @@ Source photos are read-only for this program; export only makes copies.
 import argparse
 import json
 import os
+import shutil
 import sys
 import threading
 import webbrowser
@@ -25,7 +26,7 @@ CODE = [Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).wi
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.4.2'  # bump together with UI_VERSION in ui.html
+APP_VERSION = '4.5.0'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
@@ -194,7 +195,7 @@ class Server(ThreadingHTTPServer):
 
 
 def running_version(port):
-    """Version of a FoboX already answering on this port: None = nothing there, '' = an old copy."""
+    """Version of a LUMIO already answering on this port: None = nothing there, '' = an old copy."""
     import urllib.request
     try:
         with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/settings', timeout=1.5) as r:
@@ -206,8 +207,8 @@ def running_version(port):
 
 
 def bind(port):
-    """Start on `port`; if an old FoboX (or anything else) holds it, use the next free port."""
-    if os.environ.get('FOBOX_RESTART'):
+    """Start on `port`; if an old LUMIO (or anything else) holds it, use the next free port."""
+    if os.environ.get('LUMIO_RESTART') or os.environ.get('FOBOX_RESTART'):
         # self-restart: our own port is released a moment after the old process closes it
         import time
         for _ in range(40):
@@ -220,7 +221,7 @@ def bind(port):
         if ver == APP_VERSION:
             return None, p                # this version already runs: just open it
         if ver is not None:
-            print(f'! На порту {p} работает старая копия LUMIO/FoboX — её окно можно закрыть. '
+            print(f'! На порту {p} работает старая копия LUMIO/LUMIO — её окно можно закрыть. '
                   'Эта версия запустится на следующем свободном порту.', flush=True)
             continue
         try:
@@ -230,12 +231,34 @@ def bind(port):
     raise SystemExit('Не удалось найти свободный порт 8766–8785')
 
 
+DEFAULT_DB = Path.home() / '.lumio' / 'lumio.sqlite3'
+OLD_DB = Path.home() / '.fobox' / 'fobox4.sqlite3'   # catalog of earlier versions
+
+
+def migrate_catalog(db):
+    """First start after the rename: copy the earlier catalog (the old file stays as a backup) and move the preview cache."""
+    if db != DEFAULT_DB or db.exists() or not OLD_DB.exists():
+        return
+    import sqlite3
+    db.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(OLD_DB) as src, sqlite3.connect(db) as dst:
+        src.backup(dst)
+    old_prev = OLD_DB.parent / 'previews'
+    if old_prev.is_dir() and not (db.parent / 'previews').exists():
+        try:
+            shutil.move(str(old_prev), str(db.parent / 'previews'))   # cache only: move instead of a slow copy
+        except OSError:
+            pass
+    print('Каталог перенесён в', db)
+
+
 def main():
     ap = argparse.ArgumentParser(description='LUMIO')
     ap.add_argument('--port', type=int, default=8766)
-    ap.add_argument('--db', default=str(Path.home() / '.fobox' / 'fobox4.sqlite3'))
+    ap.add_argument('--db', default=str(DEFAULT_DB))
     ap.add_argument('--no-browser', action='store_true')
     a = ap.parse_args()
+    migrate_catalog(Path(a.db))
     server, port = bind(a.port)
     url = f'http://127.0.0.1:{port}/'
     if server is None:
@@ -273,7 +296,7 @@ def main():
         server.server_close()
     if restart.is_set():
         args = [a2 for a2 in sys.argv[1:] if a2 != '--no-browser'] + ['--no-browser', '--port', str(port)]
-        os.environ['FOBOX_RESTART'] = '1'
+        os.environ['LUMIO_RESTART'] = '1'
         os.execv(sys.executable, [sys.executable, os.path.abspath(sys.argv[0])] + args)
 
 

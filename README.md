@@ -1,4 +1,8 @@
-## LUMIO 4.4.2 — актуальная версия (папка v4)
+# LUMIO
+
+Программа для школьного фотографа: от карты памяти до готового заказа. **LUMIO — основной продукт.** Школьные фотокомпании (Fobox, Crous и любые другие) — это компании внутри LUMIO, каждая со своими правилами отбора и структурой папок. Их можно добавлять сколько угодно.
+
+## LUMIO 4.5 — актуальная версия (папка v4)
 
 Локальная программа для школьного фотографа: импорт карты → проверка брака → автоматические комплекты по ведомости (15–20 кадров на ребёнка, учителя, общая фотография, репортаж) → экспорт в структуру заказа. Отдельная среда **Crous**: лента с разделителями и заливка на Яндекс.Диск со ссылкой.
 
@@ -6,13 +10,13 @@
 - Подробно: [v4/README.md](v4/README.md).
 - Что изменилось: [v4/CHANGELOG.md](v4/CHANGELOG.md).
 
-## FOBOX 3.0 Preview
+## LUMIO 3.0 Preview
 
 New local single-window review and order assembly prototype: [v3/README.md](v3/README.md). **Not yet AI-enabled**; manual review is required. The previous v1/v2 versions remain available for comparison.
 
-# FOBOX — RAW SORTER
+## LUMIO 1.0 — RAW sorter (PowerShell)
 
-Local RAW sorting for school photo delivery. **Version 1.0** (PowerShell).
+Local RAW sorting for school photo delivery: `sort_raw.ps1`.
 
 ## Features
 
@@ -48,9 +52,9 @@ Use UTF-8 **with BOM** when saving `sort_raw.ps1` locally for Windows PowerShell
 
 All real photos and personal data remain local.
 
-## Camera-independent architecture (FOBOX 2.x roadmap)
+## Camera-independent architecture (LUMIO 2.x roadmap)
 
-FOBOX is intended for **multiple photographers and camera manufacturers**, not just Sony or Antonov. `ANT` and `.ARW` are examples only.
+LUMIO is intended for **multiple photographers and camera manufacturers**, not just Sony or Antonov. `ANT` and `.ARW` are examples only.
 
 - RAW formats to support via suitable decoders: ARW, CR2, CR3, NEF, NRW, RAF, RW2, ORF, DNG, PEF, 3FR and others where supported.
 - Filenames may use arbitrary camera-generated patterns (e.g. `ANT01750.ARW`, `DSC_1750.NEF`, `IMG_1750.CR3`, `DSCF1750.RAF`). Do not infer a photographer's identity from the prefix.

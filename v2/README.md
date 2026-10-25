@@ -1,4 +1,4 @@
-# FOBOX 2.0 — experimental RAW sorter
+# LUMIO 2.0 — experimental RAW sorter
 
 This is a **test version**, not a validated fully automatic face/pose sorter. Review every contact sheet before copying RAW.
 
@@ -11,7 +11,7 @@ py -m pip install -r requirements.txt
 py sort_v2.py --source "D:\DCIM\100MSDCF" --destination "F:\RAW_SORTED_V2" --manifest students.csv --contact-sheets
 ```
 
-First run may download InsightFace buffalo_l weights; subsequent image analysis is local. Preview output: `fobox_v2_plan.json` and `fobox_review` contact sheets. **No RAW is copied** until you add `--copy` and confirm with `COPY`. Destination must be empty; source files remain untouched.
+First run may download InsightFace buffalo_l weights; subsequent image analysis is local. Preview output: `lumio_v2_plan.json` and `lumio_review` contact sheets. **No RAW is copied** until you add `--copy` and confirm with `COPY`. Destination must be empty; source files remain untouched.
 
 ## Worksheet
 
@@ -19,13 +19,13 @@ Copy `students_example.csv` to `students.csv` and replace the sample rows with y
 
 ## Camera filename prefix
 
-`ANT` is **not** fixed. The three Latin letters in names such as `ANT01750.ARW` belong to the photographer's surname. FOBOX autodetects a unique three-letter prefix; if multiple are found, use `--prefix PET` (or the relevant prefix). Copied RAW filenames retain the original camera prefix.
+`ANT` is **not** fixed. The three Latin letters in names such as `ANT01750.ARW` belong to the photographer's surname. LUMIO autodetects a unique three-letter prefix; if multiple are found, use `--prefix PET` (or the relevant prefix). Copied RAW filenames retain the original camera prefix.
 
 ## Privacy and limitations
 
 Do not commit student names or images to this public GitHub repository. This version may miss useful images or include wrong people. It does **not** implement full body-pose estimation. Test on three students first.
 
-## FOBOX 2.1 — mixed-reference protection
+## LUMIO 2.1 — mixed-reference protection
 
 Run `sort_v2_1.py` instead of `sort_v2.py`:
 
@@ -33,7 +33,7 @@ Run `sort_v2_1.py` instead of `sort_v2.py`:
 .\.venv\Scripts\python.exe sort_v2_1.py --contact-sheets
 ```
 
-The new version compares all three mandatory portrait reference faces pairwise. If any portrait has zero/multiple detected faces or any pair falls below `--reference-min-score 0.50`, that student is **blocked** and listed in `fobox_v2_blocked.json`. No additional frames are selected for blocked students, and `--copy` is disabled globally until all reference conflicts are corrected. Portrait anchors belonging to other students are excluded from extra candidates. Review `fobox_v2_plan.json` and contact sheets before export. This is a conservative heuristic: a block may be a false positive and a passed reference set does not prove identity.
+The new version compares all three mandatory portrait reference faces pairwise. If any portrait has zero/multiple detected faces or any pair falls below `--reference-min-score 0.50`, that student is **blocked** and listed in `lumio_v2_blocked.json`. No additional frames are selected for blocked students, and `--copy` is disabled globally until all reference conflicts are corrected. Portrait anchors belonging to other students are excluded from extra candidates. Review `lumio_v2_plan.json` and contact sheets before export. This is a conservative heuristic: a block may be a false positive and a passed reference set does not prove identity.
 
 
 ## Review UX requirements — portrait series vs friends (planned, not implemented)
@@ -47,7 +47,7 @@ The new version compares all three mandatory portrait reference faces pairwise. 
 The existing `sort_v2_1.py` does **not yet implement** this split interactive review interface. This section records the specification for the next version.
 
 
-## Order assembly: teachers and background (FOBOX 3.0 specification; not yet implemented)
+## Order assembly: teachers and background (LUMIO 3.0 specification; not yet implemented)
 
 - **Teachers:** group images into a series per teacher, as for students, but propose **at most 3–5 RAW images**, ideally one best image per distinct pose. Avoid bracketing duplicates and near-identical expressions. No student-specific mandatory V/P1/P2/D1/D2 fields for teachers. Show all proposals on one review screen with checkboxes; allow manual override.
 - **Background:** one separate photograph **without a person**, selected explicitly by the operator using a file picker. Do not infer or automatically select a background from portrait images. Preserve the original file/format in the order's background folder.

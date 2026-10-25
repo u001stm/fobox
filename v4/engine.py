@@ -1,4 +1,4 @@
-"""FOBOX 4.0 alpha.2 engine: catalog, analysis, selection, export, statistics.
+"""LUMIO 4.0 alpha.2 engine: catalog, analysis, selection, export, statistics.
 
 Source files are opened read-only. Nothing in the source folder is ever
 renamed, moved, deleted or overwritten; export only creates copies.
@@ -1847,9 +1847,9 @@ class Engine:
             raise ValueError('Не выбрано ни одного кадра')
         update = False
         if (out / root).exists() and any((out / root).iterdir()):
-            if not (out / root / '_FOBOX_отчёт.csv').exists():
+            if not any((out / root / n).exists() for n in ('_LUMIO_отчёт.csv', '_FOBOX_отчёт.csv')):
                 raise ValueError('Папка заказа уже существует и не пуста: ' + str(out / root))
-            update = True  # an earlier FOBOX export: add what is missing, never overwrite or delete
+            update = True  # an earlier LUMIO export: add what is missing, never overwrite or delete
         skip, clash = set(), []
         for op in ops:
             d = out / op[1]
@@ -1863,7 +1863,7 @@ class Engine:
         if update:
             wanted = {str(out / op[1]).casefold() for op in ops}
             for f in (out / root).rglob('*'):
-                if f.is_file() and not f.name.startswith('_FOBOX_') and str(f).casefold() not in wanted:
+                if f.is_file() and not f.name.startswith(('_LUMIO_', '_FOBOX_')) and str(f).casefold() not in wanted:
                     warnings.append(f'Лишний файл в заказе (снят с выбора, удалите вручную): {f.relative_to(out / root)}')
         need = sum(Path(op[0]).stat().st_size for op in ops if str(op[1]) not in skip)
         free = shutil.disk_usage(out if out.exists() else out.parent if out.parent.exists() else Path.home()).free
@@ -1961,11 +1961,11 @@ class Engine:
             for cat in CATS:
                 (root / cat).mkdir(parents=True, exist_ok=True)
         # order manifest: opens in Russian Excel as a table (UTF-8 BOM, ';')
-        with open(root / '_FOBOX_отчёт.csv', 'w', encoding='utf-8-sig', newline='') as f:
+        with open(root / '_LUMIO_отчёт.csv', 'w', encoding='utf-8-sig', newline='') as f:
             w = csv.writer(f, delimiter=';')
             w.writerow(['Тип', 'Кто', 'Роль', 'Файл в заказе', 'Исходный файл', 'Размер, байт'])
             w.writerows(sorted(report, key=lambda r: (r[0], r[1], r[3])))
-        notes = root / '_FOBOX_замечания.txt'
+        notes = root / '_LUMIO_замечания.txt'
         if not plan['warnings'] and notes.exists():
             notes.unlink()  # our own notes file: everything is fixed now
         if plan['warnings']:
@@ -1977,7 +1977,7 @@ class Engine:
             c.execute("UPDATE sessions SET status='exported' WHERE id=?", (sid,))
         self.set_meta(sid, {'last_export': str(root)})
         job['stage'] = 'Готово'
-        return {'root': plan['root'], 'files': plan['files'], 'new': plan['new'], 'update': plan['update'], 'bytes': plan['bytes'], 'report': str(root / '_FOBOX_отчёт.csv'), 'warnings': plan['warnings']}
+        return {'root': plan['root'], 'files': plan['files'], 'new': plan['new'], 'update': plan['update'], 'bytes': plan['bytes'], 'report': str(root / '_LUMIO_отчёт.csv'), 'warnings': plan['warnings']}
 
     def disk_target(self, sid):
         """Where an upload goes: disk:/<company folder>/<order folder>."""
