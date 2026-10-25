@@ -193,7 +193,7 @@ class FaceEngine:
                 emb = self.embed(img, f['kps'])
                 lo, hi = self.eyes(img, f['box'])
                 g, a = self.gender_age(img, f['box'])
-                out.append({'box': [round(v, 1) for v in f['box']], 'score': round(f['score'], 3),
+                out.append({'box': [round(v, 1) for v in f['box']], 'score': round(f['score'], 3), 'iw': img.size[0], 'ih': H,
                             'h': round((y2 - y1) / H, 4), 'emb': emb.astype(np.float32),
                             'eye': round(lo, 3), 'eye2': round(hi, 3), 'g': g, 'age': a})
         out.sort(key=lambda f: -f['h'])

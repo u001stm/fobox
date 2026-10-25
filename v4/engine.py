@@ -1153,7 +1153,7 @@ class Engine:
                             fs = eng.analyze(Image.open(io.BytesIO(data)))
                         except Exception:
                             fs = []
-                    meta = [{k: f[k] for k in ('box', 'h', 'eye', 'eye2', 'g', 'age', 'score')} for f in fs]
+                    meta = [{k: f[k] for k in ('box', 'h', 'eye', 'eye2', 'g', 'age', 'score', 'iw', 'ih')} for f in fs]
                     emb = b''.join(f['emb'].astype('float16').tobytes() for f in fs)
                     batch.append((sid, p, len(fs), json.dumps(meta), emb))
                     job['done'] += 1
@@ -1218,6 +1218,12 @@ class Engine:
             agree = [e for e in embs if float(np.dot(best, e)) >= same] or [best]
             r = np.mean(agree, axis=0)
             return r / (np.linalg.norm(r) + 1e-9)
+        fnum = {f['path']: f['frame'] for f in files}
+        finfo = {f['path']: f for f in files}
+        must_of = defaultdict(set)
+        for x in out:
+            for q in x['mandatory']:
+                must_of[q].add(x['person'])
         refs = {}
         for x in out:
             if x['kind'] in ('portrait', 'teacher') and x['mandatory']:
@@ -1230,6 +1236,7 @@ class Engine:
             ref = refs.get(x['person'])
             if ref is None:
                 continue
+            others_must = {q for q, ps in must_of.items() if ps - {x['person']}}
             def who(p):        # this person's face on the frame, or None
                 best = max(F.get(p) or [], key=lambda f: float(np.dot(f['emb'], ref)), default=None)
                 return best if best is not None and float(np.dot(best['emb'], ref)) >= same else None
@@ -1257,6 +1264,26 @@ class Engine:
                     continue
                 if f is not None and f.get('eye2', 1) < shut:
                     closed.append(q)
+            # with faces the series is no longer cut by pauses: every frame of this person near the worksheet
+            # numbers (a pause between poses, a retake a bit later) joins it — only if the face is this person
+            if x['kind'] in ('portrait', 'teacher'):
+                nums = [fnum[q] for q in x['mandatory'] if fnum.get(q) is not None]
+                if nums:
+                    lo, hi = min(nums) - 15, max(nums) + 15
+                    have = set(keep)
+                    for f in files:
+                        q = f['path']
+                        if q in have or f['frame'] is None or not lo <= f['frame'] <= hi or f.get('wide') == 1:
+                            continue
+                        if q in others_must or not F.get(q):
+                            continue
+                        m = F[q][0]
+                        if float(np.dot(m['emb'], ref)) >= same:
+                            keep.append(q)
+                            have.add(q)
+                            if m.get('eye2', 1) < shut:
+                                closed.append(q)
+                    keep.sort(key=lambda q: (finfo[q]['capture_at'], finfo[q]['name']))
             x['files'] = keep
             x['closed'] = closed
             x['strangers'] = gone
@@ -1938,7 +1965,15 @@ class Engine:
             pool = [f for f in pool if not ref or dist(f) > hard]
             if not pool:
                 break
-            best = max(pool, key=lambda f: (min(dist(f), 20), inside(f), f['sharpness'] or 0))
+
+            def pose_d(a, b):
+                # with faces: a different pose = the face elsewhere in the frame or a different framing
+                if not a.get('pose') or not b.get('pose'):
+                    return 0
+                (ax, ay, ah), (bx, by, bh) = a['pose'], b['pose']
+                return (abs(ax - bx) + abs(ay - by)) * 60 + abs(math.log(ah / bh)) * 25
+            score = lambda f: min((hamming(f['dhash'], x['dhash']) + pose_d(f, x) for x in ref), default=99)
+            best = max(pool, key=lambda f: (min(score(f), 30), inside(f), f['sharpness'] or 0))
             if stop is not None and ref and dist(best) <= stop:
                 break
             picks.append(best)
@@ -2041,6 +2076,14 @@ class Engine:
             for p_, (nf, nc) in self._face_summary(sid).items():
                 if p_ in info:
                     info[p_]['nf'], info[p_]['nclosed'] = nf, nc
+            # pose of a frame = where the main face is and how big (full length / waist / close-up)
+            for p_, fs in self._faces(sid).items():
+                if p_ in info and fs:
+                    f = fs[0]
+                    W = f.get('iw') or 1280
+                    H = f.get('ih') or 1280
+                    x1, y1, x2, y2 = f['box']
+                    info[p_]['pose'] = ((x1 + x2) / 2 / W, (y1 + y2) / 2 / H, max(f['h'], 0.01))
             approved = {r['section_id'] for r in c.execute('SELECT section_id FROM approvals WHERE session_id=? AND approved=1', (sid,))}
             edited = {r['section_id'] for r in c.execute("SELECT DISTINCT section_id FROM selection_events WHERE session_id=? AND actor='user'", (sid,))}
             picks_by, reason = {}, {}
