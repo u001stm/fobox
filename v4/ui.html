@@ -104,7 +104,8 @@ td .tt{display:flex;align-items:center;gap:10px}td .th{width:36px;height:36px;bo
 .segw{display:flex;background:var(--card2);border-radius:10px;padding:3px;margin-bottom:14px}.segw button{flex:1;border:0;background:none;padding:8px;border-radius:8px;cursor:pointer;color:var(--muted)}.segw button.on{background:var(--accent);color:#fff}
 .prog{height:6px;background:var(--card3);border-radius:4px;overflow:hidden;margin:10px 0}.prog span{display:block;height:100%;background:var(--blue);transition:width .2s}
 .warn{background:#f3b44c1a;color:var(--warn);border-radius:10px;padding:9px 12px;font-size:12.5px}.err{background:#ff5d701a;color:var(--bad)}
-.toast{position:fixed;bottom:18px;right:18px;background:var(--card3);border:1px solid var(--line2);padding:11px 15px;border-radius:11px;z-index:90;box-shadow:0 8px 30px #0008;max-width:420px;animation:tin .18s ease}
+.toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:var(--card3);border:1px solid var(--line2);padding:9px 16px;border-radius:11px;z-index:90;box-shadow:0 8px 30px #0008;max-width:520px;text-align:center;pointer-events:none;animation:tin2 .18s ease}
+@keyframes tin2{from{opacity:0;transform:translate(-50%,-6px)}to{opacity:1;transform:translate(-50%,0)}}
 @keyframes tin{from{transform:translateY(8px);opacity:0}}
 .meter{height:6px;background:var(--card3);border-radius:6px;overflow:hidden}.meter span{display:block;height:100%;background:var(--accent);border-radius:6px}
 /* review */
@@ -257,7 +258,7 @@ const STATUS={imported:'Импортирована',analyzed:'В отборе',r
 let S={page:'overview',sub:null,stats:null,cfg:null,sid:'',sess:null,sec:0,tab:'kit',sel:new Set(),period:'month',anchor:new Date(),cmp:'prev',atab:'perf',undo:[]};
 try{S.sid=localStorage.getItem('lumio.sid')||''}catch(e){}
 async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({error:'Ошибка сервера'}));if(!r.ok)throw Error(j.error||'Ошибка');return j}
-function toast(t,bad){const d=document.createElement('div');d.className='toast';if(bad)d.style.borderColor='var(--bad)';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),bad?6000:2600)}
+function toast(t,bad){document.querySelectorAll('.toast').forEach(x=>x.remove());const d=document.createElement('div');d.className='toast';if(bad)d.style.borderColor='var(--bad)';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),bad?6000:2600)}
 function fdate(d){if(!d)return'—';const [y,m,dd]=d.slice(0,10).split('-');return (S.cfg?.settings?.date_format==='yyyy-mm-dd')?`${y}-${m}-${dd}`:`${dd}.${m}.${y}`}
 const fdt=d=>d?fdate(d)+" "+String(d).slice(11,16):"";
 const dur=h=>h==null?'—':h<1?Math.round(h*60)+' мин':`${Math.floor(h)} ч ${Math.round(h%1*60)} мин`;
@@ -277,7 +278,7 @@ function envMenu(btn){closeMenu();const m=document.createElement('div');m.classN
  const r=btn.getBoundingClientRect();m.style.left=(r.right+8)+'px';m.style.top=r.top+'px';setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
 async function switchEnv(id){if(typeof flush==='function')await flush();try{await api('/api/settings',{settings:{current_company:id}});S.sess=null;S.sid='';try{localStorage.removeItem('lumio.sid')}catch(e){}await load();toast('Среда: '+curEnv().name)}catch(e){toast(e.message,1)}}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-const UI_VERSION='4.15.0';
+const UI_VERSION='4.15.1';
 async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();
  const env=curEnv().id;S.stats.allSessions=S.stats.sessions;S.stats.sessions=S.stats.sessions.filter(x=>(x.company||'vypusk')===env);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;const a=curEnv().color||s.accent;document.documentElement.style.setProperty('--accent',a);document.documentElement.style.setProperty('--c1',a);document.documentElement.style.setProperty('--accent-soft',a+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
