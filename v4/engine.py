@@ -88,13 +88,15 @@ CREATE TABLE IF NOT EXISTS anchor_overrides (
 CREATE TABLE IF NOT EXISTS marks (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, file_path TEXT NOT NULL, mark TEXT NOT NULL,
  PRIMARY KEY(session_id, section_id, file_path));
+CREATE TABLE IF NOT EXISTS companies (
+ id TEXT PRIMARY KEY, name TEXT NOT NULL, config TEXT NOT NULL DEFAULT '{}', sort INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS approvals (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, approved INTEGER NOT NULL,
  at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(session_id, section_id));
 """
 # columns added on top of the alpha.1 schema (migration keeps old databases working)
 MIGRATIONS = {
-    'sessions': {'source': 'TEXT', 'mode': "TEXT DEFAULT 'general'", 'order_no': 'TEXT',
+    'sessions': {'company': "TEXT DEFAULT 'vypusk'", 'source': 'TEXT', 'mode': "TEXT DEFAULT 'general'", 'order_no': 'TEXT',
                  'school': 'TEXT', 'class_name': 'TEXT', 'location': 'TEXT',
                  'status': "TEXT DEFAULT 'imported'", 'meta': 'TEXT'},
     'files': {'name': 'TEXT', 'frame': 'INTEGER', 'preview': 'TEXT', 'camera': 'TEXT',
@@ -116,6 +118,35 @@ def now():
 def frame_number(stem):
     m = re.search(r'(\d+)$', stem)
     return int(m.group(1)) if m else None
+
+
+# A company = a customer with its own kit rules and export layout. "Выпуск" is the full school layout;
+# other companies use a template: {order} {school} {class} {date} {name} {orig} {n} {role}
+COMPANY_DEFAULTS = {
+    'vypusk': {'name': 'Выпуск', 'layout': 'vypusk', 'kit_min': 15, 'kit_max': 20, 'target': 18,
+               'teachers': True, 'common': True, 'report': True, 'report_count': 15, 'group_dups': 6, 'report_dups': 6,
+               'note': 'Полная школьная структура: 01_ДОКУМЕНТЫ … 07_ФОН, ЛР_/ЛС_/Друг1_/Друг2_, учителя, общая и репортаж с дублями.'},
+    'crous': {'name': 'Crous', 'layout': 'template', 'kit_min': 5, 'kit_max': 10, 'target': 8,
+              'teachers': True, 'common': True, 'report': False, 'report_count': 0, 'group_dups': 0, 'report_dups': 0,
+              'root': '{order} {school} {class}',
+              'child_dir': '{name}',
+              'worksheet_file': '{n}. {name}_{orig}',
+              'extra_file': '{orig}',
+              'teacher_dir': 'Учителя', 'teacher_file': '{name}_{orig}',
+              'common_dir': 'Общая', 'report_dir': 'Репортаж',
+              'note': 'Простая структура: папка заказа → папка ребёнка → его кадры. Шаблоны имён можно поменять.'},
+}
+TEMPLATE_KEYS = ('root', 'child_dir', 'worksheet_file', 'extra_file', 'teacher_dir', 'teacher_file', 'common_dir', 'report_dir')
+
+
+def fill(template, **kw):
+    """Fill a folder/file template; empty parts and doubled separators are cleaned up."""
+    out = str(template or '')
+    for k, v in kw.items():
+        out = out.replace('{' + k + '}', str(v or ''))
+    out = re.sub(r'\{[a-z_]+\}', '', out)
+    out = re.sub(r'\s{2,}', ' ', out).strip(' ._-')
+    return out
 
 
 def iso_date(v):
@@ -607,13 +638,74 @@ class Engine:
             c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),))
             c.execute("INSERT OR IGNORE INTO profiles(id,name,studio) VALUES('me','','')")
             c.execute("UPDATE settings SET value='20' WHERE key='kit_max' AND value='22'")   # earlier default
+            for i, (cid, cfg) in enumerate(COMPANY_DEFAULTS.items()):
+                c.execute('INSERT OR IGNORE INTO companies(id,name,config,sort) VALUES(?,?,?,?)',
+                          (cid, cfg['name'], json.dumps({k: v for k, v in cfg.items() if k != 'name'}, ensure_ascii=False), i))
             for r in c.execute('SELECT id, shoot_date FROM sessions').fetchall():   # older catalogs: 16.10.2026 -> ISO
                 if r['shoot_date'] and iso_date(r['shoot_date']) != r['shoot_date']:
                     c.execute('UPDATE sessions SET shoot_date=? WHERE id=?', (iso_date(r['shoot_date']), r['id']))
 
-    def settings(self):
+    def settings(self, sid=None):
+        """Global settings; with a session, its company's rules override kit sizes and parts of the order."""
         with self.conn() as c:
-            return {r['key']: r['value'] for r in c.execute('SELECT key,value FROM settings')}
+            st = {r['key']: r['value'] for r in c.execute('SELECT key,value FROM settings')}
+            if sid:
+                r = c.execute('SELECT company FROM sessions WHERE id=?', (sid,)).fetchone()
+                cfg = self.company(r['company'] if r else None)
+                st.update({'kit_min': str(cfg['kit_min']), 'kit_max': str(cfg['kit_max']), 'target_per_student': str(cfg['target']),
+                           'report_count': str(cfg['report_count']), 'group_dups': str(cfg['group_dups']), 'report_dups': str(cfg['report_dups'])})
+                st['_company'] = cfg
+        return st
+
+    def companies(self):
+        with self.conn() as c:
+            rows = c.execute('SELECT * FROM companies ORDER BY sort, name').fetchall()
+        out = []
+        for r in rows:
+            cfg = {**COMPANY_DEFAULTS.get(r['id'], COMPANY_DEFAULTS['crous']), **json.loads(r['config'] or '{}')}
+            out.append({**cfg, 'id': r['id'], 'name': r['name']})
+        return out
+
+    def company(self, cid):
+        cs = self.companies()
+        return next((x for x in cs if x['id'] == cid), cs[0] if cs else {**COMPANY_DEFAULTS['vypusk'], 'id': 'vypusk'})
+
+    def save_company(self, data):
+        cid = re.sub(r'[^a-z0-9_]', '', str(data.get('id') or '').lower()) or 'c' + hashlib.sha1(str(data.get('name')).encode()).hexdigest()[:6]
+        name = str(data.get('name') or '').strip()
+        if not name:
+            raise ValueError('Укажите название компании')
+        cur = next((x for x in self.companies() if x['id'] == cid), None)
+        base = {k: v for k, v in (cur or COMPANY_DEFAULTS['crous']).items() if k not in ('id', 'name')}
+        for k in ('kit_min', 'kit_max', 'target', 'report_count', 'group_dups', 'report_dups'):
+            if k in data:
+                v = str(data[k]).strip()
+                if not v.isdigit():
+                    raise ValueError('Число: ' + k)
+                base[k] = int(v)
+        for k in ('teachers', 'common', 'report'):
+            if k in data:
+                base[k] = bool(data[k])
+        for k in TEMPLATE_KEYS + ('note',):
+            if k in data:
+                base[k] = str(data[k])[:200]
+        if 'layout' in data and data['layout'] in ('vypusk', 'template'):
+            base['layout'] = data['layout']
+        if base['kit_min'] > base['kit_max']:
+            raise ValueError('«Не меньше» больше, чем «не больше»')
+        with self.conn() as c:
+            c.execute('INSERT INTO companies(id,name,config,sort) VALUES(?,?,?,(SELECT COALESCE(MAX(sort),0)+1 FROM companies)) '
+                      'ON CONFLICT(id) DO UPDATE SET name=excluded.name, config=excluded.config',
+                      (cid, name, json.dumps(base, ensure_ascii=False)))
+        return {'id': cid}
+
+    def delete_company(self, cid):
+        with self.conn() as c:
+            if c.execute('SELECT COUNT(*) FROM sessions WHERE company=?', (cid,)).fetchone()[0]:
+                raise ValueError('У компании есть съёмки — сначала перенесите или удалите их')
+            if c.execute('SELECT COUNT(*) FROM companies').fetchone()[0] <= 1:
+                raise ValueError('Должна остаться хотя бы одна компания')
+            c.execute('DELETE FROM companies WHERE id=?', (cid,))
 
     def setting(self, key, cast=str):
         return cast(self.settings().get(key, DEFAULT_SETTINGS.get(key)))
@@ -723,13 +815,13 @@ class Engine:
         title = (opts.get('title') or '').strip() or src.name
         with self.conn() as c:
             self.event(c, sid, 'import', 'start')
-            c.execute('''INSERT INTO sessions(id,title,source,mode,order_no,school,class_name,location,status)
-                         VALUES(?,?,?,?,?,?,?,?,'imported')
-                         ON CONFLICT(id) DO UPDATE SET title=excluded.title, mode=excluded.mode,
+            c.execute('''INSERT INTO sessions(id,title,source,mode,order_no,school,class_name,location,status,company)
+                         VALUES(?,?,?,?,?,?,?,?,'imported',?)
+                         ON CONFLICT(id) DO UPDATE SET title=excluded.title, mode=excluded.mode, company=excluded.company,
                          order_no=excluded.order_no, school=excluded.school, class_name=excluded.class_name,
                          location=excluded.location''',
                       (sid, title, str(src), mode, opts.get('order', ''), opts.get('school', ''),
-                       opts.get('class_name', ''), opts.get('location', '')))
+                       opts.get('class_name', ''), opts.get('location', ''), self.company(opts.get('company'))['id']))
             present = set()
             for i, (p, kind, side) in enumerate(items):
                 meta = read_meta(side or p) if side else read_meta(p)
@@ -976,7 +1068,7 @@ class Engine:
                     must.setdefault(f['path'], k)
         return must
 
-    def _common_sections(self, files, frames, people, out, conflicts):
+    def _common_sections(self, files, frames, people, out, conflicts, sid=None):
         """«Общая фотография» and «Репортаж»: frames that belong to nobody's series.
         Worksheet rows typed «общая» / «репортаж» may give numbers ('612', '640-700', '640 641')."""
         used = {p for x in out for p in x['files']} | {p for x in out for p in x['mandatory']}
@@ -990,18 +1082,18 @@ class Engine:
                 lo, hi = int(a), int(b or a)
                 out_ += [fnum[n]['path'] for n in range(min(lo, hi), max(lo, hi) + 1) if n in fnum]
             return out_
-        st = self.settings()
+        st = self.settings(sid)
         res = []
         g_must = nums_of(sheet.get('group'))[:1]
         r_range = nums_of(sheet.get('report'))
         g_files = [f['path'] for f in free] if not g_must else sorted(set(g_must) | {f['path'] for f in free}, key=lambda p: next((f['capture_at'] for f in frames if f['path'] == p), ''))
         r_files = [p for p in r_range if p not in g_must] if r_range else [f['path'] for f in free]
         dg, dr = int(st['group_dups']), int(st['report_dups'])
-        if g_files:
+        if g_files and int(st['group_dups']) >= 0:
             res.append({'id': 'common', 'title': 'Общая фотография', 'subtitle': f'1 кадр + {dg} дублей', 'kind': 'group',
                         'person': None, 'files': g_files, 'mandatory': {p: 'G' for p in g_must}, 'limit': 1 + dg,
                         'main_limit': 1, 'dup_limit': dg, 'roles': [], 'overridden': False, 'unsure': {}})
-        if r_files:
+        if r_files and int(st['report_count']) > 0:
             n = int(st['report_count'])
             res.append({'id': 'report', 'title': 'Репортаж', 'subtitle': f'{n} кадров + {dr} дублей', 'kind': 'reportage',
                         'person': None, 'files': r_files, 'mandatory': {}, 'limit': n + dr,
@@ -1173,7 +1265,11 @@ class Engine:
             for x in out:
                 if x['kind'] == 'teacher':
                     x['files'] = [p for p in x['files'] if tmand.get(p, x['id']) == x['id']]
-            out += self._common_sections(files, frames, people, out, conflicts)
+            cfg = self.settings(sid)['_company']
+            if not cfg.get('teachers', True):
+                out = [x for x in out if x['kind'] != 'teacher']
+            out += [x for x in self._common_sections(files, frames, people, out, conflicts, sid)
+                    if (x['kind'] == 'group' and cfg.get('common', True)) or (x['kind'] == 'reportage' and cfg.get('report', True))]
         else:
             by = defaultdict(list)
             for f in files:
@@ -1251,7 +1347,7 @@ class Engine:
         sharp, without defects, as different from each other as the series allows.
         A teacher gets 3–5 different poses. Sections the photographer already edited are left alone."""
         secs, _ = self.sections(sid)
-        st = self.settings()
+        st = self.settings(sid)
         kmin, kmax = int(st['kit_min']), int(st['kit_max'])
         target = max(kmin, min(kmax, int(st['target_per_student'])))
         dup_d = int(st['dup_distance'])
@@ -1441,6 +1537,16 @@ class Engine:
                     c.execute("UPDATE sessions SET status='reviewed' WHERE id=? AND status!='exported'", (sid,))
         return {'ok': True}
 
+    def set_company(self, sid, cid):
+        """Move a shoot to another company: its kit rules and export layout change; kits nobody edited are rebuilt."""
+        cfg = self.company(cid)
+        if cfg['id'] != cid:
+            raise ValueError('Нет такой компании')
+        with self.conn() as c:
+            c.execute('UPDATE sessions SET company=? WHERE id=?', (cid, sid))
+        self.suggest(sid)
+        return {'ok': True}
+
     def rebuild(self, sid, section_ids):
         """Assemble these kits again from scratch: forget manual picks and confirmations of these sections
         (worksheet roles fixed in the app are kept), then run the automatic assembly."""
@@ -1544,7 +1650,10 @@ class Engine:
                 raise ValueError('Конфликт имён: ' + str(rel))
             names.add(str(rel).casefold())
             ops.append((p, rel, who, what, role))
-        if s['mode'] == 'school':
+        cfg = self.company(s.get('company'))
+        if s['mode'] == 'school' and cfg.get('layout') == 'template':
+            root = self._export_template(st, s, cfg, files, add)
+        elif s['mode'] == 'school':
             root = Path(*[safe_name(x or '—') for x in (s['order_no'], s['school'], ru_date(s['shoot_date']), s['class_name'])])
             prefix = {'V': '{n}_', 'P1': 'ЛР_{n}_', 'P2': 'ЛС_{n}_', 'D1': 'Друг1_', 'D2': 'Друг2_', 'T': ''}
             # portraits and friends of one student are merged: a frame inside both windows is copied once
@@ -1618,8 +1727,38 @@ class Engine:
         need = sum(Path(op[0]).stat().st_size for op in ops if str(op[1]) not in skip)
         free = shutil.disk_usage(out if out.exists() else out.parent if out.parent.exists() else Path.home()).free
         return {'root': str(out / root), 'files': len(ops), 'bytes': need, 'free': free, 'ops': ops, 'out': out,
-                'categories': s['mode'] == 'school', 'rootrel': root, 'warnings': warnings,
+                'categories': s['mode'] == 'school' and cfg.get('layout') != 'template', 'rootrel': root, 'warnings': warnings,
                 'skip': skip, 'update': update, 'new': len(ops) - len(skip)}
+
+    def _export_template(self, st, s, cfg, files, add):
+        """Simple company layout from templates: root / child / frames, teachers, common photo, reportage."""
+        kw = {'order': s['order_no'], 'school': s['school'], 'class': s['class_name'], 'date': ru_date(s['shoot_date'])}
+        root = Path(safe_name(fill(cfg.get('root'), **kw) or s['title']))
+        names = {'V': 'Виньетка', 'P1': 'ЛР', 'P2': 'ЛС', 'D1': 'Друг1', 'D2': 'Друг2', 'T': 'Учитель'}
+        order_n = {'V': 1, 'P1': 2, 'P2': 3, 'D1': 4, 'D2': 5, 'T': 1}
+        done = set()
+        for sec in st['sections']:
+            sel = [p for p in st['selected'].get(sec['id'], []) if p in files]
+            if sec['kind'] in ('group', 'reportage'):
+                folder = cfg.get('common_dir' if sec['kind'] == 'group' else 'report_dir') or sec['title']
+                dset = set(st['dups'].get(sec['id'], []))
+                for p in sorted(sel, key=lambda x: files[x]['name']):
+                    add(p, root / safe_name(folder) / ('Дубли' if p in dset else '') / files[p]['name'], sec['title'], sec['title'],
+                        'дубль' if p in dset else 'основной')
+                continue
+            teacher = sec['kind'] == 'teacher'
+            base = root / safe_name(cfg.get('teacher_dir') or 'Учителя') if teacher else root / safe_name(fill(cfg.get('child_dir'), name=sec['title'], **kw) or sec['title'])
+            for p in sorted(sel, key=lambda x: (order_n.get(sec['mandatory'].get(x), 9), files[x]['name'])):
+                if (base, p) in done:
+                    continue
+                done.add((base, p))
+                f = files[p]
+                orig, ext = Path(f['name']).stem, Path(f['name']).suffix
+                k = sec['mandatory'].get(p)
+                tpl = cfg.get('teacher_file') if teacher else (cfg.get('worksheet_file') if k else cfg.get('extra_file'))
+                name = fill(tpl, name=sec['title'], orig=orig, n=order_n.get(k, ''), role=names.get(k, ''), **kw) or orig
+                add(p, base / (safe_name(name) + ext), sec['title'], 'Учитель' if teacher else 'Ученик', ROLE_NAMES.get(k, '') if k else '')
+        return root
 
     def export(self, sid, output, dry_run=False, job=None):
         job = job if job is not None else {}

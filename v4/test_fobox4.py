@@ -523,6 +523,30 @@ class EngineTest(unittest.TestCase):
         with self.assertRaises(ValueError):                                     # 2 main group photos are not allowed
             self.e.review(sid, {'section': 'common', 'selected': gsel, 'dups': gdup[1:], 'approved': True})
 
+    def test_companies_change_kit_and_export_layout(self):
+        names = [c['name'] for c in self.e.companies()]
+        self.assertEqual(names[:2], ['Выпуск', 'Crous'])
+        sid = self.e.import_folder(self.src, {'students': str(self.tmp / 'students.csv'), 'company': 'crous',
+                                              'order': '7425', 'school': '1363', 'class_name': '4'})
+        st = self.e.session(sid)
+        self.assertEqual(st['session']['company'], 'crous')
+        kit = sum(len(st['selected'][x['id']]) for x in st['sections'] if x['person'] == 's0')
+        self.assertTrue(5 <= kit <= 10, kit)                                  # Crous: 5–10 per child
+        self.assertFalse(any(x['kind'] == 'reportage' for x in st['sections']))   # no reportage there
+        self.approve_all(sid)
+        root = Path(self.e.export(sid, self.tmp / 'out')['root'])
+        self.assertEqual(root.name, '7425 1363 4')
+        kid = {x.name for x in (root / 'Иванов Иван').iterdir()}
+        self.assertIn('1. Иванов Иван_ABC0110.ARW', kid)
+        self.assertIn('2. Иванов Иван_ABC0111.ARW', kid)
+        self.assertFalse((root / '05_УЧЕНИКИ').exists())
+        self.e.save_company({'id': 'crous', 'name': 'Crous', 'worksheet_file': '{role}_{orig}', 'kit_max': 12})
+        self.assertEqual(self.e.company('crous')['worksheet_file'], '{role}_{orig}')
+        self.e.set_company(sid, 'vypusk')
+        self.assertEqual(self.e.session(sid)['session']['company'], 'vypusk')
+        with self.assertRaises(ValueError):
+            self.e.delete_company('vypusk')                                   # has a shoot
+
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'
         f.write_bytes('ФИО;В;П1;П2;Д1;Д2\r\nИванов Иван;110;111;112;125;126\r\n'.encode('cp1251'))

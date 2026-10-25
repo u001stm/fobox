@@ -25,7 +25,7 @@ CODE = [Path(__file__), Path(__file__).with_name('engine.py')]
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.1.0'  # bump together with UI_VERSION in ui.html
+APP_VERSION = '4.2.0'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
@@ -88,7 +88,7 @@ def make_handler(engine):
                 elif u.path == '/api/build':
                     self.send(200, {'build': build_id(), 'version': APP_VERSION})
                 elif u.path == '/api/settings':
-                    self.send(200, {'settings': engine.settings(), 'profile': engine.profile(), 'version': APP_VERSION})
+                    self.send(200, {'settings': engine.settings(), 'profile': engine.profile(), 'version': APP_VERSION, 'companies': engine.companies()})
                 elif u.path == '/api/session':
                     self.send(200, engine.session(q.get('id', '')))
                 elif u.path == '/api/job':
@@ -118,6 +118,10 @@ def make_handler(engine):
                     out = engine.review(b['session'], b)
                 elif p == '/api/review':
                     out = engine.review(b['session'], b)
+                elif p == '/api/company':
+                    out = engine.delete_company(b['delete']) if b.get('delete') else engine.save_company(b)
+                elif p == '/api/set-company':
+                    out = engine.set_company(b['session'], b['company'])
                 elif p == '/api/rebuild':
                     out = engine.rebuild(b['session'], b.get('sections'))
                 elif p == '/api/role':
