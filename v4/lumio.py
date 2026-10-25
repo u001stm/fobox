@@ -26,7 +26,7 @@ CODE = [Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).wi
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.5.0'  # bump together with UI_VERSION in ui.html
+APP_VERSION = '4.6.0'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
@@ -152,6 +152,10 @@ def make_handler(engine):
                     if 'profile' in b:
                         engine.save_profile(b['profile'])
                     out = {'ok': True}
+                elif p == '/api/rename':
+                    out = engine.rename_person(b['session'], b['person'], b.get('name'), b.get('role'))
+                elif p == '/api/set-common':
+                    out = engine.set_common(b['session'], b['path'])
                 elif p == '/api/reset':
                     out = engine.reset_session(b['session'])
                 elif p == '/api/delete':

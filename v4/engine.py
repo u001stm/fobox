@@ -94,6 +94,9 @@ CREATE TABLE IF NOT EXISTS marks (
  PRIMARY KEY(session_id, section_id, file_path));
 CREATE TABLE IF NOT EXISTS dividers (
  session_id TEXT NOT NULL, file_path TEXT NOT NULL, cat TEXT NOT NULL, PRIMARY KEY(session_id, file_path));
+CREATE TABLE IF NOT EXISTS renames (
+ session_id TEXT NOT NULL, original TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', role TEXT,
+ PRIMARY KEY(session_id, original));
 CREATE TABLE IF NOT EXISTS series_cat (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, cat TEXT NOT NULL, PRIMARY KEY(session_id, section_id));
 CREATE TABLE IF NOT EXISTS companies (
@@ -925,11 +928,52 @@ class Engine:
             ns += 1
         if students_file and not (ns or nt):
             raise ValueError('В ведомости не найдено ни одного ученика')
+        self._apply_renames(c, sid)
         for r in read_worksheet(teachers_file, TEACHER_COLS) if teachers_file else []:
             anchors = {'Role': r.get('Role', ''), 'Start': r.get('Start', ''), 'End': r.get('End', '')}
             c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
                       (sid, f't{nt}', safe_name(r['Name']), 'teacher', json.dumps(anchors, ensure_ascii=False)))
             nt += 1
+
+    def _apply_renames(self, c, sid):
+        """Names and positions fixed in the app survive a re-import of the same worksheet."""
+        for r in c.execute('SELECT original, name, role FROM renames WHERE session_id=?', (sid,)).fetchall():
+            row = c.execute('SELECT student_id, anchors FROM students WHERE session_id=? AND name=?', (sid, r['original'])).fetchone()
+            if not row:
+                continue
+            a = json.loads(row['anchors'] or '{}')
+            if r['name']:
+                a.get('unsure', {}).pop('Name', None)
+            if r['role'] is not None:
+                a['Role'] = r['role']
+                a.get('unsure', {}).pop('Role', None)
+            c.execute('UPDATE students SET name=?, anchors=? WHERE session_id=? AND student_id=?',
+                      (r['name'] or r['original'], json.dumps(a, ensure_ascii=False), sid, row['student_id']))
+
+    def rename_person(self, sid, person, name=None, role=None):
+        """Fix a name (or a teacher's position) read wrongly from the worksheet. Export uses the new name."""
+        with self.conn() as c:
+            row = c.execute('SELECT name, role, anchors FROM students WHERE session_id=? AND student_id=?', (sid, person)).fetchone()
+            if not row:
+                raise ValueError('Человек не найден')
+            if row['role'] not in ('student', 'teacher'):
+                raise ValueError('Переименовать можно только ученика или учителя')
+            new = safe_name(' '.join((name if name is not None else row['name']).split()))
+            if not new:
+                raise ValueError('Имя не может быть пустым')
+            taken = c.execute('SELECT 1 FROM students WHERE session_id=? AND name=? AND student_id<>?', (sid, new, person)).fetchone()
+            if taken:
+                raise ValueError(f'«{new}» уже есть в этой съёмке')
+            prev = c.execute('SELECT original, name, role FROM renames WHERE session_id=? AND name=?', (sid, row['name'])).fetchone()
+            original = prev['original'] if prev else row['name']
+            keep_role = prev['role'] if prev else None
+            new_role = ' '.join(role.split()) if role is not None else keep_role
+            c.execute('INSERT OR REPLACE INTO renames(session_id, original, name, role) VALUES(?,?,?,?)',
+                      (sid, original, '' if new == original else new, new_role))
+            c.execute('UPDATE students SET name=? WHERE session_id=? AND student_id=?', (original, sid, person))
+            self._apply_renames(c, sid)
+            self.event(c, sid, 'review', f'rename:{person}')
+        return {'ok': True, 'name': new}
 
     # -------------------------------------------------------- previews
     def preview_bytes(self, sid, path, size=640):
@@ -1108,6 +1152,11 @@ class Engine:
         st = self.settings(sid)
         res = []
         g_must = nums_of(sheet.get('group'))[:1]
+        if sid:
+            with self.conn() as c:
+                r = c.execute("SELECT file_path FROM anchor_overrides WHERE session_id=? AND person='__common__' AND key='G'", (sid,)).fetchone()
+            if r and r['file_path'] in {f['path'] for f in frames}:
+                g_must = [r['file_path']]                      # chosen by the photographer in the app
         r_range = nums_of(sheet.get('report'))
         g_files = [f['path'] for f in free] if not g_must else sorted(set(g_must) | {f['path'] for f in free}, key=lambda p: next((f['capture_at'] for f in frames if f['path'] == p), ''))
         r_files = [p for p in r_range if p not in g_must] if r_range else [f['path'] for f in free]
@@ -1267,7 +1316,7 @@ class Engine:
                     near = self._teacher_series(frames, set(must) | set(sheet), anchors_all)
                     if not must and not o:
                         continue
-                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель',
+                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель', 'role_raw': a.get('Role', ''),
                                 'kind': 'teacher', 'person': p['student_id'],
                                 'files': [f['path'] for f in near], 'mandatory': must, 'limit': 5,
                                 'roles': ['T'], 'overridden': bool(o), 'unsure': a.get('unsure') or {}})
@@ -1275,7 +1324,7 @@ class Engine:
                     s0 = self._resolve(files, a.get('Start'), conflicts, p['name'] + ', начало: ')
                     s1 = self._resolve(files, a.get('End'), conflicts, p['name'] + ', конец: ')
                     lo, hi = sorted([s0['frame'], s1['frame']]) if s0 and s1 else (0, -1)
-                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель',
+                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель', 'role_raw': a.get('Role', ''),
                                 'kind': 'teacher', 'person': p['student_id'],
                                 'files': [f['path'] for f in frames if lo <= f['frame'] <= hi], 'mandatory': {}, 'limit': 5,
                                 'roles': [], 'overridden': False})
@@ -1450,9 +1499,14 @@ class Engine:
                 runs.append(cur)
                 run = max(runs, key=len)
                 main = max(run, key=lambda f: f['sharpness'] or 0)
-            rest = sorted((f for f in cand if f['path'] != main['path']), key=lambda f: hamming(f['dhash'], main['dhash']))
-            dups = [f for f in rest if hamming(f['dhash'], main['dhash']) <= dup_d + 12][:s['dup_limit']]
+            # duplicates come from the same burst: shot within a couple of minutes and looking alike
+            t0 = datetime.strptime(main['capture_at'], '%Y-%m-%d %H:%M:%S')
+            near_t = lambda f: abs((datetime.strptime(f['capture_at'], '%Y-%m-%d %H:%M:%S') - t0).total_seconds()) <= 150
+            rest = sorted((f for f in cand if f['path'] != main['path'] and near_t(f)), key=lambda f: hamming(f['dhash'], main['dhash']))
+            dups = [f for f in rest if hamming(f['dhash'], main['dhash']) <= dup_d + 14][:s['dup_limit']]
             return ([] if main['path'] in s['mandatory'] else [main]), dups
+        clip = float(self.setting('clip_threshold') or 0.25)
+        cand = [f for f in cand if (f['clip_hi'] or 0) < min(0.05, clip)] or cand   # reportage: no blown-out windows
         main = self._pick_diverse(cand, [], s['main_limit'], hard=2)
         left = [f for f in cand if f not in main]
         dups = []
@@ -1464,6 +1518,22 @@ class Engine:
                 dups.append(near)
                 left.remove(near)
         return main, dups
+
+    def set_common(self, sid, path):
+        """The photographer picks the class photo; its duplicates are re-picked from the same burst."""
+        secs, _ = self.sections(sid)
+        s = next((x for x in secs if x['id'] == 'common'), None)
+        if not s or path not in s['files']:
+            raise ValueError('Этот кадр нельзя сделать общей фотографией')
+        with self.conn() as c:
+            c.execute('INSERT OR REPLACE INTO anchor_overrides(session_id,person,key,file_path,at) VALUES(?,?,?,?,CURRENT_TIMESTAMP)',
+                      (sid, '__common__', 'G', path))
+            for t in ('selections', 'approvals', 'marks'):
+                c.execute(f"DELETE FROM {t} WHERE session_id=? AND section_id='common'", (sid,))
+            c.execute("DELETE FROM selection_events WHERE session_id=? AND section_id='common' AND actor='user'", (sid,))
+            self.event(c, sid, 'review', 'set-common')
+        self.suggest(sid)
+        return {'ok': True}
 
     def suggest(self, sid):
         """Assemble kits automatically. A child gets 15–20 frames in total, the 5 worksheet frames included:
@@ -2064,7 +2134,7 @@ class Engine:
         """Removes the session from the catalog only. Source files are not touched."""
         with self.conn() as c:
             for t in ('files', 'students', 'selection_events', 'workflow_events', 'ai_suggestions', 'selections', 'approvals',
-                      'anchor_overrides', 'marks', 'dividers', 'series_cat'):
+                      'anchor_overrides', 'marks', 'dividers', 'series_cat', 'renames'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             c.execute('DELETE FROM sessions WHERE id=?', (sid,))
 

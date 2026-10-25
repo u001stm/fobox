@@ -313,6 +313,33 @@ class EngineTest(unittest.TestCase):
         self.assertEqual({k: sorted(v) for k, v in after['selected'].items()},
                          {k: sorted(v) for k, v in before['selected'].items()})     # same as right after import
 
+    def test_rename_child_and_teacher_kept_after_reimport(self):
+        sid = self.school()
+        st = self.e.session(sid)
+        p = st['sections'][0]
+        self.e.rename_person(sid, p['person'], 'Иванова  Ивана')
+        self.assertEqual(self.e.session(sid)['sections'][0]['title'], 'Иванова Ивана')
+        with self.assertRaises(ValueError):
+            self.e.rename_person(sid, p['person'], '   ')
+        self.assertEqual(self.school(), sid)                           # re-import the same worksheet
+        self.assertIn('Иванова Ивана', [x['title'] for x in self.e.session(sid)['sections']])
+        self.approve_all(sid)
+        r = self.e.export(sid, self.tmp / 'out_rn')
+        self.assertTrue((Path(r['root']) / '05_УЧЕНИКИ' / 'Иванова Ивана').exists())
+
+    def test_common_photo_chosen_by_photographer(self):
+        sid = self.school()
+        st = self.e.session(sid)
+        com = next((x for x in st['sections'] if x['id'] == 'common'), None)
+        if not com:
+            self.skipTest('no common section in this fixture')
+        pick = com['files'][-1]
+        self.e.set_common(sid, pick)
+        st = self.e.session(sid)
+        com = next(x for x in st['sections'] if x['id'] == 'common')
+        self.assertEqual(com['mandatory'], {pick: 'G'})
+        self.assertIn(pick, st['selected']['common'])
+
     def test_raw_and_jpeg_in_different_folders_are_paired(self):
         d = self.tmp / 'split'
         (d / 'RAW').mkdir(parents=True)
