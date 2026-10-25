@@ -276,7 +276,7 @@ function envMenu(btn){closeMenu();const m=document.createElement('div');m.classN
  const r=btn.getBoundingClientRect();m.style.left=(r.right+8)+'px';m.style.top=r.top+'px';setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
 async function switchEnv(id){if(typeof flush==='function')await flush();try{await api('/api/settings',{settings:{current_company:id}});S.sess=null;S.sid='';try{localStorage.removeItem('lumio.sid')}catch(e){}await load();toast('Среда: '+curEnv().name)}catch(e){toast(e.message,1)}}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-const UI_VERSION='4.13.0';
+const UI_VERSION='4.14.0';
 async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();
  const env=curEnv().id;S.stats.allSessions=S.stats.sessions;S.stats.sessions=S.stats.sessions.filter(x=>(x.company||'vypusk')===env);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;const a=curEnv().color||s.accent;document.documentElement.style.setProperty('--accent',a);document.documentElement.style.setProperty('--c1',a);document.documentElement.style.setProperty('--accent-soft',a+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
@@ -551,8 +551,8 @@ function faceNote(P){const fa=S.sess.faces||{};const out=[];
 async function runFaces(){try{await api('/api/faces-run',{session:S.sid});S.sess.faces={...S.sess.faces,running:true};drawShoot()}catch(e){toast(e.message,1)}}
 let _fp=0;async function pollFaces(){if(_fp||S.page!=='shoot')return;_fp=1;try{const j=await api('/api/job?id='+encodeURIComponent(S.sid+':faces'));if(j.finished){await reloadSess(curP()?.key);drawShoot();toast(j.error?'Лица: '+j.error:'Лица найдены — комплекты обновлены',!!j.error)}else{S.sess.faces={...S.sess.faces,done:j.done,total:j.total||S.sess.faces.total};const n=document.querySelector('.notes .warn.info');if(n&&n.textContent.startsWith('Ищу лица'))n.textContent=`Ищу лица на кадрах: ${j.done} из ${j.total}. Комплекты, которые вы не меняли, пересоберутся по лицам сами.`;setTimeout(()=>{_fp=0;pollFaces()},2500);return}}catch(e){}_fp=0}
 // «брак»: never shown among normal frames, kept in its own place to look through and bring back
-const DEFT=[['under','Слишком тёмные'],['over','Слишком светлые'],['blur','Нерезкие'],['odd','Случайные кадры'],['empty','Пустые кадры']];
-const defType=f=>{const fl=(f.flags||'').split(',');return fl.includes('white')||fl.includes('black')?'empty':fl.includes('under')?'under':fl.includes('over')?'over':fl.includes('blur')?'blur':fl.includes('odd')?'odd':''};
+const DEFT=[['under','Слишком тёмные'],['over','Слишком светлые'],['blur','Нерезкие'],['noface','Без лица (спина, отвернулся, рука)'],['odd','Случайные кадры'],['empty','Пустые кадры']];
+const defType=f=>{const fl=(f.flags||'').split(',');return fl.includes('white')||fl.includes('black')?'empty':fl.includes('under')?'under':fl.includes('over')?'over':fl.includes('blur')?'blur':fl.includes('noface')?'noface':fl.includes('odd')?'odd':''};
 const isDef=f=>!!defType(f);
 function defectsDlg(open){const fs=S.sess.files.filter(isDef);const sel=new Set(Object.values(S.sess.selected).flat());
  $('#layer').innerHTML=`<div class="modal" onclick="if(event.target===this)closeL()"><div class="dlg" style="max-width:1100px;width:94vw;max-height:88vh;overflow:auto"><div class="row" style="justify-content:space-between;align-items:baseline"><h2>Брак съёмки · ${fs.length}</h2><button class="btn" onclick="closeL()">Закрыть</button></div>

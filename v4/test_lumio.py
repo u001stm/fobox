@@ -400,6 +400,25 @@ class EngineTest(unittest.TestCase):
         self.assertIn(byname['ABC0115.ARW'], por['closed'])                # closed eyes: marked only
         self.assertEqual(por['strangers'], 2)
 
+    def test_portrait_without_face_is_marked_as_defect(self):
+        import json as js
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('numpy not installed')
+        sid = self.school()
+        files = sorted((f for f in self.e.session(sid)['files'] if f['wide'] == 0), key=lambda f: f['name'])
+        face = js.dumps([{'box': [0, 0, 10, 10], 'h': 0.3, 'eye': .3, 'eye2': .3, 'g': 'm', 'age': 10, 'score': .9}])
+        emb = np.ones(512, 'float16').tobytes()
+        back = next(f['path'] for f in files if f['name'] == 'ABC0108.ARW')
+        with self.e.conn() as c:
+            c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)',
+                          [(sid, f['path'], 0, '[]', b'') if f['path'] == back else (sid, f['path'], 1, face, emb) for f in files])
+        self.e._mark_noface(sid)
+        fl = {f['path']: f['flags'] or '' for f in self.e.session(sid)['files']}
+        self.assertIn('noface', fl[back])                                   # someone's back among portraits
+        self.assertEqual(sum('noface' in v for v in fl.values()), 1)
+
     def test_scenes_split_by_pause_and_picture(self):
         from engine import Engine
         f = lambda n, t, h: {'name': f'A{n}', 'capture_at': f'2026-10-16 09:{t}', 'dhash': h}

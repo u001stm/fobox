@@ -36,7 +36,7 @@ IMG_EXT = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.tif', '.tiff'}
 PREVIEWABLE = {'.jpg', '.jpeg', '.png', '.webp'}
 CATS = ['доки', 'здание', 'общая', 'репортаж', 'ученики', 'учителя', 'фон']   # as delivered to the client, lower case
 FLAG_NAMES = {'white': 'Пустой белый', 'black': 'Пустой чёрный', 'over': 'Слишком светлый',
-              'under': 'Слишком тёмный', 'blur': 'Нерезкий', 'odd': 'Случайный кадр', 'dup': 'Дубль'}
+              'under': 'Слишком тёмный', 'blur': 'Нерезкий', 'odd': 'Случайный кадр', 'noface': 'Без лица', 'dup': 'Дубль'}
 
 DEFAULT_SETTINGS = {
     'series_gap_sec': '90',        # new series when pause between frames is longer
@@ -154,7 +154,7 @@ COMPANY_DEFAULTS = {
 TEMPLATE_KEYS = ('color', 'disk_parent', 'root', 'child_dir', 'worksheet_file', 'extra_file', 'teacher_dir', 'teacher_file', 'common_dir', 'report_dir',
                  'raw_dir', 'jpg_dir', 'cat_portrait', 'cat_group', 'cat_common', 'cat_teacher')
 CATEGORIES = ('portrait', 'group', 'common', 'teacher')
-DEFECTS = ('white', 'black', 'blur', 'under', 'over', 'odd')     # «брак»: never in a sorted delivery unless the photographer brings it back
+DEFECTS = ('white', 'black', 'blur', 'under', 'over', 'odd', 'noface')     # «брак»: never in a sorted delivery unless the photographer brings it back
 
 
 def fill(template, **kw):
@@ -1165,6 +1165,7 @@ class Engine:
                     with self.conn() as c:
                         c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', batch)
                 self._fcache.pop(sid, None)
+                self._mark_noface(sid)
                 job['stage'] = 'Сборка по лицам'
                 self.suggest(sid)                    # kits not touched by hand are assembled again with faces
                 job['stage'] = 'Готово'
@@ -1287,6 +1288,25 @@ class Engine:
             x['files'] = keep
             x['closed'] = closed
             x['strangers'] = gone
+
+    def _mark_noface(self, sid):
+        """«Без лица»: nobody's face on the frame while the frames around it have faces — a back, a passer-by,
+        a hand over the lens. A far-away group (no face found on the neighbours either) is not marked."""
+        F = self._faces(sid)
+        with self.conn() as c:
+            rows = c.execute('SELECT path, flags, wide FROM files WHERE session_id=? ORDER BY capture_at, name', (sid,)).fetchall()
+            for i, r in enumerate(rows):
+                fl = [x for x in (r['flags'] or '').split(',') if x and x != 'noface']
+                p = r['path']
+                # only vertical (portrait) frames: in group photos a missed small face must not make a frame «брак»
+                if p in F and not F[p] and r['wide'] == 0 and not any(x in DEFECTS for x in fl):
+                    near = [rows[j]['path'] for j in range(max(0, i - 2), min(len(rows), i + 3)) if j != i]
+                    # neighbours with clearly visible faces (portrait / small group scale), not a far-away crowd
+                    if sum(1 for q in near if any(f['h'] >= 0.06 for f in F.get(q, []))) >= 2:
+                        fl.append('noface')
+                new = ','.join(fl) or None
+                if new != r['flags']:
+                    c.execute('UPDATE files SET flags=? WHERE session_id=? AND path=?', (new, sid, p))
 
     def _faces_info(self, sid, total):
         with self.conn() as c:
