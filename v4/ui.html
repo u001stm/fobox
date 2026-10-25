@@ -143,7 +143,7 @@ td .tt{display:flex;align-items:center;gap:10px}td .th{width:36px;height:36px;bo
 .tile .cap{display:flex;justify-content:space-between;padding:7px 9px;font-size:11.5px;color:var(--muted);gap:6px}.tile .cap b{color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile .cap .role{color:var(--gold);font-weight:600}
 .chk{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;border:2px solid #ffffffb0;background:#0006;display:grid;place-items:center}
 .tile.on .chk{background:var(--accent);border-color:#fff}.tile.on .chk:after{content:'';width:9px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
-.star{position:absolute;top:7px;left:8px;width:22px;height:22px;border-radius:6px;background:#0008;color:var(--gold);font-size:14px;display:grid;place-items:center}
+.star{position:absolute;top:7px;left:8px;width:34px;height:34px;border-radius:9px;background:#000a;color:var(--gold);font-size:23px;display:grid;place-items:center;z-index:2;text-shadow:0 0 6px #000;box-shadow:0 1px 4px #0008}
 .star.uns{background:var(--warn);color:#2a1b00;font-weight:800}
 .divh{border-bottom:0;padding-bottom:2px}.divmark{width:10px;height:10px;border-radius:3px;background:var(--accent);align-self:center}
 .divh.cat-group .divmark{background:var(--c2)}.divh.cat-common .divmark{background:var(--c3)}.divh.cat-teacher .divmark{background:var(--c4)}.divh.cat-skip .divmark{background:var(--bad)}
@@ -273,7 +273,7 @@ function envMenu(btn){closeMenu();const m=document.createElement('div');m.classN
  const r=btn.getBoundingClientRect();m.style.left=(r.right+8)+'px';m.style.top=r.top+'px';setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
 async function switchEnv(id){if(typeof flush==='function')await flush();try{await api('/api/settings',{settings:{current_company:id}});S.sess=null;S.sid='';try{localStorage.removeItem('lumio.sid')}catch(e){}await load();toast('Среда: '+curEnv().name)}catch(e){toast(e.message,1)}}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-const UI_VERSION='4.11.0';
+const UI_VERSION='4.11.1';
 async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();
  const env=curEnv().id;S.stats.allSessions=S.stats.sessions;S.stats.sessions=S.stats.sessions.filter(x=>(x.company||'vypusk')===env);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;const a=curEnv().color||s.accent;document.documentElement.style.setProperty('--accent',a);document.documentElement.style.setProperty('--c1',a);document.documentElement.style.setProperty('--accent-soft',a+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
