@@ -1244,7 +1244,12 @@ class Engine:
                     if f is None and F[q]:
                         k = x['mandatory'][q]
                         prev_ = x.setdefault('unsure', {}).get(k)
-                        x['unsure'][k] = ((prev_ + '; ') if prev_ else '') + 'на кадре, похоже, другой человек — проверьте номер'
+                        msg = 'на кадре, похоже, другой человек — проверьте номер'
+                        alt = self._misread_fix(q, ref, F, files, same, x)
+                        if alt:
+                            x.setdefault('fix', {})[k] = alt
+                            msg += f' (похоже на {Path(alt).stem})'
+                        x['unsure'][k] = ((prev_ + '; ') if prev_ else '') + msg
                 elif f is not None or (not F[q] and x['kind'] != 'friends'):
                     keep.append(q)                       # this person — or nobody's face visible (portrait from the side)
                 else:
@@ -1266,6 +1271,42 @@ class Engine:
             ready = False
         return {'done': done, 'total': total, 'ready': ready, 'running': bool(j and not j.get('finished')),
                 'job': sid + ':faces' if j else None, 'error': (j or {}).get('error')}
+
+    @staticmethod
+    def _misread_fix(path, ref, F, files, same, sec):
+        """A hand-written number read wrong (223 instead of 233): look for a frame whose number differs by one
+        digit or two swapped digits and shows this child, in the right orientation."""
+        import numpy as np
+        byname = {f['frame']: f for f in files if f['frame'] is not None}
+        cur = next((f for f in files if f['path'] == path), None)
+        if not cur or cur['frame'] is None:
+            return None
+        s0 = str(cur['frame'])
+        subst, swap = set(), set()                     # one wrong digit is more likely than two swapped
+        for i in range(len(s0)):
+            for d in '0123456789':
+                if d != s0[i]:
+                    subst.add(s0[:i] + d + s0[i + 1:])
+            if i + 1 < len(s0) and s0[i] != s0[i + 1]:
+                swap.add(s0[:i] + s0[i + 1] + s0[i] + s0[i + 2:])
+        for group in (subst, swap - subst):
+            hit = Engine._best_face(group, byname, cur, F, ref, same, sec)
+            if hit:
+                return hit
+        return None
+
+    @staticmethod
+    def _best_face(cands, byname, cur, F, ref, same, sec):
+        import numpy as np
+        best, score = None, same
+        for c in cands:
+            f = byname.get(int(c))
+            if not f or f['path'] in sec['mandatory'] or (cur.get('wide') is not None and f.get('wide') != cur.get('wide')):
+                continue
+            m = (F.get(f['path']) or [None])[0]
+            if m is not None and float(np.dot(m['emb'], ref)) > score:
+                best, score = f['path'], float(np.dot(m['emb'], ref))
+        return best
 
     def _face_summary(self, sid):
         """Per frame: number of clearly visible faces and of those with closed eyes."""
@@ -2249,7 +2290,7 @@ class Engine:
                               [(sid, s['person'], k) for k in s['roles']])
                 self.event(c, sid, 'review', 'reset-roles:' + s['id'])
             else:
-                if path not in s['files']:
+                if path not in s['files'] and path not in (s.get('fix') or {}).values():
                     raise ValueError('Кадр не из этой секции')
                 if role is None:
                     key = s['mandatory'].get(path)
