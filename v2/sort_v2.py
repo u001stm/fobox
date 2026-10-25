@@ -1,4 +1,4 @@
-"""FOBOX 2.0: face-guided local RAW sorting; human review required."""
+"""LUMIO 2.0: face-guided local RAW sorting; human review required."""
 import argparse
 import csv
 import json
@@ -112,7 +112,7 @@ def main():
                 cache[n] = {'faces': [f.normed_embedding for f in faces],
                             'hash': image_hash(img), 'blank': False}
         return cache[n]
-    review = Path('fobox_review')
+    review = Path('lumio_review')
     if args.contact_sheets:
         review.mkdir(exist_ok=True)
     plan = []
@@ -181,9 +181,9 @@ def main():
                 cv2.imencode('.jpg', sheet, [cv2.IMWRITE_JPEG_QUALITY, 88])[1].tofile(
                     str(review / (safe + '.jpg')))
         print(f'{name}: {len(entries)} RAW, {len(selected)} extra')
-    Path('fobox_v2_plan.json').write_text(json.dumps(plan, ensure_ascii=False, indent=2),
+    Path('lumio_v2_plan.json').write_text(json.dumps(plan, ensure_ascii=False, indent=2),
                                          encoding='utf-8')
-    print('Plan saved to fobox_v2_plan.json')
+    print('Plan saved to lumio_v2_plan.json')
     if not args.copy:
         print('DRY RUN: inspect contact sheets before copying.')
         return

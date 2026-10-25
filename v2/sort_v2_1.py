@@ -1,4 +1,4 @@
-"""FOBOX 2.1: reject conflicting portrait references before sorting."""
+"""LUMIO 2.1: reject conflicting portrait references before sorting."""
 import argparse
 import csv
 import json
@@ -114,7 +114,7 @@ def main():
                 cache[n] = {'faces': [f.normed_embedding for f in faces],
                             'hash': image_hash(img), 'blank': False}
         return cache[n]
-    review = Path('fobox_review')
+    review = Path('lumio_review')
     if args.contact_sheets:
         review.mkdir(exist_ok=True)
     plan = []
@@ -208,13 +208,13 @@ def main():
                 cv2.imencode('.jpg', sheet, [cv2.IMWRITE_JPEG_QUALITY, 88])[1].tofile(
                     str(review / (safe + '.jpg')))
         print(f'{name}: {len(entries)} RAW, {len(selected)} extra')
-    Path('fobox_v2_blocked.json').write_text(json.dumps(blocked, ensure_ascii=False, indent=2),
+    Path('lumio_v2_blocked.json').write_text(json.dumps(blocked, ensure_ascii=False, indent=2),
                                               encoding='utf-8')
-    Path('fobox_v2_plan.json').write_text(json.dumps(plan, ensure_ascii=False, indent=2),
+    Path('lumio_v2_plan.json').write_text(json.dumps(plan, ensure_ascii=False, indent=2),
                                          encoding='utf-8')
-    print('Plan saved to fobox_v2_plan.json')
+    print('Plan saved to lumio_v2_plan.json')
     if blocked:
-        print(f'BLOCKED STUDENTS: {len(blocked)}. See fobox_v2_blocked.json.')
+        print(f'BLOCKED STUDENTS: {len(blocked)}. See lumio_v2_blocked.json.')
     if not args.copy:
         print('DRY RUN: inspect contact sheets before copying.')
         return

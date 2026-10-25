@@ -1,4 +1,4 @@
-# FOBOX 3.0 Preview — local school-order review
+# LUMIO 3.0 Preview — local school-order review
 
 **Experimental preview, not a finished AI sorter.** No student photos or real worksheets are stored in this public repository.
 
@@ -16,7 +16,7 @@
 Open PowerShell in the `v3` folder and run:
 
 ```powershell
-py -3.11 fobox3.py --source "D:\DCIM\100MSDCF" --output "F:\FOBOX_TEST" --order 7470 --school "Вешняковская" --date "09.10.2026" --class-name "9Л"
+py -3.11 lumio3.py --source "D:\DCIM\100MSDCF" --output "F:\LUMIO_TEST" --order 7470 --school "Вешняковская" --date "09.10.2026" --class-name "9Л"
 ```
 
 First replace illustrative `students.csv` with verified worksheet data. Use an **empty test destination**. Browser opens automatically; Ctrl+C stops the server. No third-party dependencies are required.

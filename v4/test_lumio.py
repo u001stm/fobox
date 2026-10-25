@@ -1,4 +1,4 @@
-"""Tests for FOBOX 4.0 engine. Run:  py -3 -m unittest test_fobox4 -v
+"""Tests for LUMIO 4.0 engine. Run:  py -3 -m unittest test_lumio -v
 Uses only synthetic files created in a temporary folder."""
 import hashlib
 import io
@@ -116,7 +116,7 @@ class EngineTest(unittest.TestCase):
         (Path(r['root']) / 'чужой.txt').write_text('x')
         other = self.tmp / 'out2' / Path(r['root']).relative_to(self.tmp / 'out')
         other.mkdir(parents=True)
-        (other / 'чужой.txt').write_text('x')           # a non-FOBOX folder is never written into
+        (other / 'чужой.txt').write_text('x')           # a non-LUMIO folder is never written into
         with self.assertRaises(ValueError):
             self.e.export(sid, self.tmp / 'out2')
 
@@ -377,7 +377,7 @@ class EngineTest(unittest.TestCase):
         r = self.e.export(sid, self.tmp / 'out')                                # nothing approved, one conflict
         self.assertEqual(len([w for w in r['warnings'] if 'Общая' not in w and 'Репортаж' not in w]), 3)
         root = Path(r['root'])
-        self.assertIn('999', (root / '_FOBOX_замечания.txt').read_text(encoding='utf-8-sig'))
+        self.assertIn('999', (root / '_LUMIO_замечания.txt').read_text(encoding='utf-8-sig'))
         self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
 
     def test_fix_after_export_and_top_up(self):
@@ -395,7 +395,7 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(second['update'])
         self.assertEqual(second['new'], 1)
         self.assertIn('Друг2_' + Path(fix).name, {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
-        self.assertFalse((root / '_FOBOX_замечания.txt').exists())
+        self.assertFalse((root / '_LUMIO_замечания.txt').exists())
 
     def test_dashboard_stats_per_shoot_and_profile(self):
         sid = self.school()
