@@ -105,12 +105,12 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(dry['warnings'])
         self.approve_all(sid)
         r = self.e.export(sid, self.tmp / 'out')
-        kid = Path(r['root']) / '05_УЧЕНИКИ' / 'Иванов Иван'
+        kid = Path(r['root']) / 'ученики' / 'Иванов Иван'
         names = {p.name for p in kid.iterdir()}
         for n in ('Иванов Иван_ABC0110.ARW', 'ЛР_Иванов Иван_ABC0111.ARW', 'ЛС_Иванов Иван_ABC0112.ARW',
                   'Друг1_ABC0125.ARW', 'Друг2_ABC0126.ARW'):
             self.assertIn(n, names)
-        self.assertTrue((Path(r['root']) / '07_ФОН').is_dir())
+        self.assertTrue((Path(r['root']) / 'фон').is_dir())
         again = self.e.export(sid, self.tmp / 'out')   # re-export = top-up, nothing copied twice
         self.assertEqual(again['new'], 0)
         (Path(r['root']) / 'чужой.txt').write_text('x')
@@ -225,7 +225,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(sorted(st['sections'][1]['mandatory'].values()), ['D1', 'D2'])
         self.approve_all(sid)
         r = self.e.export(sid, self.tmp / 'out')
-        names = {x.name for x in (Path(r['root']) / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()}
+        names = {x.name for x in (Path(r['root']) / 'ученики' / 'Иванов Иван').iterdir()}
         self.assertTrue({'Иванов Иван_ABC0110.ARW', 'ЛР_Иванов Иван_ABC0111.ARW', 'ЛС_Иванов Иван_ABC0112.ARW',
                          'Друг1_ABC0125.ARW', 'Друг2_ABC0126.ARW'} <= names)
 
@@ -255,10 +255,10 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len(secs['t0']['mandatory']), 1)
         self.approve_all(sid)
         root = Path(self.e.export(sid, self.tmp / 'out')['root'])
-        anna = {x.name for x in (root / '05_УЧЕНИКИ' / 'Петрова Анна').iterdir()}
+        anna = {x.name for x in (root / 'ученики' / 'Петрова Анна').iterdir()}
         self.assertTrue({'ЛР_Петрова Анна_ABC0114.ARW', 'Друг1_ABC0125.ARW', 'Друг2_ABC0127.ARW', 'Друг2_ABC0128.ARW'} <= anna)
-        self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
-        self.assertTrue(any((root / '06_УЧИТЕЛЯ').iterdir()))
+        self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / 'ученики' / 'Иванов Иван').iterdir()})
+        self.assertTrue(any((root / 'учителя').iterdir()))
 
     def test_missing_number_is_reported_with_child_name(self):
         f = self.tmp / 'v.csv'
@@ -292,7 +292,7 @@ class EngineTest(unittest.TestCase):
         self.e.set_role(sid, {'section': p['id'], 'path': right, 'role': 'P1'})
         self.approve_all(sid)
         r = self.e.export(sid, self.tmp / 'out')
-        names = {x.name for x in (Path(r['root']) / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()}
+        names = {x.name for x in (Path(r['root']) / 'ученики' / 'Иванов Иван').iterdir()}
         self.assertIn('ЛР_Иванов Иван_' + Path(right).name, names)
         self.assertNotIn('ЛР_Иванов Иван_ABC0111.ARW', names)
         self.e.set_role(sid, {'section': p['id'], 'reset': True})                     # back to the worksheet
@@ -325,7 +325,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn('Иванова Ивана', [x['title'] for x in self.e.session(sid)['sections']])
         self.approve_all(sid)
         r = self.e.export(sid, self.tmp / 'out_rn')
-        self.assertTrue((Path(r['root']) / '05_УЧЕНИКИ' / 'Иванова Ивана').exists())
+        self.assertTrue((Path(r['root']) / 'ученики' / 'Иванова Ивана').exists())
 
     def test_common_photo_chosen_by_photographer(self):
         sid = self.school()
@@ -414,7 +414,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len([w for w in r['warnings'] if 'Общая' not in w and 'Репортаж' not in w]), 3)
         root = Path(r['root'])
         self.assertIn('999', (root / '_LUMIO_замечания.txt').read_text(encoding='utf-8-sig'))
-        self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
+        self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / 'ученики' / 'Иванов Иван').iterdir()})
 
     def test_fix_after_export_and_top_up(self):
         f = self.tmp / 'v.csv'
@@ -430,7 +430,7 @@ class EngineTest(unittest.TestCase):
         second = self.e.export(sid, self.tmp / 'out')
         self.assertTrue(second['update'])
         self.assertEqual(second['new'], 1)
-        self.assertIn('Друг2_' + Path(fix).name, {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
+        self.assertIn('Друг2_' + Path(fix).name, {x.name for x in (root / 'ученики' / 'Иванов Иван').iterdir()})
         self.assertFalse((root / '_LUMIO_замечания.txt').exists())
 
     def test_dashboard_stats_per_shoot_and_profile(self):
@@ -477,7 +477,8 @@ class EngineTest(unittest.TestCase):
             sel = list(s['mandatory']) + (extra if s is tsec else [])
             self.e.review(sid, {'section': s['id'], 'selected': sel, 'approved': True})
         root = Path(self.e.export(sid, self.tmp / 'out')['root'])
-        names = {x.name for x in (root / '06_УЧИТЕЛЯ').iterdir()}
+        tdir = root / 'учителя' / 'Петрова Анна Сергеевна учитель английского языка'
+        names = {x.name for x in tdir.iterdir()}
         self.assertIn('Петрова Анна Сергеевна учитель английского языка.ARW', names)
         self.assertEqual(len(names), 4)                      # worksheet photo + 3 other poses
         self.assertTrue({Path(p).name for p in extra} <= names)
@@ -514,7 +515,8 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(te[1]['unsure'], {'T': '136 или 135', 'Note': 'пометка у номера'})
         self.approve_all(sid)
         root = Path(self.e.export(sid, self.tmp / 'out')['root'])
-        names = {x.name for x in (root / '06_УЧИТЕЛЯ').iterdir()}
+        names = {x.name for d in (root / 'учителя').iterdir() for x in d.iterdir()}
+        self.assertIn('Яковлева Ангелина Федоровна учитель физкультуры', {d.name for d in (root / 'учителя').iterdir()})
         self.assertIn('Яковлева Ангелина Федоровна учитель физкультуры.ARW', names)
         self.assertIn('Курашова Вероника Анатольевна классный руководитель.ARW', names)
 
@@ -568,9 +570,14 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(not set(rsel) & set(gsel))
         self.approve_all(sid)
         root = Path(self.e.export(sid, self.tmp / 'out')['root'])
-        self.assertEqual(len([x for x in (root / '03_ОБЩАЯ').iterdir() if x.is_file()]), 1)
-        self.assertEqual(len(list((root / '03_ОБЩАЯ' / 'Дубли').iterdir())), len(gdup))
-        self.assertEqual(len([x for x in (root / '04_РЕПОРТАЖ').iterdir() if x.is_file()]), 15)
+        common = sorted(x.name for x in (root / 'общая').iterdir())
+        self.assertEqual(len(common), 1 + len(gdup))                       # duplicates next to the main frame
+        self.assertEqual([n for n in common if n.startswith('Общая ')], ['Общая ' + Path(next(p for p in gsel if p not in gdup)).name])
+        rep = [x.name for x in (root / 'репортаж').iterdir()]
+        self.assertEqual(len([n for n in rep if n.startswith('Репортаж_')]), 15)
+        self.assertEqual(len(rep), 15 + len(rdup))
+        self.assertEqual(sorted(x.name for x in root.iterdir() if x.is_dir()),
+                         sorted(['доки', 'здание', 'общая', 'репортаж', 'ученики', 'учителя', 'фон']))
         with self.assertRaises(ValueError):                                     # 2 main group photos are not allowed
             self.e.review(sid, {'section': 'common', 'selected': gsel, 'dups': gdup[1:], 'approved': True})
 

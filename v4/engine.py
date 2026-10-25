@@ -32,7 +32,7 @@ RAW_EXT = {'.arw', '.cr2', '.cr3', '.nef', '.nrw', '.raf', '.rw2', '.orf', '.dng
            '.3fr', '.srw', '.iiq', '.rwl', '.erf', '.k25', '.kdc', '.mos', '.mrw', '.x3f'}
 IMG_EXT = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.tif', '.tiff'}
 PREVIEWABLE = {'.jpg', '.jpeg', '.png', '.webp'}
-CATS = ['01_ДОКУМЕНТЫ', '02_ЗДАНИЕ', '03_ОБЩАЯ', '04_РЕПОРТАЖ', '05_УЧЕНИКИ', '06_УЧИТЕЛЯ', '07_ФОН']
+CATS = ['доки', 'здание', 'общая', 'репортаж', 'ученики', 'учителя', 'фон']   # as delivered to the client, lower case
 FLAG_NAMES = {'white': 'Пустой белый', 'black': 'Пустой чёрный', 'over': 'Пересвет',
               'under': 'Недодержка', 'blur': 'Нерезкий', 'dup': 'Дубль'}
 
@@ -136,7 +136,7 @@ def frame_number(stem):
 COMPANY_DEFAULTS = {
     'vypusk': {'name': 'Выпуск', 'layout': 'vypusk', 'color': '#7738FF', 'disk_parent': '', 'kit_min': 15, 'kit_max': 20, 'target': 18,
                'teachers': True, 'common': True, 'report': True, 'report_count': 15, 'group_dups': 6, 'report_dups': 6,
-               'note': 'Полная школьная структура: 01_ДОКУМЕНТЫ … 07_ФОН, ЛР_/ЛС_/Друг1_/Друг2_, учителя, общая и репортаж с дублями.'},
+               'note': 'Школьная структура: доки, здание, общая, репортаж, ученики, учителя, фон; ЛР_/ЛС_/Друг1_/Друг2_; учитель — своя папка; «Общая …» и «Репортаж_…» для основных кадров, дубли рядом под своими именами.'},
     'crous': {'name': 'Crous', 'layout': 'sort', 'color': '#E5484D', 'disk_parent': 'ФОТОГРАФ СЕРГЕЙ', 'kit_min': 0, 'kit_max': 0, 'target': 0,
               'teachers': True, 'common': True, 'report': False, 'report_count': 0, 'group_dups': 0, 'report_dups': 0,
               'root': '{date}. {school}', 'raw_dir': 'RAW', 'jpg_dir': 'JPG',
@@ -1917,10 +1917,13 @@ class Engine:
             for sec in st['sections']:
                 if sec['kind'] in ('group', 'reportage'):
                     cat = CATS[2] if sec['kind'] == 'group' else CATS[3]
+                    mark = 'Общая ' if sec['kind'] == 'group' else 'Репортаж_'
                     dset = set(st['dups'].get(sec['id'], []))
                     for p in sorted(st['selected'].get(sec['id'], []), key=lambda x: files[x]['name'] if x in files else x):
                         if p in files:
-                            rel = root / cat / ('Дубли' if p in dset else '') / files[p]['name']
+                            # main frames are marked («Общая ANT00094.ARW», «Репортаж_ANT00051.ARW»), duplicates lie
+                            # next to them under their camera names
+                            rel = root / cat / (files[p]['name'] if p in dset else mark + files[p]['name'])
                             add(p, rel, sec['title'], sec['title'], 'дубль' if p in dset else 'основной')
                     continue
                 key = (sec['person'], sec['kind'] == 'teacher', sec['title'])
@@ -1945,7 +1948,7 @@ class Engine:
                     if is_teacher:
                         teacher_done.add(p)
                         title = safe_name(' '.join(x for x in (name, teacher_title(sub) if sub != 'Учитель' else '') if x))
-                        rel = root / CATS[5] / (title + Path(nm).suffix if p == main else nm)
+                        rel = root / CATS[5] / title / (title + Path(nm).suffix if p == main else nm)
                     else:
                         rel = root / CATS[4] / name / (mand.get((person, p), '') + nm)
                     add(p, rel, name, 'Учитель' if is_teacher else 'Ученик', roles.get((person, p), ''))
