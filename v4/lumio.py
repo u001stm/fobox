@@ -26,7 +26,7 @@ CODE = [Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).wi
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.10.0'  # bump together with UI_VERSION in ui.html
+APP_VERSION = '4.11.0'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
@@ -133,7 +133,7 @@ def make_handler(engine):
                     out = {'target': engine.disk_target(b['session'])}
                 elif p == '/api/disk-check':
                     from yadisk import YaDisk
-                    out = YaDisk(b.get('token') or engine.setting('yandex_token')).info()
+                    out = YaDisk(b.get('token') or engine.disk_token(b.get('company') or 'crous')).info()
                 elif p == '/api/rebuild':
                     out = engine.rebuild(b['session'], b.get('sections'))
                 elif p == '/api/role':

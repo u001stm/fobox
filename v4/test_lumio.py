@@ -666,7 +666,8 @@ class EngineTest(unittest.TestCase):
         """Upload goes straight from the card into disk:/<photographer>/<date>. <school>/RAW + JPG/… (fake Disk API)."""
         import threading, json as js, urllib.parse as up
         from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-        store, dirs = {}, set()
+        import hashlib as hl
+        store, dirs, broken = {}, set(), []
 
         class H(BaseHTTPRequestHandler):
             def _ok(self, code=200, body=None):
@@ -680,13 +681,25 @@ class EngineTest(unittest.TestCase):
                     if q.get('fields') == 'public_url':
                         return self._ok(200, {'public_url': 'https://disk.yandex.ru/d/TEST'})
                     if q['path'] in store:
-                        return self._ok(200, {'size': len(store[q['path']]), 'type': 'file'})
+                        b_ = store[q['path']]
+                        return self._ok(200, {'size': len(b_), 'type': 'file', 'md5': hl.md5(b_).hexdigest()})
+                    if q['path'] in dirs:                                   # folder listing with sizes and MD5
+                        pre = q['path'].rstrip('/') + '/'
+                        kids = {k[len(pre):].split('/')[0] for k in list(store) + list(dirs) if k.startswith(pre)}
+                        items = [{'name': n, 'type': 'dir'} if pre + n in dirs else
+                                 {'name': n, 'type': 'file', 'size': len(store[pre + n]), 'md5': hl.md5(store[pre + n]).hexdigest()}
+                                 for n in sorted(kids)]
+                        off, lim = int(q.get('offset', 0)), int(q.get('limit', 20))
+                        return self._ok(200, {'_embedded': {'items': items[off:off + lim], 'total': len(items)}})
                     return self._ok(404, {'error': 'DiskNotFoundError'})
                 return self._ok(200, {'user': {'display_name': 'Сергей'}})
             def do_PUT(self):
                 u = up.urlparse(self.path); q = dict(up.parse_qsl(u.query))
                 if u.path == '/put':
-                    store[q['p']] = self.rfile.read(int(self.headers['Content-Length'])); return self._ok(201)
+                    data = self.rfile.read(int(self.headers['Content-Length']))
+                    if not broken and q['p'].endswith('.ARW'):         # the first RAW arrives damaged
+                        broken.append(q['p']); data = data[:-1] + bytes([data[-1] ^ 1])
+                    store[q['p']] = data; return self._ok(201)
                 if u.path.endswith('/resources'):
                     if q['path'] in dirs:
                         return self._ok(409, {'error': 'DiskPathPointsToExistentDirectoryError'})
@@ -711,6 +724,9 @@ class EngineTest(unittest.TestCase):
             job = self.e.jobs[jid]
             self.assertIsNone(job['error'])
             self.assertEqual(job['result']['link'], 'https://disk.yandex.ru/d/TEST')
+            chk = job['result']['check']
+            self.assertEqual((chk['expected'], chk['ok'], chk['bad']), (78, 78, []))   # damaged file found and sent again
+            self.assertEqual(len(broken), 1)
             raws = [k for k in store if '/RAW/' in k]
             jpgs = [k for k in store if '/JPG/' in k]
             self.assertEqual(len(raws), 39)                                   # 40 frames − 1 blank defect
@@ -722,6 +738,22 @@ class EngineTest(unittest.TestCase):
                     break
                 time.sleep(0.05)
             self.assertEqual(self.e.jobs[again]['result']['uploaded'], 0)
+            # Выпуск: its own Disk (own token), the full order layout, Lightroom sidecars next to RAW
+            vs = self.school()
+            with self.assertRaises(ValueError):                               # Crous token is not used for Выпуск
+                self.e.start_upload(vs)
+            self.e.save_settings({'yandex_token@vypusk': 'TOKEN2'})
+            self.approve_all(vs)
+            vj = self.e.start_upload(vs)['job']
+            for _ in range(400):
+                if self.e.jobs[vj]['finished']:
+                    break
+                time.sleep(0.05)
+            self.assertIsNone(self.e.jobs[vj]['error'])
+            vk = [k for k in store if '/ученики/Иванов Иван/' in k]
+            self.assertTrue(any(k.endswith('.ARW') for k in vk) and any(k.endswith('.xmp') for k in vk))
+            chk = self.e.jobs[vj]['result']['check']
+            self.assertEqual(chk['ok'], chk['expected'])
         finally:
             srv.shutdown()
 

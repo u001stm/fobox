@@ -829,7 +829,7 @@ class Engine:
         allowed = set(DEFAULT_SETTINGS)
         with self.conn() as c:
             for k, v in data.items():
-                if k not in allowed:
+                if k not in allowed and not re.fullmatch(r'yandex_(token|client_id)@[a-z0-9_]+', k):
                     raise ValueError('Неизвестная настройка: ' + k)
                 if k == 'current_company' and not any(x['id'] == v for x in self.companies()):
                     raise ValueError('Нет такой среды')
@@ -2068,6 +2068,8 @@ class Engine:
             for k in ('disk_link', 'disk_path'):
                 if k in body:
                     meta[k] = str(body[k])
+            if isinstance(body.get('disk_check'), dict):
+                meta['disk_check'] = body['disk_check']
             if 'last_export' in body:
                 meta['last_export'] = str(body['last_export'])
             if 'output' in body:
@@ -2309,6 +2311,11 @@ class Engine:
         job['stage'] = 'Готово'
         return {'root': plan['root'], 'files': plan['files'], 'new': plan['new'], 'update': plan['update'], 'bytes': plan['bytes'], 'report': str(root / '_LUMIO_отчёт.csv'), 'warnings': plan['warnings']}
 
+    def disk_token(self, company):
+        """Every company uploads to its own Яндекс.Диск. The token set up before 4.11 belongs to Crous."""
+        st = self.settings()
+        return st.get('yandex_token@' + company) or (st.get('yandex_token', '') if company == 'crous' else '')
+
     def disk_target(self, sid):
         """Where an upload goes: disk:/<company folder>/<order folder>."""
         s = self.session(sid)['session']
@@ -2321,9 +2328,16 @@ class Engine:
     def start_upload(self, sid):
         """Upload the order straight from the card to Яндекс.Диск, in the same layout as a local export."""
         from yadisk import YaDisk
-        disk = YaDisk(self.setting('yandex_token'))
+        s = self.session(sid)['session']
+        cfg = self.company(s.get('company'))
+        tok = self.disk_token(cfg['id'])
+        if not tok:
+            raise ValueError(f'Яндекс.Диск для «{cfg["name"]}» не подключён — Настройки → Яндекс.Диск')
+        disk = YaDisk(tok)
         tmp = Path(tempfile.gettempdir()) / 'lumio_plan_probe'
         plan = self.plan_export(sid, tmp)
+        auto = bool(cfg.get('auto_exposure')) and cfg.get('layout') != 'sort' and Image is not None
+        xmp_dir = Path(tempfile.mkdtemp(prefix='lumio_xmp_'))
         target = self.disk_target(sid)
         jid = sid + ':upload'
         job = {'session': sid, 'stage': 'Подготовка', 'done': 0, 'total': len(plan['ops']), 'error': None, 'finished': False,
@@ -2342,22 +2356,59 @@ class Engine:
                         disk.mkdirs(target + '/' + d)
                 job['stage'] = 'Загрузка'
                 up = sk = 0
+                want = {}                                    # path on the Disk -> (local file, size, md5)
                 for p, rel, *_ in plan['ops']:
-                    r = disk.upload(str(p), target + '/' + Path(rel).relative_to(plan['rootrel']).as_posix())
-                    up += r == 'uploaded'
-                    sk += r == 'skipped'
+                    r_ = Path(rel).relative_to(plan['rootrel']).as_posix()
+                    res, md5 = disk.upload(str(p), target + '/' + r_)
+                    want[r_] = (p, Path(p).stat().st_size, md5)
+                    up += res == 'uploaded'
+                    sk += res == 'skipped'
+                    # Выпуск: the Lightroom sidecar with the auto exposure goes next to the RAW, as in a local export
+                    if auto and Path(p).suffix.lower() in RAW_EXT:
+                        data = self.preview_bytes(sid, p, 640)
+                        if data:
+                            fix = exposure_fix(Image.open(io.BytesIO(data)), float(cfg.get('exp_white', 95)), float(cfg.get('exp_skin', 87)),
+                                               float(cfg.get('exp_black', 5)), float(cfg.get('exp_bias', 0)))
+                            xr = str(Path(r_).with_suffix('.xmp').as_posix())
+                            xf = xmp_dir / hashlib.sha1(xr.encode()).hexdigest()
+                            xf.write_text(xmp_sidecar(fix), encoding='utf-8')
+                            _, xmd5 = disk.upload(str(xf), target + '/' + xr)
+                            want[xr] = (xf, xf.stat().st_size, xmd5)
                     job['done'] += 1
                     job['bytes_done'] += Path(p).stat().st_size
+
+                def verify():
+                    have = disk.tree(target)
+                    bad = [r_ for r_, (_, size, md5) in want.items()
+                           if r_ not in have or have[r_]['size'] != size or (have[r_].get('md5') and have[r_]['md5'] != md5)]
+                    return have, bad
+                # check: every file is on the Disk with the same size and MD5; what does not match is sent again once
+                job.update(stage='Проверка контрольных сумм', done=0, total=len(want))
+                have, bad = verify()
+                job['done'] = len(want)
+                if bad:
+                    job.update(stage='Повторная загрузка несовпавших', done=0, total=len(bad))
+                    for r_ in bad:
+                        disk.upload(str(want[r_][0]), target + '/' + r_, force=True)
+                        job['done'] += 1
+                    job.update(stage='Повторная проверка', done=0, total=len(want))
+                    have, bad = verify()
+                    job['done'] = len(want)
+                extra = sorted(set(have) - set(want))
+                check = {'expected': len(want), 'ok': len(want) - len(bad), 'bad': bad[:50], 'extra': len(extra),
+                         'md5': all(v.get('md5') for v in have.values()), 'at': now()}
                 job['stage'] = 'Ссылка'
                 link = disk.publish(target)
                 with self.conn() as c:
-                    self.event(c, sid, 'upload', 'end')
+                    self.event(c, sid, 'upload', 'end' if not bad else 'end-with-errors')
                     c.execute("UPDATE sessions SET status='exported' WHERE id=?", (sid,))
-                self.set_meta(sid, {'disk_link': link, 'disk_path': target})
-                job['result'] = {'link': link, 'target': target, 'uploaded': up, 'skipped': sk, 'warnings': plan['warnings']}
+                self.set_meta(sid, {'disk_link': link, 'disk_path': target, 'disk_check': check})
+                job['result'] = {'link': link, 'target': target, 'uploaded': up, 'skipped': sk, 'warnings': plan['warnings'], 'check': check,
+                                 'files': len(plan['ops'])}
                 job['stage'] = 'Готово'
             except Exception as e:
                 job['error'] = str(e)
+            shutil.rmtree(xmp_dir, ignore_errors=True)
             job['finished'] = True
         threading.Thread(target=run, daemon=True).start()
         return {'job': jid, 'target': target}
