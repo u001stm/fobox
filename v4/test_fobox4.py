@@ -298,6 +298,21 @@ class EngineTest(unittest.TestCase):
         self.e.set_role(sid, {'section': p['id'], 'reset': True})                     # back to the worksheet
         self.assertEqual(self.e.session(sid)['sections'][0]['mandatory'].get(wrong), 'P1')
 
+    def test_reset_whole_order_starts_from_scratch(self):
+        sid = self.school()
+        before = self.e.session(sid)
+        p = before['sections'][0]
+        wrong = next(x for x, k in p['mandatory'].items() if k == 'P1')
+        self.e.set_role(sid, {'section': p['id'], 'path': wrong, 'role': None})
+        self.approve_all(sid)
+        self.e.review(sid, {'section': p['id'], 'selected': list(self.e.session(sid)['sections'][0]['mandatory'])})
+        self.e.reset_session(sid)
+        after = self.e.session(sid)
+        self.assertEqual(after['approved'], {})
+        self.assertEqual(after['sections'][0]['mandatory'].get(wrong), 'P1')        # worksheet roles back
+        self.assertEqual({k: sorted(v) for k, v in after['selected'].items()},
+                         {k: sorted(v) for k, v in before['selected'].items()})     # same as right after import
+
     def test_raw_and_jpeg_in_different_folders_are_paired(self):
         d = self.tmp / 'split'
         (d / 'RAW').mkdir(parents=True)

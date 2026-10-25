@@ -2047,10 +2047,24 @@ class Engine:
         threading.Thread(target=run, daemon=True).start()
         return {'job': jid}
 
+    def reset_session(self, sid):
+        """Start the order over: forget every manual pick, confirmation, role fix, divider and mark,
+        then assemble all kits automatically again. Imported files, quality checks and the worksheet stay."""
+        with self.conn() as c:
+            if not c.execute('SELECT 1 FROM sessions WHERE id=?', (sid,)).fetchone():
+                raise ValueError('Съёмка не найдена')
+            for t in ('selection_events', 'ai_suggestions', 'selections', 'approvals', 'anchor_overrides',
+                      'marks', 'dividers', 'series_cat'):
+                c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
+            self.event(c, sid, 'review', 'reset-all')
+        self.suggest(sid)
+        return {'ok': True}
+
     def delete_session(self, sid):
         """Removes the session from the catalog only. Source files are not touched."""
         with self.conn() as c:
-            for t in ('files', 'students', 'selection_events', 'workflow_events', 'ai_suggestions', 'selections', 'approvals', 'anchor_overrides'):
+            for t in ('files', 'students', 'selection_events', 'workflow_events', 'ai_suggestions', 'selections', 'approvals',
+                      'anchor_overrides', 'marks', 'dividers', 'series_cat'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             c.execute('DELETE FROM sessions WHERE id=?', (sid,))
 
