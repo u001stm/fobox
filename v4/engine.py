@@ -1168,6 +1168,10 @@ class Engine:
                         c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', batch)
                 self._fcache.pop(sid, None)
                 self._mark_noface(sid)
+                try:
+                    self.count_people(sid)
+                except Exception:
+                    pass
                 job['stage'] = 'Сборка по лицам'
                 self.suggest(sid)                    # kits not touched by hand are assembled again with faces
                 job['stage'] = 'Готово'
@@ -1306,6 +1310,47 @@ class Engine:
             self.event(c, sid, 'review', 'not-defect' if ok else 'defect-again')
         self.suggest(sid)                 # kits not touched by hand may now use the frame
         return {'ok': True}
+
+    def count_people(self, sid):
+        """How many different people were photographed, by faces (for shoots without a worksheet, e.g. Crous):
+        portraits (and the «Педагоги» part) are grouped by face; a person needs at least two frames."""
+        import numpy as np
+        F = self._faces(sid)
+        if not F:
+            return None
+        secs, _ = self.sections(sid)
+        tl = next((x for x in secs if x['kind'] == 'timeline'), None)
+        with self.conn() as c:
+            wide = {r['path']: r['wide'] for r in c.execute('SELECT path, wide FROM files WHERE session_id=?', (sid,))}
+        if tl:
+            parts = {'students': [p for p in tl['files'] if tl['cats'].get(p) == 'portrait'],
+                     'teachers': [p for p in tl['files'] if tl['cats'].get(p) == 'teacher']}
+        else:
+            parts = {'students': [p for p in F if wide.get(p) == 0], 'teachers': []}
+
+        def clusters(paths):
+            cents, counts = [], []
+            for p in paths:
+                fs = [f for f in F.get(p, []) if f['h'] >= 0.08]
+                if not fs:
+                    continue
+                e = fs[0]['emb']
+                sims = [float(np.dot(e, c_ / (np.linalg.norm(c_) + 1e-9))) for c_ in cents]
+                i = int(np.argmax(sims)) if sims else -1
+                if i >= 0 and sims[i] >= self.FACE_SAME + 0.05:
+                    cents[i] = cents[i] + e
+                    counts[i] += 1
+                else:
+                    cents.append(np.array(e, dtype='float32'))
+                    counts.append(1)
+            return sum(1 for n in counts if n >= 2)
+        res = {k: clusters(v) for k, v in parts.items()}
+        with self.conn() as c:
+            r = c.execute('SELECT meta FROM sessions WHERE id=?', (sid,)).fetchone()
+            meta = json.loads((r['meta'] if r else None) or '{}')
+            meta['people_faces'] = res
+            c.execute('UPDATE sessions SET meta=? WHERE id=?', (json.dumps(meta, ensure_ascii=False), sid))
+        return res
 
     def _mark_noface(self, sid):
         """«Без лица»: nobody's face on the frame while the frames around it have faces — a back, a passer-by,
@@ -2829,6 +2874,11 @@ class Engine:
             for r in c.execute("SELECT session_id, role, COUNT(*) n FROM students WHERE role IN ('student','teacher') GROUP BY session_id, role"):
                 if r['session_id'] in per:
                     per[r['session_id']]['students' if r['role'] == 'student' else 'teachers'] = r['n']
+            for s_ in sessions:                      # no worksheet (Crous): people counted by faces
+                if not s_['students'] and not s_['teachers']:
+                    pf = json.loads(s_.get('meta') or '{}').get('people_faces') or {}
+                    s_['students'], s_['teachers'] = pf.get('students', 0), pf.get('teachers', 0)
+                    s_['people_by_faces'] = bool(pf)
             for r in c.execute('SELECT session_id, COUNT(DISTINCT file_path) n FROM selections GROUP BY session_id'):
                 if r['session_id'] in per:
                     per[r['session_id']]['selected'] = r['n']

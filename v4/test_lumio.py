@@ -419,6 +419,26 @@ class EngineTest(unittest.TestCase):
         self.assertIn('noface', fl[back])                                   # someone's back among portraits
         self.assertEqual(sum('noface' in v for v in fl.values()), 1)
 
+    def test_people_counted_by_faces_without_worksheet(self):
+        import json as js
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('numpy not installed')
+        sid = self.e.import_folder(self.src)                         # no worksheet
+        files = sorted((f for f in self.e.session(sid)['files'] if f['wide'] == 0), key=lambda f: f['name'])
+        rows = []
+        for i, f in enumerate(files):
+            e = np.zeros(512, 'float32'); e[i // 5] = 1                # a new person every 5 frames
+            rows.append((sid, f['path'], 1, js.dumps([{'box': [0, 0, 10, 10], 'h': 0.3, 'eye': .3, 'eye2': .3}]), e.astype('float16').tobytes()))
+        with self.e.conn() as c:
+            c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', rows)
+        n = self.e.count_people(sid)['students']
+        groups = [min(5, len(files) - k) for k in range(0, len(files), 5)]
+        self.assertEqual(n, sum(1 for g in groups if g >= 2))
+        st = next(s for s in self.e.stats()['sessions'] if s['id'] == sid)
+        self.assertEqual(st['students'], n)
+
     def test_scenes_split_by_pause_and_picture(self):
         from engine import Engine
         f = lambda n, t, h: {'name': f'A{n}', 'capture_at': f'2026-10-16 09:{t}', 'dhash': h}

@@ -280,7 +280,7 @@ function envMenu(btn){closeMenu();const m=document.createElement('div');m.classN
  const r=btn.getBoundingClientRect();m.style.left=(r.right+8)+'px';m.style.top=r.top+'px';setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
 async function switchEnv(id){if(typeof flush==='function')await flush();try{await api('/api/settings',{settings:{current_company:id}});S.sess=null;S.sid='';try{localStorage.removeItem('lumio.sid')}catch(e){}await load();toast('Среда: '+curEnv().name)}catch(e){toast(e.message,1)}}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-const UI_VERSION='4.17.0';
+const UI_VERSION='4.18.0';
 async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();
  const env=curEnv().id;S.stats.allSessions=S.stats.sessions;S.stats.sessions=S.stats.sessions.filter(x=>(x.company||'vypusk')===env);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;const a=curEnv().color||s.accent;document.documentElement.style.setProperty('--accent',a);document.documentElement.style.setProperty('--c1',a);document.documentElement.style.setProperty('--accent-soft',a+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
@@ -353,7 +353,7 @@ function guideHTML(g){if(!g)return'';try{if(localStorage.getItem('lumio.guide.of
 // ---------- overview
 function overview(){const st=S.stats;const g=guideHTML(nextStep());if(!st.sessions.length)return `<div class="top"><h1>Обзор</h1></div>${g}${onboarding()}`;
  const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?agg(pr):null;
- const cards=`<div class="kpis">${kpi(fmt(c.n),'Съёмок',delta(c.n,p&&p.n))}${kpi(fmt(c.frames),'Отснято кадров',delta(c.frames,p&&p.frames))}${kpi(c.hours==null?'—':fmt(Math.round(c.hours))+' ч','Часов съёмки (по EXIF)',delta(c.hours,p&&p.hours))}${kpi(fmt(c.students+c.teachers),`Людей по ведомостям · учеников ${fmt(c.students)}, учителей ${fmt(c.teachers)}`,delta(c.students+c.teachers,p&&(p.students+p.teachers)))}</div>`;
+ const cards=`<div class="kpis">${kpi(fmt(c.n),'Съёмок',delta(c.n,p&&p.n))}${kpi(fmt(c.frames),'Отснято кадров',delta(c.frames,p&&p.frames))}${kpi(c.hours==null?'—':fmt(Math.round(c.hours))+' ч','Часов съёмки (по EXIF)',delta(c.hours,p&&p.hours))}${kpi(fmt(c.students+c.teachers),`Людей сфотографировано · учеников ${fmt(c.students)}, учителей ${fmt(c.teachers)}`,delta(c.students+c.teachers,p&&(p.students+p.teachers)))}</div>`;
  const recent=st.sessions.slice(0,4).map(s=>`<div class="rc" onclick="openSess('${s.id}')"><div class="th" ${s.cover?`data-bg="/api/preview?s=${s.id}&p=${encodeURIComponent(s.cover)}&size=160"`:''}></div><div style="min-width:0"><div class="mut">${fdate(s.shoot_date)}</div><div class="t">${esc(s.title)}</div><div class="row" style="gap:10px"><span class="mut">${fmt(s.frames)} кадров</span><span class="status ${s.status}">${STATUS[s.status]||''}</span></div></div></div>`).join('');
  return `<div class="top"><h1>Обзор</h1>${filters()}</div>${g}${cards}
  <div class="g2"><div class="card"><div class="ch"><h2>Кадры ${S.period==='month'?'по дням':'по месяцам'}</h2>${chartLegend()}</div>${overviewChart()}</div><div class="card"><div class="ch"><h2>Рекорды</h2></div>${records()}</div></div>

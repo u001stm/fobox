@@ -26,7 +26,7 @@ CODE = [Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).wi
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.17.0'  # bump together with UI_VERSION in ui.html
+APP_VERSION = '4.18.0'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
