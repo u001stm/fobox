@@ -280,7 +280,7 @@ function envMenu(btn){closeMenu();const m=document.createElement('div');m.classN
  const r=btn.getBoundingClientRect();m.style.left=(r.right+8)+'px';m.style.top=r.top+'px';setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
 async function switchEnv(id){if(typeof flush==='function')await flush();try{await api('/api/settings',{settings:{current_company:id}});S.sess=null;S.sid='';try{localStorage.removeItem('lumio.sid')}catch(e){}await load();toast('Среда: '+curEnv().name)}catch(e){toast(e.message,1)}}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-const UI_VERSION='4.18.0';
+const UI_VERSION='4.18.1';
 async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();
  const env=curEnv().id;S.stats.allSessions=S.stats.sessions;S.stats.sessions=S.stats.sessions.filter(x=>(x.company||'vypusk')===env);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;const a=curEnv().color||s.accent;document.documentElement.style.setProperty('--accent',a);document.documentElement.style.setProperty('--c1',a);document.documentElement.style.setProperty('--accent-soft',a+'24');document.documentElement.dataset.theme=s.theme;S.cmp=S.cmp||s.compare_to||'prev'}
@@ -547,6 +547,7 @@ function loadPerson(){const P=S.people[S.pi];S.sels={};S.dsel={};if(!P)return;P.
 const hasDups=x=>x&&x.dup_limit!=null;
 // faces: progress of the background search, and what it changed for this person
 function faceNote(P){const fa=S.sess.faces||{};const out=[];
+ const mt=JSON.parse(S.sess.session.meta||'{}');if(!mt.preview_v&&S._pvfix!==S.sid){S._pvfix=S.sid;setTimeout(()=>{api('/api/reanalyze',{session:S.sid}).then(async()=>{toast('Обновляю превью и проверку качества…');for(;;){await new Promise(r=>setTimeout(r,2500));const j=await api('/api/job?id='+encodeURIComponent(S.sid));if(j.finished)break}await reloadSess(curP()?.key);drawShoot();toast('Превью и проверка качества обновлены')}).catch(()=>{})},100)}
  if(fa.running){out.push(`<div class="warn info">Ищу лица на кадрах: ${fa.done} из ${fa.total}. Комплекты, которые вы не меняли, пересоберутся по лицам сами.</div>`);setTimeout(pollFaces,2500)}
  else if(fa.error)out.push(`<div class="warn err">Лица: ${esc(fa.error)}</div>`);
  else if(fa.ready&&fa.done<fa.total){if(S._fauto!==S.sid){S._fauto=S.sid;setTimeout(runFaces,50)}out.push(`<div class="warn info">Начинаю поиск лиц…</div>`)}
@@ -736,11 +737,13 @@ function coach(){try{if(localStorage.getItem('lumio.coach')==='1'||localStorage.
 // ---------- role menu
 function roleMenu(btn){const el=btn.closest('.tile');roleMenuAt(el.dataset.p,+el.dataset.s,btn.getBoundingClientRect())}
 function roleMenuAt(p,si,r){const x=S.sess.sections[si],cur=x.mandatory[p];closeMenu();const m=document.createElement('div');m.className='menu';m.id='rmenu';
- const fx=cur&&(x.fix||{})[cur];m.innerHTML=`<div class="h">${esc(S.fmap[p].name)}</div>`+(fx&&S.fmap[fx]?`<button data-fix="1"><span>Заменить на ${esc(S.fmap[fx].name)} — тот же ребёнок, похожий номер</span></button>`:'')+x.roles.filter(k=>k!==cur).map(k=>`<button data-r="${k}"><span>Сделать: ${k==='T'?'фото из ведомости':ALAB[k]}${Object.values(x.mandatory).includes(k)?' <span class="mut">(заменить)</span>':''}</span><kbd>${Object.keys(ROLEKEYS).find(y=>ROLEKEYS[y]===k)||''}</kbd></button>`).join('')+(cur?`<button class="bad" data-r=""><span>Не тот человек — снять ${ALAB[cur]}</span><kbd>Del</kbd></button>`:'');
- m.querySelectorAll('button').forEach(b=>b.onclick=()=>{closeMenu();if(b.dataset.fix)return setRole(fx,cur,false,si);setRole(p,b.dataset.r||null,false,si)});document.body.append(m);
+ const fx=cur&&(x.fix||{})[cur];const why=(S.sess.reasons[x.id]||{})[p];const mv=!cur&&x.kind==='portrait'&&S.sels[x.id].has(p)?(why==='vignette'?`<button data-mv="portrait"><span>Перенести в дополнительные портреты</span></button>`:`<button data-mv="vignette"><span>Перенести в дополнительные виньетки</span></button>`):'';
+ m.innerHTML=`<div class="h">${esc(S.fmap[p].name)}</div>`+mv+(fx&&S.fmap[fx]?`<button data-fix="1"><span>Заменить на ${esc(S.fmap[fx].name)} — тот же ребёнок, похожий номер</span></button>`:'')+x.roles.filter(k=>k!==cur).map(k=>`<button data-r="${k}"><span>Сделать: ${k==='T'?'фото из ведомости':ALAB[k]}${Object.values(x.mandatory).includes(k)?' <span class="mut">(заменить)</span>':''}</span><kbd>${Object.keys(ROLEKEYS).find(y=>ROLEKEYS[y]===k)||''}</kbd></button>`).join('')+(cur?`<button class="bad" data-r=""><span>Не тот человек — снять ${ALAB[cur]}</span><kbd>Del</kbd></button>`:'');
+ m.querySelectorAll('button').forEach(b=>b.onclick=()=>{closeMenu();if(b.dataset.mv)return moveReason(x,p,b.dataset.mv);if(b.dataset.fix)return setRole(fx,cur,false,si);setRole(p,b.dataset.r||null,false,si)});document.body.append(m);
  m.style.left=Math.max(8,Math.min(r.left,innerWidth-m.offsetWidth-10))+'px';m.style.top=Math.max(8,Math.min(r.bottom+4,innerHeight-m.offsetHeight-10))+'px';
  setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
 const plural=(n,a,b,c)=>{const m=n%10,h=n%100;return m===1&&h!==11?a:m>=2&&m<=4&&(h<10||h>=20)?b:c};
+async function moveReason(x,p,r){try{await api('/api/reason',{session:S.sid,section:x.id,path:p,reason:r});(S.sess.reasons[x.id]=S.sess.reasons[x.id]||{})[p]=r;drawShoot();toast(r==='vignette'?'Перенесено в виньетки':'Перенесено в портреты')}catch(e){toast(e.message,1)}}
 function closeMenu(){const m=$('#rmenu');if(m)m.remove()}
 function commonMenu(btn){const el=btn.closest('.tile'),p=el.dataset.p,r=btn.getBoundingClientRect();closeMenu();const m=document.createElement('div');m.className='menu';m.id='rmenu';
  m.innerHTML=`<div class="h">${esc(S.fmap[p].name)}</div><button><span>Сделать общей фотографией</span></button><div class="mut" style="padding:4px 10px 6px;font-size:11.5px;max-width:260px">Дубли подберутся сами из той же серии кадров</div>`;

@@ -97,6 +97,9 @@ CREATE TABLE IF NOT EXISTS marks (
  PRIMARY KEY(session_id, section_id, file_path));
 CREATE TABLE IF NOT EXISTS dividers (
  session_id TEXT NOT NULL, file_path TEXT NOT NULL, cat TEXT NOT NULL, PRIMARY KEY(session_id, file_path));
+CREATE TABLE IF NOT EXISTS reason_ov (
+ session_id TEXT NOT NULL, section_id TEXT NOT NULL, path TEXT NOT NULL, reason TEXT NOT NULL,
+ PRIMARY KEY(session_id, section_id, path));
 CREATE TABLE IF NOT EXISTS flag_ok (
  session_id TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY(session_id, path));
 CREATE TABLE IF NOT EXISTS faces (
@@ -1295,6 +1298,15 @@ class Engine:
             x['closed'] = closed
             x['strangers'] = gone
 
+    def set_reason(self, sid, section, path, reason):
+        """Move an extra frame between «Дополнительная виньетка» and «Дополнительные портреты»."""
+        if reason not in ('vignette', 'portrait'):
+            raise ValueError('Неизвестный раздел')
+        with self.conn() as c:
+            c.execute('INSERT OR REPLACE INTO reason_ov VALUES(?,?,?,?)', (sid, section, path, reason))
+            self.event(c, sid, 'review', f'reason:{section}:{reason}')
+        return {'ok': True}
+
     def not_defect(self, sid, path, ok=True):
         """The photographer says «не брак»: the frame loses its defect marks and keeps them off on re-checks."""
         with self.conn() as c:
@@ -1431,7 +1443,15 @@ class Engine:
             r = c.execute('SELECT preview, orient FROM files WHERE session_id=? AND path=?', (sid, path)).fetchone()
         if not r or not r['preview']:
             return None
-        key = hashlib.sha1(f'{r["preview"]}|{size}|o{r["orient"]}|v2'.encode()).hexdigest()
+        # the key includes the source file's size and time: another card with the same file names
+        # (ANT00264.JPG of a different shoot) must never show the old cached picture
+        src_file = path if r['preview'].startswith('embedded:') else r['preview']
+        try:
+            st_ = os.stat(src_file)
+            stamp = f'{st_.st_size}:{int(st_.st_mtime)}'
+        except OSError:
+            stamp = '?'
+        key = hashlib.sha1(f'{r["preview"]}|{size}|o{r["orient"]}|{stamp}|v3'.encode()).hexdigest()
         cached = self.cache / f'{key}.jpg'
         if cached.exists():
             return cached.read_bytes()
@@ -1555,6 +1575,10 @@ class Engine:
                           (res['brightness'], res['detail'], res['clip_hi'], res['clip_lo'], res['dhash'],
                            ','.join(flags) or None, res.get('wide'), res['detail'], sid, r['path']))
             c.execute("UPDATE sessions SET status=CASE WHEN status='imported' THEN 'analyzed' ELSE status END WHERE id=?", (sid,))
+            r_ = c.execute('SELECT meta FROM sessions WHERE id=?', (sid,)).fetchone()
+            meta_ = json.loads((r_['meta'] if r_ else None) or '{}')
+            meta_['preview_v'] = 3                 # previews keyed by file size+time (no stale pictures)
+            c.execute('UPDATE sessions SET meta=? WHERE id=?', (json.dumps(meta_, ensure_ascii=False), sid))
             self.event(c, sid, 'analysis', 'end')
 
     # -------------------------------------------------------- sections
@@ -2305,6 +2329,8 @@ class Engine:
             for r in c.execute('SELECT section_id,file_path,reason FROM ai_suggestions WHERE session_id=?', (sid,)):
                 sugg[r['section_id']].append(r['file_path'])
                 reasons[r['section_id']][r['file_path']] = r['reason']
+            for r in c.execute('SELECT section_id,path,reason FROM reason_ov WHERE session_id=?', (sid,)):
+                reasons[r['section_id']][r['path']] = r['reason']      # moved by the photographer
         secs, conflicts = self.sections(sid)
         # a section that was never assembled (new layout, catalog from an older version): assemble it now
         if any(not sel.get(x['id']) and x['kind'] in ('timeline', 'cat') for x in secs):
@@ -2836,7 +2862,7 @@ class Engine:
             if not c.execute('SELECT 1 FROM sessions WHERE id=?', (sid,)).fetchone():
                 raise ValueError('Съёмка не найдена')
             for t in ('selection_events', 'ai_suggestions', 'selections', 'approvals', 'anchor_overrides',
-                      'marks', 'dividers', 'series_cat'):
+                      'marks', 'dividers', 'series_cat', 'reason_ov'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             self.event(c, sid, 'review', 'reset-all')
         self.suggest(sid)
@@ -2846,7 +2872,7 @@ class Engine:
         """Removes the session from the catalog only. Source files are not touched."""
         with self.conn() as c:
             for t in ('files', 'students', 'selection_events', 'workflow_events', 'ai_suggestions', 'selections', 'approvals',
-                      'anchor_overrides', 'marks', 'dividers', 'series_cat', 'renames', 'faces', 'flag_ok'):
+                      'anchor_overrides', 'marks', 'dividers', 'series_cat', 'renames', 'faces', 'flag_ok', 'reason_ov'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             c.execute('DELETE FROM sessions WHERE id=?', (sid,))
 
