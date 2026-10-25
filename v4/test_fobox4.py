@@ -523,29 +523,117 @@ class EngineTest(unittest.TestCase):
         with self.assertRaises(ValueError):                                     # 2 main group photos are not allowed
             self.e.review(sid, {'section': 'common', 'selected': gsel, 'dups': gdup[1:], 'approved': True})
 
-    def test_companies_change_kit_and_export_layout(self):
-        names = [c['name'] for c in self.e.companies()]
-        self.assertEqual(names[:2], ['Выпуск', 'Crous'])
-        sid = self.e.import_folder(self.src, {'students': str(self.tmp / 'students.csv'), 'company': 'crous',
-                                              'order': '7425', 'school': '1363', 'class_name': '4'})
+    def test_companies_and_crous_sorted_delivery(self):
+        """Crous: no per-child selection — everything without defects; RAW in one folder, JPEG sorted by kind."""
+        from PIL import ImageDraw
+        self.assertEqual([c['name'] for c in self.e.companies()][:2], ['Выпуск', 'Crous'])
+        d = self.tmp / 'crous'
+        d.mkdir()
+        t = datetime(2026, 10, 23, 10, 0, 0)
+        def shot(n, size, draw, pause=False):
+            nonlocal t
+            t += timedelta(seconds=120 if pause else 4)
+            im = Image.new('RGB', size, (60, 80, 100))
+            draw(ImageDraw.Draw(im), n)
+            ex = Image.Exif()
+            ex.get_ifd(0x8769)[0x9003] = t.strftime('%Y:%m:%d %H:%M:%S')
+            buf = io.BytesIO()
+            im.save(buf, 'JPEG', exif=ex)
+            (d / f'ANT0{n}.JPG').write_bytes(buf.getvalue())
+            (d / f'ANT0{n}.ARW').write_bytes(b'RAW' + bytes([n % 256]))
+        person = lambda dr, n: (dr.ellipse([60 + n % 5 * 9, 60, 140 + n % 5 * 9, 140], fill=(230, 200, 180)), dr.line([0, n * 13 % 400, 200, 0], fill=(255, 255, 255), width=5))
+        crowd = lambda dr, n: [dr.ellipse([20 + k * 60, 80, 70 + k * 60, 130], fill=(230, 200, 180)) for k in range(6)]
+        pair = lambda dr, n: (dr.ellipse([60 + n % 4 * 30, 60, 120 + n % 4 * 30, 120], fill=(230, 200, 180)), dr.line([0, n * 17 % 300, 450, 0], fill=(255, 255, 255), width=5))
+        for n in range(100, 108):
+            shot(n, (200, 300), person, pause=(n == 100))       # portraits: vertical
+        (d / 'ANT0103.JPG').write_bytes(jpeg((252, 252, 252), t, blank=True))   # a blank (defect) frame
+        for n in range(108, 114):
+            shot(n, (450, 300), pair, pause=(n == 108))         # group photos: horizontal, varied
+        for n in range(114, 122):
+            shot(n, (450, 300), crowd, pause=(n == 114))        # class photo: horizontal burst
+        sid = self.e.import_folder(d, {'company': 'crous', 'school': 'Школа 2044', 'date': '23.10.2026'})
         st = self.e.session(sid)
-        self.assertEqual(st['session']['company'], 'crous')
-        kit = sum(len(st['selected'][x['id']]) for x in st['sections'] if x['person'] == 's0')
-        self.assertTrue(5 <= kit <= 10, kit)                                  # Crous: 5–10 per child
-        self.assertFalse(any(x['kind'] == 'reportage' for x in st['sections']))   # no reportage there
-        self.approve_all(sid)
-        root = Path(self.e.export(sid, self.tmp / 'out')['root'])
-        self.assertEqual(root.name, '7425 1363 4')
-        kid = {x.name for x in (root / 'Иванов Иван').iterdir()}
-        self.assertIn('1. Иванов Иван_ABC0110.ARW', kid)
-        self.assertIn('2. Иванов Иван_ABC0111.ARW', kid)
-        self.assertFalse((root / '05_УЧЕНИКИ').exists())
-        self.e.save_company({'id': 'crous', 'name': 'Crous', 'worksheet_file': '{role}_{orig}', 'kit_max': 12})
-        self.assertEqual(self.e.company('crous')['worksheet_file'], '{role}_{orig}')
-        self.e.set_company(sid, 'vypusk')
-        self.assertEqual(self.e.session(sid)['session']['company'], 'vypusk')
-        with self.assertRaises(ValueError):
-            self.e.delete_company('vypusk')                                   # has a shoot
+        tl = st['sections'][0]
+        self.assertEqual([x['kind'] for x in st['sections']], ['timeline'])            # one time line, no worksheet
+        self.assertEqual([dv['cat'] for dv in tl['dividers']], ['portrait', 'group', 'common'])
+        self.assertNotIn(str(d / 'ANT0103.ARW'), st['selected']['timeline'])            # defect left out
+        self.e.set_divider(sid, str(d / 'ANT0108.ARW'), 'teacher')                      # the photographer fixes a divider
+        self.e.set_divider(sid, str(d / 'ANT0110.ARW'), 'group')
+        tl = self.e.session(sid)['sections'][0]
+        self.assertEqual(tl['cats'][str(d / 'ANT0109.ARW')], 'teacher')
+        self.assertEqual(tl['cats'][str(d / 'ANT0111.ARW')], 'group')
+        self.e.set_divider(sid, str(d / 'ANT0110.ARW'), None)                           # remove it again
+        r = self.e.export(sid, self.tmp / 'out')
+        root = Path(r['root'])
+        self.assertEqual(root.name, '23.10.2026. Школа 2044')
+        self.assertEqual(len(list((root / 'RAW').iterdir())), 21)                  # 22 frames − 1 defect
+        self.assertEqual(sorted(x.name for x in (root / 'JPG').iterdir()), ['Общая', 'Педагоги', 'Портреты'])
+        self.assertEqual(len(list((root / 'JPG' / 'Педагоги').iterdir())), 6)
+        self.assertEqual(len(list((root / 'JPG' / 'Портреты').iterdir())), 7)
+        self.assertTrue(all(x.suffix == '.JPG' for x in (root / 'JPG' / 'Общая').iterdir()))
+
+    def test_upload_to_yandex_disk_fake_server(self):
+        """Upload goes straight from the card into disk:/<photographer>/<date>. <school>/RAW + JPG/… (fake Disk API)."""
+        import threading, json as js, urllib.parse as up
+        from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+        store, dirs = {}, set()
+
+        class H(BaseHTTPRequestHandler):
+            def _ok(self, code=200, body=None):
+                b = js.dumps(body or {}).encode()
+                self.send_response(code); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+            def do_GET(self):
+                u = up.urlparse(self.path); q = dict(up.parse_qsl(u.query))
+                if u.path.endswith('/resources/upload'):
+                    return self._ok(200, {'href': f'http://127.0.0.1:{port}/put?p=' + up.quote(q['path']), 'method': 'PUT'})
+                if u.path.endswith('/resources'):
+                    if q.get('fields') == 'public_url':
+                        return self._ok(200, {'public_url': 'https://disk.yandex.ru/d/TEST'})
+                    if q['path'] in store:
+                        return self._ok(200, {'size': len(store[q['path']]), 'type': 'file'})
+                    return self._ok(404, {'error': 'DiskNotFoundError'})
+                return self._ok(200, {'user': {'display_name': 'Сергей'}})
+            def do_PUT(self):
+                u = up.urlparse(self.path); q = dict(up.parse_qsl(u.query))
+                if u.path == '/put':
+                    store[q['p']] = self.rfile.read(int(self.headers['Content-Length'])); return self._ok(201)
+                if u.path.endswith('/resources'):
+                    if q['path'] in dirs:
+                        return self._ok(409, {'error': 'DiskPathPointsToExistentDirectoryError'})
+                    dirs.add(q['path']); return self._ok(201)
+                return self._ok(200)
+            def log_message(self, *a): pass
+        srv = ThreadingHTTPServer(('127.0.0.1', 0), H)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        import yadisk
+        yadisk.API = f'http://127.0.0.1:{port}/v1/disk'
+        try:
+            sid = self.e.import_folder(self.src, {'company': 'crous', 'school': 'Школа 2044', 'date': '23.10.2026'})
+            self.e.save_settings({'yandex_token': 'TOKEN'})
+            self.assertEqual(self.e.disk_target(sid), 'disk:/ФОТОГРАФ СЕРГЕЙ/23.10.2026. Школа 2044')
+            jid = self.e.start_upload(sid)['job']
+            import time
+            for _ in range(200):
+                if self.e.jobs[jid]['finished']:
+                    break
+                time.sleep(0.05)
+            job = self.e.jobs[jid]
+            self.assertIsNone(job['error'])
+            self.assertEqual(job['result']['link'], 'https://disk.yandex.ru/d/TEST')
+            raws = [k for k in store if '/RAW/' in k]
+            jpgs = [k for k in store if '/JPG/' in k]
+            self.assertEqual(len(raws), 39)                                   # 40 frames − 1 blank defect
+            self.assertEqual(len(jpgs), 39)
+            self.assertTrue(all(k.startswith('disk:/ФОТОГРАФ СЕРГЕЙ/23.10.2026. Школа 2044/') for k in store))
+            again = self.e.start_upload(sid)['job']                           # second run: nothing re-uploaded
+            for _ in range(200):
+                if self.e.jobs[again]['finished']:
+                    break
+                time.sleep(0.05)
+            self.assertEqual(self.e.jobs[again]['result']['uploaded'], 0)
+        finally:
+            srv.shutdown()
 
     def test_csv_semicolon_cp1251(self):
         f = self.tmp / 'v.csv'

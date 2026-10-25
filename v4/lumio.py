@@ -19,13 +19,13 @@ from urllib.parse import parse_qs, urlparse
 from engine import Engine
 
 UI = Path(__file__).with_name('ui.html')
-CODE = [Path(__file__), Path(__file__).with_name('engine.py')]
+CODE = [Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).with_name('yadisk.py')]
 
 
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.2.0'  # bump together with UI_VERSION in ui.html
+APP_VERSION = '4.4.0'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
@@ -122,6 +122,17 @@ def make_handler(engine):
                     out = engine.delete_company(b['delete']) if b.get('delete') else engine.save_company(b)
                 elif p == '/api/set-company':
                     out = engine.set_company(b['session'], b['company'])
+                elif p == '/api/category':
+                    out = engine.set_category(b['session'], b['section'], b['cat'])
+                elif p == '/api/divider':
+                    out = engine.set_divider(b['session'], b['path'], b.get('cat'))
+                elif p == '/api/upload':
+                    out = engine.start_upload(b['session'])
+                elif p == '/api/disk-target':
+                    out = {'target': engine.disk_target(b['session'])}
+                elif p == '/api/disk-check':
+                    from yadisk import YaDisk
+                    out = YaDisk(b.get('token') or engine.setting('yandex_token')).info()
                 elif p == '/api/rebuild':
                     out = engine.rebuild(b['session'], b.get('sections'))
                 elif p == '/api/role':
@@ -165,7 +176,7 @@ def make_handler(engine):
                 else:
                     return self.send(404, {'error': 'Команда не найдена — перезапустите программу (закройте окно и запустите «Запустить LUMIO.bat»)', 'code': 'no_route'})
                 self.send(200, out)
-            except (ValueError, KeyError, OSError, json.JSONDecodeError) as e:
+            except Exception as e:   # ValueError, OSError, DiskError … — the page shows the message
                 self.send(400, {'error': str(e)})
 
         def log_message(self, *a):

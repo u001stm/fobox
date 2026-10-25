@@ -14,6 +14,7 @@ import re
 import shutil
 import sqlite3
 import struct
+import tempfile
 import threading
 from contextlib import contextmanager
 import time
@@ -52,6 +53,9 @@ DEFAULT_SETTINGS = {
     'workspace': 'Моя студия',
     'teacher_gap_sec': '30',       # teacher series ends at a longer pause between frames
     'person_gap_sec': '45',        # a child's series ends at a longer pause between frames
+    'current_company': 'vypusk',   # the environment the app is switched to (top of the sidebar)
+    'yandex_token': '',            # OAuth token for Яндекс.Диск uploads
+    'yandex_client_id': '',        # ID of the photographer's app at oauth.yandex.ru (to get a token)
     'date_format': 'dd.mm.yyyy',   # how dates are shown in the interface
     'compare_to': 'prev',          # overview comparison: previous period or same period last year
 }
@@ -88,6 +92,10 @@ CREATE TABLE IF NOT EXISTS anchor_overrides (
 CREATE TABLE IF NOT EXISTS marks (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, file_path TEXT NOT NULL, mark TEXT NOT NULL,
  PRIMARY KEY(session_id, section_id, file_path));
+CREATE TABLE IF NOT EXISTS dividers (
+ session_id TEXT NOT NULL, file_path TEXT NOT NULL, cat TEXT NOT NULL, PRIMARY KEY(session_id, file_path));
+CREATE TABLE IF NOT EXISTS series_cat (
+ session_id TEXT NOT NULL, section_id TEXT NOT NULL, cat TEXT NOT NULL, PRIMARY KEY(session_id, section_id));
 CREATE TABLE IF NOT EXISTS companies (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, config TEXT NOT NULL DEFAULT '{}', sort INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS approvals (
@@ -102,7 +110,7 @@ MIGRATIONS = {
     'files': {'name': 'TEXT', 'frame': 'INTEGER', 'preview': 'TEXT', 'camera': 'TEXT',
               'series': 'INTEGER', 'brightness': 'REAL', 'sharpness': 'REAL',
               'clip_hi': 'REAL', 'clip_lo': 'REAL', 'dhash': 'TEXT', 'flags': 'TEXT',
-              'analyzed': 'INTEGER DEFAULT 0', 'orient': 'INTEGER'},
+              'analyzed': 'INTEGER DEFAULT 0', 'orient': 'INTEGER', 'wide': 'INTEGER'},
     'students': {'role': "TEXT DEFAULT 'student'", 'anchors': 'TEXT'},
     'selection_events': {'section_id': 'TEXT'},
     'profiles': {'email': 'TEXT', 'phone': 'TEXT', 'city': 'TEXT', 'avatar': 'TEXT', 'site': 'TEXT',
@@ -123,20 +131,19 @@ def frame_number(stem):
 # A company = a customer with its own kit rules and export layout. "Выпуск" is the full school layout;
 # other companies use a template: {order} {school} {class} {date} {name} {orig} {n} {role}
 COMPANY_DEFAULTS = {
-    'vypusk': {'name': 'Выпуск', 'layout': 'vypusk', 'kit_min': 15, 'kit_max': 20, 'target': 18,
+    'vypusk': {'name': 'Выпуск', 'layout': 'vypusk', 'color': '#7738FF', 'disk_parent': '', 'kit_min': 15, 'kit_max': 20, 'target': 18,
                'teachers': True, 'common': True, 'report': True, 'report_count': 15, 'group_dups': 6, 'report_dups': 6,
                'note': 'Полная школьная структура: 01_ДОКУМЕНТЫ … 07_ФОН, ЛР_/ЛС_/Друг1_/Друг2_, учителя, общая и репортаж с дублями.'},
-    'crous': {'name': 'Crous', 'layout': 'template', 'kit_min': 5, 'kit_max': 10, 'target': 8,
+    'crous': {'name': 'Crous', 'layout': 'sort', 'color': '#E5484D', 'disk_parent': 'ФОТОГРАФ СЕРГЕЙ', 'kit_min': 0, 'kit_max': 0, 'target': 0,
               'teachers': True, 'common': True, 'report': False, 'report_count': 0, 'group_dups': 0, 'report_dups': 0,
-              'root': '{order} {school} {class}',
-              'child_dir': '{name}',
-              'worksheet_file': '{n}. {name}_{orig}',
-              'extra_file': '{orig}',
-              'teacher_dir': 'Учителя', 'teacher_file': '{name}_{orig}',
-              'common_dir': 'Общая', 'report_dir': 'Репортаж',
-              'note': 'Простая структура: папка заказа → папка ребёнка → его кадры. Шаблоны имён можно поменять.'},
+              'root': '{date}. {school}', 'raw_dir': 'RAW', 'jpg_dir': 'JPG',
+              'cat_portrait': 'Портреты', 'cat_group': 'Групповые', 'cat_common': 'Общая', 'cat_teacher': 'Педагоги',
+              'note': 'Всё со съёмки без брака: RAW одной папкой, JPEG разложены по видам — Портреты, Групповые, Общая, Педагоги.'},
 }
-TEMPLATE_KEYS = ('root', 'child_dir', 'worksheet_file', 'extra_file', 'teacher_dir', 'teacher_file', 'common_dir', 'report_dir')
+TEMPLATE_KEYS = ('color', 'disk_parent', 'root', 'child_dir', 'worksheet_file', 'extra_file', 'teacher_dir', 'teacher_file', 'common_dir', 'report_dir',
+                 'raw_dir', 'jpg_dir', 'cat_portrait', 'cat_group', 'cat_common', 'cat_teacher')
+CATEGORIES = ('portrait', 'group', 'common', 'teacher')
+DEFECTS = ('white', 'black', 'blur')     # «брак»: never in a sorted delivery unless the photographer brings it back
 
 
 def fill(template, **kw):
@@ -638,6 +645,16 @@ class Engine:
             c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),))
             c.execute("INSERT OR IGNORE INTO profiles(id,name,studio) VALUES('me','','')")
             c.execute("UPDATE settings SET value='20' WHERE key='kit_max' AND value='22'")   # earlier default
+            r = c.execute("SELECT config FROM companies WHERE id='crous'").fetchone()
+            if r and 'raw_dir' not in json.loads(r['config'] or '{}'):
+                c.execute("UPDATE companies SET config=? WHERE id='crous'", (json.dumps({k: v for k, v in COMPANY_DEFAULTS['crous'].items() if k != 'name'}, ensure_ascii=False),))
+            for cid in ('vypusk', 'crous'):
+                r = c.execute('SELECT config FROM companies WHERE id=?', (cid,)).fetchone()
+                if r:
+                    cf = json.loads(r['config'] or '{}')
+                    if 'color' not in cf:
+                        cf.update(color=COMPANY_DEFAULTS[cid]['color'], disk_parent=COMPANY_DEFAULTS[cid]['disk_parent'])
+                        c.execute('UPDATE companies SET config=? WHERE id=?', (json.dumps(cf, ensure_ascii=False), cid))
             for i, (cid, cfg) in enumerate(COMPANY_DEFAULTS.items()):
                 c.execute('INSERT OR IGNORE INTO companies(id,name,config,sort) VALUES(?,?,?,?)',
                           (cid, cfg['name'], json.dumps({k: v for k, v in cfg.items() if k != 'name'}, ensure_ascii=False), i))
@@ -689,8 +706,10 @@ class Engine:
         for k in TEMPLATE_KEYS + ('note',):
             if k in data:
                 base[k] = str(data[k])[:200]
-        if 'layout' in data and data['layout'] in ('vypusk', 'template'):
+        if 'layout' in data and data['layout'] in ('vypusk', 'template', 'sort'):
             base['layout'] = data['layout']
+        if base.get('color') and not re.fullmatch(r'#[0-9A-Fa-f]{6}', base['color']):
+            raise ValueError('Цвет в формате #RRGGBB')
         if base['kit_min'] > base['kit_max']:
             raise ValueError('«Не меньше» больше, чем «не больше»')
         with self.conn() as c:
@@ -716,6 +735,8 @@ class Engine:
             for k, v in data.items():
                 if k not in allowed:
                     raise ValueError('Неизвестная настройка: ' + k)
+                if k == 'current_company' and not any(x['id'] == v for x in self.companies()):
+                    raise ValueError('Нет такой среды')
                 if k == 'accent' and not re.fullmatch(r'#[0-9A-Fa-f]{6}', str(v)):
                     raise ValueError('Цвет в формате #RRGGBB')
                 if k in ('series_gap_sec', 'teacher_gap_sec', 'person_gap_sec', 'radius', 'target_per_student', 'kit_min', 'kit_max', 'group_dups', 'report_count', 'report_dups', 'dup_distance'):
@@ -821,7 +842,7 @@ class Engine:
                          order_no=excluded.order_no, school=excluded.school, class_name=excluded.class_name,
                          location=excluded.location''',
                       (sid, title, str(src), mode, opts.get('order', ''), opts.get('school', ''),
-                       opts.get('class_name', ''), opts.get('location', ''), self.company(opts.get('company'))['id']))
+                       opts.get('class_name', ''), opts.get('location', ''), self.company(opts.get('company') or self.setting('current_company'))['id']))
             present = set()
             for i, (p, kind, side) in enumerate(items):
                 meta = read_meta(side or p) if side else read_meta(p)
@@ -982,7 +1003,9 @@ class Engine:
             data = self.preview_bytes(sid, r['path'], 320)
             if data:
                 try:
-                    res = analyze_image(Image.open(io.BytesIO(data)))
+                    im_ = Image.open(io.BytesIO(data))
+                    res = analyze_image(im_)
+                    res['wide'] = int(im_.width > im_.height)
                 except Exception:
                     res = None
             results.append((r, res))
@@ -1022,9 +1045,9 @@ class Engine:
                     elif not flags:
                         prev = (r, res)
                 c.execute('''UPDATE files SET brightness=?, sharpness=?, clip_hi=?, clip_lo=?, dhash=?,
-                             flags=?, analyzed=1 WHERE session_id=? AND path=?''',
+                             flags=?, analyzed=1, wide=? WHERE session_id=? AND path=?''',
                           (res['brightness'], res['sharpness'], res['clip_hi'], res['clip_lo'], res['dhash'],
-                           ','.join(flags) or None, sid, r['path']))
+                           ','.join(flags) or None, res.get('wide'), sid, r['path']))
             c.execute("UPDATE sessions SET status=CASE WHEN status='imported' THEN 'analyzed' ELSE status END WHERE id=?", (sid,))
             self.event(c, sid, 'analysis', 'end')
 
@@ -1279,7 +1302,108 @@ class Engine:
                 out.append({'id': f'g{s}', 'title': f'Серия {s}', 'subtitle': f'{t0}–{t1} · {len(fs)} кадр.',
                             'kind': 'series', 'person': None, 'files': [f['path'] for f in fs], 'mandatory': {}, 'limit': None,
                             'roles': [], 'overridden': False})
+        cfg = self.settings(sid).get('_company') or {}
+        if cfg.get('layout') == 'sort':
+            return self._sort_sections(sid, files, out, cfg), []
         return out, conflicts
+
+    def _auto_dividers(self, files, person_secs):
+        """A first guess: one divider wherever the kind of series changes (portraits = vertical frames of
+        one person, group photos = horizontal, the class photo = the longest burst of near-identical horizontal frames)."""
+        gap = self.setting('person_gap_sec', int)
+        seq = sorted(files, key=lambda f: (f['capture_at'], f['name']))
+        series, cur, prev = [], [], None
+        for f in seq:
+            t = datetime.strptime(f['capture_at'], '%Y-%m-%d %H:%M:%S')
+            if prev and (t - prev).total_seconds() > gap:
+                series.append(cur)
+                cur = []
+            cur.append(f)
+            prev = t
+        if cur:
+            series.append(cur)
+        kind_of = {}
+        for x in person_secs:
+            k = {'portrait': 'portrait', 'friends': 'group', 'teacher': 'teacher', 'group': 'common'}.get(x['kind'])
+            if k:
+                for p in list(x['files']) + list(x['mandatory']):
+                    kind_of.setdefault(p, k)
+        guesses = []
+        for fs in series:
+            votes = Counter(kind_of[f['path']] for f in fs if f['path'] in kind_of)
+            if votes:
+                guesses.append(votes.most_common(1)[0][0])
+            else:
+                wide = [f for f in fs if f.get('wide') is not None]
+                guesses.append('group' if wide and sum(f['wide'] for f in wide) * 2 > len(wide) else 'portrait')
+        if 'common' not in guesses and not kind_of:
+            best, best_n = None, 2
+            for i, fs in enumerate(series):
+                ws = [f for f in fs if f.get('wide') and f.get('dhash')]
+                run = n = 1
+                for a, b in zip(ws, ws[1:]):
+                    run = run + 1 if hamming(a['dhash'], b['dhash']) <= 14 else 1
+                    n = max(n, run)
+                if n > best_n:
+                    best, best_n = i, n
+            if best is not None:
+                guesses[best] = 'common'
+        out, last = [], None
+        for fs, g in zip(series, guesses):
+            if g != last:
+                out.append((fs[0]['path'], g))
+                last = g
+        return out
+
+    def _sort_sections(self, sid, files, person_secs, cfg):
+        """Sorted delivery (Crous): the whole card as one time line; dividers set the kind of everything after them."""
+        seq = sorted(files, key=lambda f: (f['capture_at'], f['name']))
+        if not seq:
+            return []
+        with self.conn() as c:
+            saved = [(r['file_path'], r['cat']) for r in c.execute('SELECT file_path, cat FROM dividers WHERE session_id=?', (sid,))]
+        pos = {f['path']: i for i, f in enumerate(seq)}
+        divs = sorted(((p, k) for p, k in saved if p in pos), key=lambda d: pos[d[0]]) if saved else self._auto_dividers(seq, person_secs)
+        auto = not saved
+        if not divs or divs[0][0] != seq[0]['path']:
+            divs = [(seq[0]['path'], divs[0][1] if divs else 'portrait')] + [d for d in divs if d[0] != seq[0]['path']]
+        cats, di = {}, 0
+        for i, f in enumerate(seq):
+            while di + 1 < len(divs) and pos[divs[di + 1][0]] <= i:
+                di += 1
+            cats[f['path']] = divs[di][1]
+        labels = {k: cfg.get('cat_' + k) or k for k in CATEGORIES}
+        labels['skip'] = 'Не включать'
+        return [{'id': 'timeline', 'title': 'Вся съёмка', 'subtitle': f"{seq[0]['capture_at'][11:16]}–{seq[-1]['capture_at'][11:16]}",
+                 'kind': 'timeline', 'person': None, 'files': [f['path'] for f in seq], 'mandatory': {}, 'limit': None,
+                 'roles': [], 'overridden': not auto, 'unsure': {}, 'dividers': [{'path': p, 'cat': k} for p, k in divs],
+                 'cats': cats, 'labels': labels}]
+
+    def set_divider(self, sid, path, cat):
+        """Put a divider before this frame (cat), or remove it (cat=None). The first edit keeps the automatic guess."""
+        if cat is not None and cat not in CATEGORIES + ('skip',):
+            raise ValueError('Неизвестный вид')
+        sec = next((x for x in self.sections(sid)[0] if x['id'] == 'timeline'), None)
+        if not sec or path not in sec['files']:
+            raise ValueError('Кадр не из этой съёмки')
+        with self.conn() as c:
+            if not c.execute('SELECT COUNT(*) FROM dividers WHERE session_id=?', (sid,)).fetchone()[0]:
+                c.executemany('INSERT OR REPLACE INTO dividers VALUES(?,?,?)', [(sid, d['path'], d['cat']) for d in sec['dividers']])
+            if cat is None:
+                if path == sec['files'][0]:
+                    raise ValueError('Первый разделитель нельзя убрать — смените его вид')
+                c.execute('DELETE FROM dividers WHERE session_id=? AND file_path=?', (sid, path))
+            else:
+                c.execute('INSERT OR REPLACE INTO dividers VALUES(?,?,?)', (sid, path, cat))
+            c.execute('DELETE FROM approvals WHERE session_id=? AND section_id=?', (sid, 'timeline'))
+        return {'ok': True}
+
+    def set_category(self, sid, section, cat):
+        if cat not in CATEGORIES + ('skip',):
+            raise ValueError('Неизвестный вид')
+        with self.conn() as c:
+            c.execute('INSERT OR REPLACE INTO series_cat VALUES(?,?,?)', (sid, section, cat))
+        return {'ok': True}
 
     # -------------------------------------------------------- automatic suggestions
     @staticmethod
@@ -1429,6 +1553,10 @@ class Engine:
                     if s['id'] in picks_by:
                         continue
                     chosen = [info[p] for p in s['mandatory'] if p in info]
+                    if s['kind'] in ('cat', 'timeline'):
+                        picks_by[s['id']] = [info[p] for p in s['files'] if p in info and
+                                             not any(x in DEFECTS for x in (info[p]['flags'] or '').split(','))]
+                        continue
                     if s['kind'] in ('group', 'reportage'):
                         main, dups = self._pick_common(s, info, dup_d, picks_by)
                         picks_by[s['id']] = main + dups
@@ -1479,6 +1607,13 @@ class Engine:
                 sugg[r['section_id']].append(r['file_path'])
                 reasons[r['section_id']][r['file_path']] = r['reason']
         secs, conflicts = self.sections(sid)
+        # a section that was never assembled (new layout, catalog from an older version): assemble it now
+        if any(not sel.get(x['id']) and x['kind'] in ('timeline', 'cat') for x in secs):
+            with self.conn() as c:
+                touched = {r[0] for r in c.execute('SELECT DISTINCT section_id FROM selection_events WHERE session_id=?', (sid,))}
+            if any(x['id'] not in touched and not sel.get(x['id']) for x in secs if x['kind'] in ('timeline', 'cat')):
+                self.suggest(sid)
+                return self.session(sid)
         # worksheet frames are always part of the kit; stale picks from an earlier import are dropped
         for x in secs:
             have = [p for p in sel.get(x['id'], []) if p in x['files'] or p in x['mandatory']]
@@ -1622,6 +1757,9 @@ class Engine:
                 if bg and not Path(bg).is_file():
                     raise ValueError('Файл фона не найден')
                 meta['background'] = bg
+            for k in ('disk_link', 'disk_path'):
+                if k in body:
+                    meta[k] = str(body[k])
             if 'last_export' in body:
                 meta['last_export'] = str(body['last_export'])
             if 'output' in body:
@@ -1651,7 +1789,10 @@ class Engine:
             names.add(str(rel).casefold())
             ops.append((p, rel, who, what, role))
         cfg = self.company(s.get('company'))
-        if s['mode'] == 'school' and cfg.get('layout') == 'template':
+        if cfg.get('layout') == 'sort':
+            warnings = [w for w in warnings if not w.startswith('Не подтверждено')]   # nothing to confirm in a sorted delivery
+            root = self._export_sort(st, s, cfg, files, add, warnings)
+        elif s['mode'] == 'school' and cfg.get('layout') == 'template':
             root = self._export_template(st, s, cfg, files, add)
         elif s['mode'] == 'school':
             root = Path(*[safe_name(x or '—') for x in (s['order_no'], s['school'], ru_date(s['shoot_date']), s['class_name'])])
@@ -1727,8 +1868,36 @@ class Engine:
         need = sum(Path(op[0]).stat().st_size for op in ops if str(op[1]) not in skip)
         free = shutil.disk_usage(out if out.exists() else out.parent if out.parent.exists() else Path.home()).free
         return {'root': str(out / root), 'files': len(ops), 'bytes': need, 'free': free, 'ops': ops, 'out': out,
-                'categories': s['mode'] == 'school' and cfg.get('layout') != 'template', 'rootrel': root, 'warnings': warnings,
+                'categories': s['mode'] == 'school' and cfg.get('layout') not in ('template', 'sort'), 'rootrel': root, 'warnings': warnings,
                 'skip': skip, 'update': update, 'new': len(ops) - len(skip)}
+
+    def _export_sort(self, st, s, cfg, files, add, warnings):
+        """root/RAW/<all RAW without defects>, root/JPG/<kind>/<their JPEGs>."""
+        kw = {'order': s['order_no'], 'school': s['school'], 'class': s['class_name'], 'date': ru_date(s['shoot_date'])}
+        root = Path(safe_name(fill(cfg.get('root'), **kw) or s['title']))
+        rawd, jpgd = safe_name(cfg.get('raw_dir') or 'RAW'), safe_name(cfg.get('jpg_dir') or 'JPG')
+        no_jpeg = 0
+        with self.conn() as c:
+            prev = {r['path']: r['preview'] for r in c.execute('SELECT path, preview FROM files WHERE session_id=?', (s['id'],))}
+        for sec in st['sections']:
+            for p in st['selected'].get(sec['id'], []):
+                f = files.get(p)
+                cat = (sec.get('cats') or {}).get(p) or sec.get('category')
+                if not f or cat in (None, 'skip'):
+                    continue
+                label = safe_name(cfg.get('cat_' + cat) or cat)
+                if f['kind'] == 'raw':
+                    add(p, root / rawd / f['name'], sec['title'], 'RAW', label)
+                    jp = prev.get(p)
+                    if jp and not jp.startswith('embedded:') and Path(jp).is_file():
+                        add(jp, root / jpgd / label / Path(jp).name, sec['title'], 'JPG', label)
+                    else:
+                        no_jpeg += 1
+                else:
+                    add(p, root / jpgd / label / f['name'], sec['title'], 'JPG', label)
+        if no_jpeg:
+            warnings.append(f'Нет JPEG для {no_jpeg} RAW — в папку {jpgd} они не попадут (снимайте RAW+JPEG)')
+        return root
 
     def _export_template(self, st, s, cfg, files, add):
         """Simple company layout from templates: root / child / frames, teachers, common photo, reportage."""
@@ -1809,6 +1978,59 @@ class Engine:
         self.set_meta(sid, {'last_export': str(root)})
         job['stage'] = 'Готово'
         return {'root': plan['root'], 'files': plan['files'], 'new': plan['new'], 'update': plan['update'], 'bytes': plan['bytes'], 'report': str(root / '_FOBOX_отчёт.csv'), 'warnings': plan['warnings']}
+
+    def disk_target(self, sid):
+        """Where an upload goes: disk:/<company folder>/<order folder>."""
+        s = self.session(sid)['session']
+        cfg = self.company(s.get('company'))
+        tmp = Path(tempfile.gettempdir()) / 'lumio_plan_probe'
+        root = self.plan_export(sid, tmp)['rootrel']
+        parent = '/'.join(safe_name(x) for x in re.split(r'[\\/]+', cfg.get('disk_parent') or '') if x.strip())
+        return 'disk:/' + '/'.join(x for x in (parent, root.as_posix()) if x)
+
+    def start_upload(self, sid):
+        """Upload the order straight from the card to Яндекс.Диск, in the same layout as a local export."""
+        from yadisk import YaDisk
+        disk = YaDisk(self.setting('yandex_token'))
+        tmp = Path(tempfile.gettempdir()) / 'lumio_plan_probe'
+        plan = self.plan_export(sid, tmp)
+        target = self.disk_target(sid)
+        jid = sid + ':upload'
+        job = {'session': sid, 'stage': 'Подготовка', 'done': 0, 'total': len(plan['ops']), 'error': None, 'finished': False,
+               'bytes_total': plan['bytes'], 'bytes_done': 0, 'target': target}
+        self.jobs[jid] = job
+
+        def run():
+            try:
+                with self.conn() as c:
+                    self.event(c, sid, 'upload', 'start')
+                job['stage'] = 'Создание папок'
+                dirs = sorted({str(Path(op[1]).parent.relative_to(plan['rootrel']).as_posix()) for op in plan['ops']})
+                disk.mkdirs(target)
+                for d in dirs:
+                    if d and d != '.':
+                        disk.mkdirs(target + '/' + d)
+                job['stage'] = 'Загрузка'
+                up = sk = 0
+                for p, rel, *_ in plan['ops']:
+                    r = disk.upload(str(p), target + '/' + Path(rel).relative_to(plan['rootrel']).as_posix())
+                    up += r == 'uploaded'
+                    sk += r == 'skipped'
+                    job['done'] += 1
+                    job['bytes_done'] += Path(p).stat().st_size
+                job['stage'] = 'Ссылка'
+                link = disk.publish(target)
+                with self.conn() as c:
+                    self.event(c, sid, 'upload', 'end')
+                    c.execute("UPDATE sessions SET status='exported' WHERE id=?", (sid,))
+                self.set_meta(sid, {'disk_link': link, 'disk_path': target})
+                job['result'] = {'link': link, 'target': target, 'uploaded': up, 'skipped': sk, 'warnings': plan['warnings']}
+                job['stage'] = 'Готово'
+            except Exception as e:
+                job['error'] = str(e)
+            job['finished'] = True
+        threading.Thread(target=run, daemon=True).start()
+        return {'job': jid, 'target': target}
 
     def start_export(self, sid, output):
         self.plan_export(sid, output)  # validate synchronously so the dialog shows errors at once
