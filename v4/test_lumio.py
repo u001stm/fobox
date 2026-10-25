@@ -340,6 +340,15 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(com['mandatory'], {pick: 'G'})
         self.assertIn(pick, st['selected']['common'])
 
+    def test_scenes_split_by_pause_and_picture(self):
+        from engine import Engine
+        f = lambda n, t, h: {'name': f'A{n}', 'capture_at': f'2026-10-16 09:{t}', 'dhash': h}
+        a, b = '0' * 16, 'f' * 16
+        fs = [f(1, '00:00', a), f(2, '00:05', a), f(3, '00:50', a),      # one set-up
+              f(4, '02:30', b), f(5, '02:33', b),                         # pause + other picture
+              f(6, '06:00', b)]                                           # long pause
+        self.assertEqual([[x['name'] for x in sc] for sc in Engine._scenes(fs)], [['A1', 'A2', 'A3'], ['A4', 'A5'], ['A6']])
+
     def test_raw_and_jpeg_in_different_folders_are_paired(self):
         d = self.tmp / 'split'
         (d / 'RAW').mkdir(parents=True)

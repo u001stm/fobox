@@ -1135,11 +1135,37 @@ class Engine:
                     must.setdefault(f['path'], k)
         return must
 
+    @staticmethod
+    def _scenes(fs):
+        """Split frames into scenes (one group set-up each): a new scene starts after a pause of more than
+        a minute when the picture changes, after 3 minutes in any case, or on a completely different picture."""
+        fs = sorted(fs, key=lambda f: (f['capture_at'], f['name']))
+        if not fs:
+            return []
+        t = lambda f: datetime.strptime(f['capture_at'], '%Y-%m-%d %H:%M:%S')
+        out = [[fs[0]]]
+        for a, b in zip(fs, fs[1:]):
+            gap = (t(b) - t(a)).total_seconds()
+            h = hamming(a['dhash'], b['dhash']) if a['dhash'] and b['dhash'] else 64
+            if gap > 180 or (gap > 60 and h > 20) or h > 30:
+                out.append([b])
+            else:
+                out[-1].append(b)
+        return out
+
     def _common_sections(self, files, frames, people, out, conflicts, sid=None):
         """«Общая фотография» and «Репортаж»: frames that belong to nobody's series.
         Worksheet rows typed «общая» / «репортаж» may give numbers ('612', '640-700', '640 641')."""
         used = {p for x in out for p in x['files']} | {p for x in out for p in x['mandatory']}
         free = [f for f in frames if f['path'] not in used]
+        # leftovers between the children's own series (other kids walking in, test shots) are neither
+        # the class photo nor reportage: group set-ups are shot before or after the personal portraits
+        ptimes = sorted(fp['capture_at'] for x in out if x['kind'] in ('portrait', 'friends') for fp in frames if fp['path'] in set(x['files']))
+        if len(ptimes) > 10:
+            lo, hi = ptimes[0], ptimes[-1]
+            outside = [f for f in free if not (lo < f['capture_at'] < hi)]
+            if outside:
+                free = outside
         sheet = {p['role']: json.loads(p['anchors'] or '{}').get('nums', '') for p in people if p['role'] in ('group', 'report')}
         fnum = {f['frame']: f for f in frames if f['frame'] is not None}
 
@@ -1161,15 +1187,19 @@ class Engine:
         g_files = [f['path'] for f in free] if not g_must else sorted(set(g_must) | {f['path'] for f in free}, key=lambda p: next((f['capture_at'] for f in frames if f['path'] == p), ''))
         r_files = [p for p in r_range if p not in g_must] if r_range else [f['path'] for f in free]
         dg, dr = int(st['group_dups']), int(st['report_dups'])
+        fpath = {f['path']: f for f in frames}
+        scenes = [[f['path'] for f in sc] for sc in self._scenes([fpath[p] for p in dict.fromkeys(g_files + r_files) if p in fpath])]
         if g_files and int(st['group_dups']) >= 0:
             res.append({'id': 'common', 'title': 'Общая фотография', 'subtitle': f'1 кадр + {dg} дублей', 'kind': 'group',
                         'person': None, 'files': g_files, 'mandatory': {p: 'G' for p in g_must}, 'limit': 1 + dg,
-                        'main_limit': 1, 'dup_limit': dg, 'roles': [], 'overridden': False, 'unsure': {}})
+                        'main_limit': 1, 'dup_limit': dg, 'roles': [], 'overridden': False, 'unsure': {},
+                        'scenes': [sc for sc in scenes if set(sc) & set(g_files)]})
         if r_files and int(st['report_count']) > 0:
             n = int(st['report_count'])
             res.append({'id': 'report', 'title': 'Репортаж', 'subtitle': f'{n} кадров + {dr} дублей', 'kind': 'reportage',
                         'person': None, 'files': r_files, 'mandatory': {}, 'limit': n + dr,
-                        'main_limit': n, 'dup_limit': dr, 'roles': [], 'overridden': False, 'unsure': {}})
+                        'main_limit': n, 'dup_limit': dr, 'roles': [], 'overridden': False, 'unsure': {},
+                        'scenes': [sc for sc in scenes if set(sc) & set(r_files)]})
         return res
 
     def _teacher_series(self, frames, own, anchors_all, gap=None, max_side=10):
@@ -1476,55 +1506,69 @@ class Engine:
         return picks
 
     def _pick_common(self, s, info, dup_d, picks_by):
-        """Common photo: the sharpest frame of the longest run of near-identical frames (a group shot is a burst),
-        plus its closest repeats as duplicates. Reportage: diverse frames, plus a few near-repeats as duplicates."""
+        """Common photo: by default the first group set-up of the day (usually the class photo is shot first),
+        its most typical sharp frame, plus duplicates from the same set-up.
+        Reportage: one frame from each of the biggest other set-ups (about 15), duplicates from the same set-ups."""
         bad = lambda f: any(x and x != 'dup' for x in (f['flags'] or '').split(','))
         taken = {f['path'] for v in picks_by.values() for f in v}
-        cand = [info[p] for p in s['files'] if p in info and not bad(info[p]) and p not in taken and info[p]['dhash']]
-        cand.sort(key=lambda f: (f['capture_at'], f['name']))
-        if not cand:
+        ok = lambda p: p in info and not bad(info[p]) and p not in taken and info[p]['dhash']
+        raw = s.get('scenes') or [s['files']]
+        if s['kind'] == 'reportage' and len(raw) > 1:
+            raw = [sc for sc in raw if not set(sc) & taken] or raw   # the class photo set-up is not reportage
+        scenes = [[info[p] for p in sc if ok(p)] for sc in raw]
+        scenes = [sc for sc in scenes if sc]
+        if not scenes:
             return [], []
+        where = {f['path']: i for i, sc in enumerate(scenes) for f in sc}
+        sharp = lambda f: f['sharpness'] or 0
+
+        def nearest(m, pool, k):
+            return sorted((f for f in pool if f['path'] != m['path']), key=lambda f: hamming(f['dhash'], m['dhash']))[:k]
         if s['kind'] == 'group':
             must = [info[p] for p in s['mandatory'] if p in info]
             if must:
                 main = must[0]
+                sc = scenes[where[main['path']]] if main['path'] in where else []
             else:
-                runs, cur = [], [cand[0]]
-                for a, b in zip(cand, cand[1:]):
-                    if hamming(a['dhash'], b['dhash']) <= dup_d + 7:
-                        cur.append(b)
-                    else:
-                        runs.append(cur)
-                        cur = [b]
-                runs.append(cur)
-                run = max(runs, key=len)
-                main = max(run, key=lambda f: f['sharpness'] or 0)
-            # duplicates come from the same burst: shot within a couple of minutes and looking alike
-            t0 = datetime.strptime(main['capture_at'], '%Y-%m-%d %H:%M:%S')
-            near_t = lambda f: abs((datetime.strptime(f['capture_at'], '%Y-%m-%d %H:%M:%S') - t0).total_seconds()) <= 150
-            rest = sorted((f for f in cand if f['path'] != main['path'] and near_t(f)), key=lambda f: hamming(f['dhash'], main['dhash']))
-            dups = [f for f in rest if hamming(f['dhash'], main['dhash']) <= dup_d + 14][:s['dup_limit']]
+                sc = next((x for x in scenes if len(x) >= 3), max(scenes, key=len))
+                # the most typical frame of the set-up (closest to all others), sharpest on a tie
+                main = min(sc, key=lambda f: (sum(hamming(f['dhash'], g['dhash']) for g in sc), -sharp(f)))
+            dups = nearest(main, sc, s['dup_limit'])
             return ([] if main['path'] in s['mandatory'] else [main]), dups
         clip = float(self.setting('clip_threshold') or 0.25)
-        cand = [f for f in cand if (f['clip_hi'] or 0) < min(0.05, clip)] or cand   # reportage: no blown-out windows
-        main = self._pick_diverse(cand, [], s['main_limit'], hard=2)
-        left = [f for f in cand if f not in main]
-        dups = []
-        for m in main:
+        lit = lambda f: (f['clip_hi'] or 0) < min(0.05, clip)
+        scenes = [[f for f in sc if lit(f)] or sc for sc in scenes]
+        big = sorted(scenes, key=len, reverse=True)
+        main, dups = [], []
+        for sc in big[:s['main_limit']]:
+            m = max(sc, key=sharp)
+            main.append(m)
+        if len(main) < s['main_limit']:                     # few set-ups: add different frames from the biggest
+            rest = [f for sc in big for f in sc if f not in main]
+            main += self._pick_diverse(rest, main, s['main_limit'] - len(main), hard=2)
+        main.sort(key=lambda f: (f['capture_at'], f['name']))
+        for m in sorted(main, key=lambda f: -len(scenes[where[f['path']]])):
             if len(dups) >= s['dup_limit']:
                 break
-            near = min(left, key=lambda f: hamming(f['dhash'], m['dhash']), default=None)
-            if near and hamming(near['dhash'], m['dhash']) <= dup_d + 8:
-                dups.append(near)
-                left.remove(near)
+            near = [f for f in nearest(m, scenes[where[m['path']]], 3) if f not in main and f not in dups]
+            if near:
+                dups.append(near[0])
         return main, dups
 
-    def set_common(self, sid, path):
-        """The photographer picks the class photo; its duplicates are re-picked from the same burst."""
+    def set_common(self, sid, path, scene=False):
+        """The photographer picks the class photo; its duplicates are re-picked from the same set-up.
+        scene=True: `path` only names the set-up, the most typical sharp frame of it becomes the class photo."""
         secs, _ = self.sections(sid)
         s = next((x for x in secs if x['id'] == 'common'), None)
         if not s or path not in s['files']:
             raise ValueError('Этот кадр нельзя сделать общей фотографией')
+        if scene:
+            with self.conn() as c:
+                info = {f['path']: f for f in self._files(c, sid)}
+            sc = next((x for x in s.get('scenes', []) if path in x), [path])
+            good = [info[p] for p in sc if p in info and info[p]['dhash'] and
+                    not any(x and x != 'dup' for x in (info[p]['flags'] or '').split(','))] or [info[path]]
+            path = min(good, key=lambda f: (sum(hamming(f['dhash'], g['dhash']) for g in good if g['dhash']), -(f['sharpness'] or 0)))['path']
         with self.conn() as c:
             c.execute('INSERT OR REPLACE INTO anchor_overrides(session_id,person,key,file_path,at) VALUES(?,?,?,?,CURRENT_TIMESTAMP)',
                       (sid, '__common__', 'G', path))
