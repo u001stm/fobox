@@ -112,6 +112,9 @@ CREATE TABLE IF NOT EXISTS series_cat (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, cat TEXT NOT NULL, PRIMARY KEY(session_id, section_id));
 CREATE TABLE IF NOT EXISTS companies (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, config TEXT NOT NULL DEFAULT '{}', sort INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS scene_boundaries (
+ session_id TEXT NOT NULL, file_path TEXT NOT NULL, split INTEGER NOT NULL CHECK(split IN (0,1)),
+ PRIMARY KEY(session_id,file_path));
 CREATE TABLE IF NOT EXISTS approvals (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, approved INTEGER NOT NULL,
  at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(session_id, section_id));
@@ -1665,6 +1668,35 @@ class Engine:
                     must.setdefault(f['path'], k)
         return must
 
+    def _group_scenes(self, sid, fs):
+        """Common/report scenes: avoid mixing groups on an identical background.
+        Manual split/join overrides take priority. Does not modify selections.
+        """
+        ordered=sorted(fs,key=lambda f:(f['capture_at'],f['name'],f['path']))
+        if not ordered:return []
+        starts={sc[0]['path'] for sc in self._scenes(ordered) if sc}
+        for a,b in zip(ordered,ordered[1:]):
+            if (datetime.fromisoformat(b['capture_at'])-datetime.fromisoformat(a['capture_at'])).total_seconds()>120:
+                starts.add(b['path'])
+        with self.conn() as c:
+            overrides={r['file_path']:bool(r['split']) for r in c.execute('SELECT file_path,split FROM scene_boundaries WHERE session_id=?',(sid,))}
+        groups=[]
+        for f in ordered:
+            if not groups or overrides.get(f['path'],f['path'] in starts):groups.append([])
+            groups[-1].append(f)
+        return groups
+
+    def set_scene_boundary(self,sid,path,split):
+        if split is not None and type(split) is not bool:raise ValueError('Неверная граница сцены')
+        sections,_=self.sections(sid)
+        allowed={p for section in sections if section['kind'] in ('group','reportage') for p in section['files']}
+        if path not in allowed:raise ValueError('Кадр не относится к общей фотографии или репортажу')
+        with self.conn() as c:
+            if split is None:c.execute('DELETE FROM scene_boundaries WHERE session_id=? AND file_path=?',(sid,path))
+            else:c.execute('INSERT OR REPLACE INTO scene_boundaries VALUES(?,?,?)',(sid,path,int(split)))
+            self.event(c,sid,'review','scene-boundary')
+        return {'ok':True}
+
     @staticmethod
     def _scenes(fs):
         """Split frames into scenes (one group set-up each): a new scene starts after a pause of more than
@@ -1720,18 +1752,20 @@ class Engine:
         r_files = [p for p in r_range if p not in g_must] if r_range else [f['path'] for f in free]
         dg, dr = int(st['group_dups']), int(st['report_dups'])
         fpath = {f['path']: f for f in frames}
-        scenes = [[f['path'] for f in sc] for sc in self._scenes([fpath[p] for p in dict.fromkeys(g_files + r_files) if p in fpath])]
+        scenes = [[f['path'] for f in sc] for sc in self._group_scenes(sid,[fpath[p] for p in dict.fromkeys(g_files + r_files) if p in fpath])]
+        with self.conn() as c:
+            manual_scenes={r['file_path']:bool(r['split']) for r in c.execute('SELECT file_path,split FROM scene_boundaries WHERE session_id=?',(sid,))}
         if g_files and int(st['group_dups']) >= 0:
             res.append({'id': 'common', 'title': 'Общая фотография', 'subtitle': f'1 кадр + {dg} дублей', 'kind': 'group',
                         'person': None, 'files': g_files, 'mandatory': {p: 'G' for p in g_must}, 'limit': 1 + dg,
                         'main_limit': 1, 'dup_limit': dg, 'dup_per_main': dg, 'roles': [], 'overridden': False, 'unsure': {},
-                        'scenes': [sc for sc in scenes if set(sc) & set(g_files)]})
+                        'manual_scene_boundaries':manual_scenes, 'scenes': [[p for p in sc if p in set(g_files)] for sc in scenes if set(sc) & set(g_files)]})
         if r_files and int(st['report_count']) > 0:
             n = int(st['report_count'])
             res.append({'id': 'report', 'title': 'Репортаж', 'subtitle': f'{n} основных, до {dr} дублей к каждому', 'kind': 'reportage',
                         'person': None, 'files': r_files, 'mandatory': {}, 'limit': n * (1 + dr),
                         'main_limit': n, 'dup_limit': n * dr, 'dup_per_main': dr, 'roles': [], 'overridden': False, 'unsure': {},
-                        'scenes': [sc for sc in scenes if set(sc) & set(r_files)]})
+                        'manual_scene_boundaries':manual_scenes, 'scenes': [[p for p in sc if p in set(r_files)] for sc in scenes if set(sc) & set(r_files)]})
         return res
 
     def _teacher_series(self, frames, own, anchors_all, gap=None, max_side=10):
@@ -2143,6 +2177,10 @@ class Engine:
         if not mains:
             return None
         scenes = {q: i for i, group in enumerate(section.get('scenes', [])) for q in group}
+        if path in scenes:
+            mains = [q for q in mains if scenes.get(q) == scenes[path]]
+            if not mains:
+                return None
         frame = info[path]
         def distance(q):
             other = info[q]
@@ -2468,7 +2506,7 @@ class Engine:
                 mains = [p for p in chosen if p not in dups]
                 counts = Counter(self.duplicate_parent(s, p, mains, info) for p in dups)
                 if None in counts:
-                    raise ValueError('Сначала выберите основной кадр для дублей')
+                    raise ValueError('Сначала выберите основной кадр в этой сцене')
                 for parent, count in counts.items():
                     if count > s['dup_per_main']:
                         raise ValueError(f"К {Path(parent).name} можно выбрать до {s['dup_per_main']} дублей")
@@ -2935,7 +2973,7 @@ class Engine:
             if not c.execute('SELECT 1 FROM sessions WHERE id=?', (sid,)).fetchone():
                 raise ValueError('Съёмка не найдена')
             for t in ('selection_events', 'ai_suggestions', 'selections', 'approvals', 'anchor_overrides',
-                      'marks', 'dividers', 'series_cat', 'reason_ov'):
+                      'marks', 'dividers', 'series_cat', 'reason_ov', 'scene_boundaries'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             self.event(c, sid, 'review', 'reset-all')
         self.suggest(sid)
@@ -2945,7 +2983,7 @@ class Engine:
         """Removes the session from the catalog only. Source files are not touched."""
         with self.conn() as c:
             for t in ('files', 'students', 'selection_events', 'workflow_events', 'ai_suggestions', 'selections', 'approvals',
-                      'anchor_overrides', 'marks', 'dividers', 'series_cat', 'renames', 'faces', 'flag_ok', 'reason_ov'):
+                      'anchor_overrides', 'marks', 'dividers', 'series_cat', 'renames', 'faces', 'flag_ok', 'reason_ov', 'scene_boundaries'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             c.execute('DELETE FROM sessions WHERE id=?', (sid,))
 

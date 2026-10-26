@@ -3,6 +3,7 @@ const OFF={last:0,started:false,busy:false,state:null,pending:null};
 function offlineBadge(p){
  const host=document.querySelector('.shoot-actions,.unit-heading');if(!host)return;
  let b=document.getElementById('offline_badge');if(!b){b=document.createElement('button');b.id='offline_badge';b.className='btn sm';b.style.cssText='font-size:11px;color:var(--muted);background:none;border-color:transparent';b.onclick=offlineDialog;host.append(b)}
+ b.classList.toggle('source-online',p.online);b.classList.toggle('source-offline',!p.online);
  b.textContent=p.online?(p.ready?'Карта подключена':'Сохраняю превью · '+p.cached+'/'+p.total):'Без карты · превью '+p.cached+'/'+p.total;
  b.title=p.ready?'Съёмка доступна без карты. Оригиналы нужны для экспорта.':'Дождитесь сохранения всех превью перед извлечением карты';
 }

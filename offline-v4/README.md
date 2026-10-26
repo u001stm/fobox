@@ -1,3 +1,3 @@
-# LUMIO 4.20.2 · офлайн-каталог
+# LUMIO 4.20.3
 
-См. OFFLINE-CATALOG.md. Основной frozen-релиз v4.20.1 не изменён.
+Офлайн-каталог: OFFLINE-CATALOG.md. Общие фотографии и репортаж: REPORTAGE-SCENES.md. Frozen-релиз 4.20.1 не изменяется.
