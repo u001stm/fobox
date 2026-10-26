@@ -657,6 +657,8 @@ class Engine:
         self.jobs = {}
         self._fcache = {}
         self._migrate()
+        from offline_catalog import OfflineCatalog
+        self.offline = OfflineCatalog(self)
 
     # -------------------------------------------------------- db helpers
     @contextmanager
@@ -1449,10 +1451,17 @@ class Engine:
         return hashlib.sha256(identity.encode()).hexdigest()[:24]
 
     def preview_bytes(self, sid, path, size=640):
+        return self.offline.preview(sid, path, size)
+
+    def _live_preview_bytes(self, sid, path, size=640):
         with self.conn() as c:
             r = c.execute('SELECT preview, orient, bytes, capture_at FROM files WHERE session_id=? AND path=?', (sid, path)).fetchone()
         if not r or not r['preview']:
             return None
+        r = dict(r)
+        path = self.offline.resolve(sid, path)
+        if not r['preview'].startswith('embedded:'):
+            r['preview'] = self.offline.resolve(sid, r['preview'])
         if not self._src_ok(path, r['bytes'], r['capture_at'], r['preview']):
             return None
         revision = self.preview_revision(sid, path, r['preview'], r['orient'])
@@ -1480,7 +1489,7 @@ class Engine:
                 data = buf.getvalue()
             except Exception:
                 pass
-        tmp = cached.with_suffix('.tmp')
+        tmp = cached.with_name(cached.name + f'.{os.getpid()}.{threading.get_ident()}.tmp')
         tmp.write_bytes(data)
         tmp.replace(cached)
         return data
@@ -2426,7 +2435,7 @@ class Engine:
         present = {x['person'] for x in secs}
         absent = [r['name'] for r in people if r['student_id'] not in present]
         slim = [{k: f[k] for k in ('path', 'name', 'capture_at', 'kind', 'frame', 'series', 'flags', 'sharpness', 'brightness', 'analyzed', 'wide', 'dhash')}
-                | {'has_preview': bool(f['preview']), 'preview_rev': self.preview_revision(sid, f['path'], f['preview'], f['orient']), 'gone': not self._src_ok(f['path'], f['bytes'], f['capture_at'], f['preview'])} for f in files]
+                | {'has_preview': bool(f['preview']), 'preview_rev': self.offline.revision(sid, f['path'], f['preview'], f['orient']), 'gone': not self.offline.available(sid, f['path'])} for f in files]
         return {'session': dict(s), 'files': slim, 'sections': secs, 'conflicts': conflicts,
                 'selected': sel, 'approved': appr, 'absent': absent, 'reasons': reasons, 'dups': dmarks, 'suggested': sugg, 'pillow': Image is not None,
                 'flag_names': FLAG_NAMES,
@@ -2597,7 +2606,7 @@ class Engine:
     def plan_export(self, sid, output):
         st = self.session(sid)
         s = st['session']
-        src = Path(s['source']).resolve()
+        src = Path(self.offline.resolve(sid, s['source'])).resolve()
         out = Path(str(output or '').strip().strip('"')).expanduser().resolve()
         if not str(output or '').strip():
             raise ValueError('Укажите папку для экспорта')
@@ -2615,7 +2624,7 @@ class Engine:
             if str(rel).casefold() in names:
                 raise ValueError('Конфликт имён: ' + str(rel))
             names.add(str(rel).casefold())
-            ops.append((p, rel, who, what, role))
+            ops.append((self.offline.resolve(sid, p), rel, who, what, role))
         cfg = self.company(s.get('company'))
         if cfg.get('layout') == 'sort':
             warnings = [w for w in warnings if not w.startswith('Не подтверждено')]   # nothing to confirm in a sorted delivery
@@ -2772,6 +2781,9 @@ class Engine:
         root = plan['out'] / plan['rootrel']
         job.update(stage='Копирование', total=len(plan['ops']), done=0, bytes_total=plan['bytes'], bytes_done=0)
         report = []
+        with self.conn() as verify_c:
+            logical_rows = verify_c.execute('SELECT path FROM files WHERE session_id=?', (sid,)).fetchall()
+        logical_sources = {self.offline.resolve(sid, r['path']): r['path'] for r in logical_rows}
         for p, rel, who, what, role in plan['ops']:
             d = plan['out'] / rel
             if str(rel) in plan['skip']:      # already copied by an earlier export
@@ -2781,6 +2793,9 @@ class Engine:
             d.parent.mkdir(parents=True, exist_ok=True)
             if d.exists():
                 raise ValueError('Файл уже существует, перезапись запрещена: ' + str(d))
+            logical = logical_sources.get(str(p))
+            if logical and not self.offline.available(sid, logical, fresh=True):
+                raise ValueError('Карта извлечена или заменена перед копированием: ' + Path(p).name)
             shutil.copy2(p, d)
             size = d.stat().st_size
             if size != Path(p).stat().st_size:

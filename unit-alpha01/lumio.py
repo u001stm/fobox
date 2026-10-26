@@ -20,13 +20,13 @@ from urllib.parse import parse_qs, urlparse
 from engine import Engine
 
 UI = Path(__file__).with_name('ui.html')
-CODE = [Path(__file__).with_name('unit_workspace.py'), Path(__file__).with_name('unit.js'), Path(__file__).with_name('unit.css'), Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).with_name('yadisk.py'), Path(__file__).with_name('faces.py')]
+CODE = [Path(__file__).with_name('offline_catalog.py'), Path(__file__).with_name('offline.js'), Path(__file__).with_name('unit_workspace.py'), Path(__file__).with_name('unit.js'), Path(__file__).with_name('unit.css'), Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).with_name('yadisk.py'), Path(__file__).with_name('faces.py')]
 
 
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.21.0-unit-alpha01'  # independent alpha
+APP_VERSION = '4.21.1-unit-alpha01'  # independent alpha
 
 
 def pick_path(kind):
@@ -69,6 +69,7 @@ def open_folder(engine, sid):
 def make_handler(engine):
     from unit_workspace import UnitWorkspace
     unit = UnitWorkspace(engine)
+    engine.offline.start()
     class Handler(BaseHTTPRequestHandler):
         def send(self, status, body, mime='application/json; charset=utf-8', cache=False):
             if not isinstance(body, bytes):
@@ -94,6 +95,13 @@ def make_handler(engine):
                     self.send(200, unit.summary(q.get('channel')))
                 elif u.path == '/api/unit/media':
                     unit.serve_media(self, q)
+                elif u.path == '/api/media-state':
+                    if q.get('ui'):
+                        import time
+                        engine.offline.ui_seen = time.time()
+                    self.send(200, engine.offline.api_state(q.get('session')))
+                elif u.path == '/offline.js':
+                    self.send(200, UI.with_name('offline.js').read_bytes(), 'application/javascript; charset=utf-8')
                 elif u.path == '/api/stats':
                     self.send(200, engine.stats())
                 elif u.path == '/api/build':
@@ -126,7 +134,17 @@ def make_handler(engine):
                 if b.get('session') and urlparse(self.path).path != '/api/delete' and not urlparse(self.path).path.startswith('/api/unit/'):
                     b['session'] = engine.active_session_id(b['session'])
                 p = urlparse(self.path).path
-                if p == '/api/unit/import':
+                if p == '/api/card-autostart':
+                    from card_watch import configure
+                    out = configure(engine.db_path, UI.parent, bool(b.get('enabled')), self.server.server_address[1])
+                elif p == '/api/relink':
+                    out = engine.offline.relink(b['session'], b.get('source',''))
+                elif p == '/api/offline-prepare':
+                    engine.offline.warm(b['session'])
+                    out = {'ok':True}
+                elif p == '/api/card-passport':
+                    out = engine.offline.passport(b['session'])
+                elif p == '/api/unit/import':
                     b.update(company='unit', workspace='unit', students=None, teachers=None)
                     out = engine.start_import(b)
                 elif p == '/api/unit/faces-run':
@@ -218,6 +236,8 @@ def make_handler(engine):
                     out = {'path': pick_path(b.get('kind', 'dir'))}
                 else:
                     return self.send(404, {'error': 'Команда не найдена — перезапустите программу (закройте окно и запустите «Запустить LUMIO.bat»)', 'code': 'no_route'})
+                if b.get('session') and p != '/api/delete':
+                    engine.offline.dirty.add(b['session'])
                 self.send(200, out)
             except Exception as e:   # ValueError, OSError, DiskError … — the page shows the message
                 self.send(400, {'error': str(e)})

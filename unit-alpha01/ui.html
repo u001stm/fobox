@@ -425,11 +425,11 @@ function envMenu(btn){closeMenu();const m=document.createElement('div');m.classN
  const r=btn.getBoundingClientRect();m.style.left=(r.right+8)+'px';m.style.top=r.top+'px';setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
 async function switchEnv(id){if(typeof flush==='function')await flush();try{await api('/api/settings',{settings:{current_company:id}});S.sess=null;S.sid='';try{localStorage.removeItem('lumio.sid')}catch(e){}await load();toast('Среда: '+curEnv().name)}catch(e){toast(e.message,1)}}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-const UI_VERSION='4.21.0-unit-alpha01';
+const UI_VERSION='4.21.1-unit-alpha01';
 async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();
  const env=curEnv().id;S.stats.allSessions=S.stats.sessions;S.stats.sessions=S.stats.sessions.filter(x=>(x.company||'vypusk')===env);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;const a=curEnv().color||s.accent;document.documentElement.style.setProperty('--accent',a);document.documentElement.style.setProperty('--c1',a);document.documentElement.style.setProperty('--accent-soft',a+'24');document.documentElement.dataset.theme=s.theme;try{localStorage.setItem('lumio.theme',s.theme)}catch(e){}S.cmp=S.cmp||s.compare_to||'prev'}
-function render(){document.querySelector('.coach')?.remove();const m=$('#main');if(S.page==='shoot')return renderShoot();const f={overview,analytics,history,settings}[S.page]||overview;m.innerHTML='<div class="page">'+f()+'</div>';if(S.page==='settings')bindSettings();hydrate()}
+function render(){document.querySelector('.coach')?.remove();const m=$('#main');if(S.page==='shoot')return renderShoot();const f={overview,analytics,history:shootHistory,settings}[S.page]||overview;m.innerHTML='<div class="page">'+f()+'</div>';if(S.page==='settings')bindSettings();hydrate()}
 function hydrate(){document.querySelectorAll('[data-bg]').forEach(el=>{const im=new Image();im.onload=()=>el.style.backgroundImage=`url('${el.dataset.bg}')`;im.src=el.dataset.bg})}
 function staleBanner(){if($('#stale'))return;const d=document.createElement('div');d.id='stale';d.className='toast';d.style.cssText='left:50%;right:auto;transform:translateX(-50%);top:16px;bottom:auto;border-color:var(--warn);max-width:560px';
  d.innerHTML='<b>Программа обновилась — перезапустите её.</b><br><span class="mut">Закройте чёрное окно программы и снова запустите «Запустить LUMIO.bat».</span>';document.body.append(d)}
@@ -556,7 +556,7 @@ function aFlow(){const r=rng(S.period,S.anchor,0),c=agg(r),pr=cmpRange(),p=pr?ag
  <div class="card"><div class="ch"><h2>Время обработки съёмки</h2><span class="mut">в среднем на съёмку за период</span></div>${tot?`<div class="split" style="grid-template-columns:1fr auto"><div class="hb">${st.map(([k,n,col])=>`<div><span>${n}</span><div class="tr"><span style="width:${(D[k]||0)/tot*100}%;background:${col}"></span></div><span class="vv">${secs(D[k]||null)} (${Math.round((D[k]||0)/tot*100)}%)</span></div>`).join('')}</div>${donut(st.map(([k,n,col])=>({n,v:D[k]||0,c:col})),secs(tot),'всего')}</div>`:empty('Нет данных: время этапов записывается начиная с этой версии')}</div>
  <p class="mut" style="margin:0">Отбор считается по паузам между подтверждениями секций (перерывы больше 30 минут не учитываются).</p>`}
 // ---------- history
-function history(){const st=S.stats;const f=S.hf||{type:'',status:'',q:''};S.hf=f;
+function shootHistory(){const st=S.stats;const f=S.hf||{type:'',status:'',q:''};S.hf=f;
  const list=st.sessions.filter(s=>(!f.type||s.mode===f.type)&&(!f.status||s.status===f.status)&&(!f.q||(s.title+' '+(s.location||'')+' '+(s.school||'')).toLowerCase().includes(f.q.toLowerCase())));
  return `<div class="top"><h1>История съёмок</h1><div class="filters"><select onchange="S.hf.type=this.value;render()" aria-label="Тип"><option value="">Все типы</option><option value="school" ${f.type==='school'?'selected':''}>Школа</option><option value="general" ${f.type==='general'?'selected':''}>Обычная</option></select>
  <select onchange="S.hf.status=this.value;render()" aria-label="Статус"><option value="">Все статусы</option>${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${f.status===k?'selected':''}>${v}</option>`).join('')}</select>
@@ -1057,8 +1057,9 @@ window.addEventListener('beforeunload',()=>{const p=S.pending;if(p&&navigator.se
  setInterval(async()=>{try{const r=await fetch('/api/build',{cache:'no-store'});if(!r.ok)return;const j=await r.json();fails=0;
   if(build&&j.build!==build){if(typeof flush==='function')await flush();try{sessionStorage.setItem('lumio.place',JSON.stringify({page:S.page,sub:S.sub,tab:S.tab,atab:S.atab,pk:S.people&&S.people[S.pi]&&S.people[S.pi].key}))}catch(e){}location.reload()}
   build=j.build}catch(e){fails++}},1500)})();
-const linkedSession=new URLSearchParams(location.search).get('session');if(linkedSession&&/^[a-f0-9]{12}$/.test(linkedSession)){S.sid=linkedSession;S.sess=null;S.page='shoot';S._restoreKey=null;try{localStorage.setItem('lumio.sid',linkedSession)}catch(e){}history.replaceState(null,'',location.pathname)}
+const linkedSession=new URLSearchParams(location.search).get('session');if(linkedSession&&/^[a-f0-9]{12}$/.test(linkedSession)){S.sid=linkedSession;S.sess=null;S.page='shoot';S._restoreKey=null;try{localStorage.setItem('lumio.sid',linkedSession)}catch(e){}window.history.replaceState(null,'',location.pathname)}
 </script><script src="/unit.js"></script><script>
+</script><script src="/offline.js"></script><script>
 load().catch(e=>{$('#main').innerHTML='<div class="page">'+empty('Сервер недоступен: '+esc(e.message))+'</div>'});
 </script>
 </body>
