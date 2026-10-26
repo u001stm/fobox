@@ -26,7 +26,7 @@ CODE = [Path(__file__).with_name('offline_catalog.py'), Path(__file__).with_name
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.21.1-unit-alpha01'  # independent alpha
+APP_VERSION = '4.21.2-unit-alpha01'  # independent alpha
 
 
 def pick_path(kind):
@@ -197,6 +197,8 @@ def make_handler(engine):
                     out = engine.add_teacher(b['session'], b.get('name'), b.get('frame'), b.get('role', ''))
                 elif p == '/api/rename':
                     out = engine.rename_person(b['session'], b['person'], b.get('name'), b.get('role'))
+                elif p == '/api/scene-boundary':
+                    out = engine.set_scene_boundary(b['session'],b['path'],b.get('split'))
                 elif p == '/api/set-common':
                     out = engine.set_common(b['session'], b['path'], bool(b.get('scene')))
                 elif p == '/api/faces':
