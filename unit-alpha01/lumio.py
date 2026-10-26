@@ -21,12 +21,13 @@ from engine import Engine
 
 UI = Path(__file__).with_name('ui.html')
 CODE = [Path(__file__).with_name('offline_catalog.py'), Path(__file__).with_name('offline.js'), Path(__file__).with_name('unit_workspace.py'), Path(__file__).with_name('unit.js'), Path(__file__).with_name('unit.css'), Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).with_name('yadisk.py'), Path(__file__).with_name('faces.py')]
+CODE += [Path(__file__).with_name(n) for n in ('lab_workspace.py','lab_render.py','lab.js','lab.css')]
 
 
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.21.2-unit-alpha01'  # independent alpha
+APP_VERSION = '4.22.0-unit-processing-alpha01'
 
 
 def pick_path(kind):
@@ -69,6 +70,8 @@ def open_folder(engine, sid):
 def make_handler(engine):
     from unit_workspace import UnitWorkspace
     unit = UnitWorkspace(engine)
+    from lab_workspace import LabWorkspace
+    lab = LabWorkspace(engine, unit)
     engine.offline.start()
     class Handler(BaseHTTPRequestHandler):
         def send(self, status, body, mime='application/json; charset=utf-8', cache=False):
@@ -87,10 +90,21 @@ def make_handler(engine):
             try:
                 if u.path == '/':
                     self.send(200, UI.read_bytes(), 'text/html; charset=utf-8')
-                elif u.path in ('/unit.js', '/unit.css'):
+                elif u.path in ('/unit.js', '/unit.css', '/lab.js', '/lab.css'):
                     self.send(200, UI.with_name(u.path[1:]).read_bytes(), 'application/javascript; charset=utf-8' if u.path.endswith('.js') else 'text/css; charset=utf-8')
                 elif u.path == '/api/unit/project':
-                    self.send(200, unit.project(q.get('id', '')))
+                    project = unit.project(q.get('id', ''))
+                    if project['session']['company'] == 'unitlab':
+                        project['lab'] = lab.project(q['id'])
+                    self.send(200, project)
+                elif u.path == '/api/lab/job':
+                    self.send(200, lab.job(q.get('id', '')))
+                elif u.path == '/api/lab/jobs':
+                    with engine.conn() as c:
+                        jobs = [lab.job(r['id']) for r in c.execute('SELECT id FROM lab_jobs ORDER BY created DESC LIMIT 10')]
+                    self.send(200, {'jobs':jobs})
+                elif u.path == '/api/lab/preview':
+                    self.send(200, lab.preview(q.get('s',''), q.get('p',''), q.get('v','')), 'image/jpeg')
                 elif u.path == '/api/unit/summary':
                     self.send(200, unit.summary(q.get('channel')))
                 elif u.path == '/api/unit/media':
@@ -134,7 +148,19 @@ def make_handler(engine):
                 if b.get('session') and urlparse(self.path).path != '/api/delete' and not urlparse(self.path).path.startswith('/api/unit/'):
                     b['session'] = engine.active_session_id(b['session'])
                 p = urlparse(self.path).path
-                if p == '/api/card-autostart':
+                if p == '/api/lab/import':
+                    out = lab.start_import(b)
+                elif p == '/api/lab/render':
+                    out = lab.start_render(b)
+                elif p == '/api/lab/faces':
+                    out = lab.start_faces(b)
+                elif p == '/api/lab/retry':
+                    with engine.conn() as c:
+                        row = c.execute('SELECT * FROM lab_jobs WHERE id=?', (b.get('job',''),)).fetchone()
+                    if not row or row['status'] != 'failed':
+                        raise ValueError('Нет остановленной задачи для повтора')
+                    out = lab.enqueue(row['session_id'],row['kind'],json.loads(row['payload']))
+                elif p == '/api/card-autostart':
                     from card_watch import configure
                     out = configure(engine.db_path, UI.parent, bool(b.get('enabled')), self.server.server_address[1])
                 elif p == '/api/relink':

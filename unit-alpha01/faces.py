@@ -95,16 +95,20 @@ def _warp(img, M, size):
 class FaceEngine:
     _lock = threading.Lock()
 
-    def __init__(self, threads=None):
+    def __init__(self, threads=None, model_pack='buffalo_l', detection_size=640):
         st = status()
         if not st['ready']:
             raise RuntimeError(st['text'])
-        d = model_dir()
+        if model_pack not in ('buffalo_l','antelopev2'):
+            raise ValueError('Неизвестный пакет лиц')
+        d = model_dir() if model_pack=='buffalo_l' else Path.home()/'.insightface'/'models'/'antelopev2'
         so = ort.SessionOptions()
         so.intra_op_num_threads = threads or min(2, max(1, (os.cpu_count() or 2) - 1))
         so.log_severity_level = 3
         mk = lambda n: ort.InferenceSession(str(d / n), so, providers=['CPUExecutionProvider'])
-        self.det, self.rec, self.lmk, self.ga = mk('det_10g.onnx'), mk('w600k_r50.onnx'), mk('2d106det.onnx'), mk('genderage.onnx')
+        self.det, self.rec, self.lmk, self.ga = mk('det_10g.onnx' if model_pack=='buffalo_l' else 'scrfd_10g_bnkps.onnx'), mk('w600k_r50.onnx' if model_pack=='buffalo_l' else 'glintr100.onnx'), mk('2d106det.onnx'), mk('genderage.onnx')
+        shape = self.det.get_inputs()[0].shape
+        self.detection_size = shape[2] if isinstance(shape[2],int) else detection_size
         self.det_in = self.det.get_inputs()[0].name
         self.det_out = [o.name for o in self.det.get_outputs()]
 
@@ -183,7 +187,7 @@ class FaceEngine:
         """All faces of a frame, biggest first: box, size (share of the frame height), embedding, eyes, gender, age."""
         img = img.convert('RGB')
         with self._lock:
-            faces = self.detect(img)
+            faces = self.detect(img, size=self.detection_size)
             out = []
             H = img.size[1]
             for f in faces:

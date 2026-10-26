@@ -836,6 +836,15 @@ class Engine:
         if not src.is_dir():
             raise ValueError('Папка с исходниками не найдена: ' + str(src))
         sid = hashlib.sha1(('unit|' + self.session_id(src)).encode()).hexdigest()[:12] if opts.get('workspace') == 'unit' else self.session_id(src)
+        if opts.get('workspace') == 'unitlab':
+            fixed = str(opts.get('fixed_session_id', ''))
+            if not re.fullmatch(r'[a-f0-9]{12}', fixed):
+                raise ValueError('Неверный идентификатор проекта обработки')
+            with self.conn() as check:
+                old = check.execute('SELECT company,source FROM sessions WHERE id=?', (fixed,)).fetchone()
+                if old and (old['company'] != 'unitlab' or Path(old['source']).resolve() != src):
+                    raise ValueError('Этот каталог принадлежит другой среде')
+            sid = fixed
         job = {'session': sid, 'stage': 'Сканирование', 'done': 0, 'total': 0, 'error': None, 'finished': False}
         self.jobs[sid] = job
         threading.Thread(target=self._import_job, args=(src, opts, job), daemon=True).start()
@@ -894,6 +903,15 @@ class Engine:
         job = job if job is not None else {}
         src = Path(src).resolve()
         sid = hashlib.sha1(('unit|' + self.session_id(src)).encode()).hexdigest()[:12] if opts.get('workspace') == 'unit' else self.session_id(src)
+        if opts.get('workspace') == 'unitlab':
+            fixed = str(opts.get('fixed_session_id',''))
+            if not re.fullmatch(r'[a-f0-9]{12}',fixed):
+                raise ValueError('Неверный идентификатор проекта обработки')
+            with self.conn() as c:
+                existing = c.execute('SELECT company,source FROM sessions WHERE id=?',(fixed,)).fetchone()
+            if existing and (existing['company']!='unitlab' or Path(existing['source']).resolve()!=src):
+                raise ValueError('Этот каталог принадлежит другой среде')
+            sid=fixed
         raws, imgs = [], defaultdict(list)
         for p in src.rglob('*'):
             if not p.is_file() or p.name.startswith('._'):
@@ -1119,9 +1137,16 @@ class Engine:
         import faces as fm
         return fm.status()
 
-    def start_faces(self, sid, force=False, rebuild=False):
+    def start_faces(self, sid, force=False, rebuild=False, model_pack='buffalo_l'):
         """Find faces on every frame in the background (once; later imports only do new frames)."""
         import faces as fm
+        if model_pack not in ('buffalo_l','antelopev2'):
+            raise ValueError('Неизвестная модель')
+        with self.conn() as c:
+            face_session = c.execute('SELECT company FROM sessions WHERE id=?',(sid,)).fetchone()
+        is_lab = bool(face_session and face_session['company']=='unitlab')
+        if model_pack!='buffalo_l' and not is_lab:
+            raise ValueError('Новая модель доступна только в среде обработки')
         jid = sid + ':faces'
         if jid in self.jobs and not self.jobs[jid].get('finished'):
             return {'job': jid}
@@ -1133,7 +1158,7 @@ class Engine:
 
         def run():
             try:
-                eng = fm.FaceEngine()
+                eng = fm.FaceEngine(model_pack=model_pack, detection_size=1280 if is_lab else 640)
                 with self.conn() as c:
                     if force:
                         c.execute('DELETE FROM faces WHERE session_id=?', (sid,))

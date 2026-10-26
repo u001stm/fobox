@@ -1,7 +1,7 @@
 /* UNIT alpha01: additive workspace; never reuses pupil selection handlers. */
 const U={view:'materials',filter:'all',data:null,busy:false,undo:[],person:null,tile:130,summaryChannel:'',generation:0};
-const unitActive=()=>S.cfg?.settings?.current_company==='unit';
-const unitPhotoURL=(p,size=480)=>`/api/preview?s=${encodeURIComponent(S.sid)}&p=${encodeURIComponent(p)}&size=${size}`;
+const unitActive=()=>['unit','unitlab'].includes(S.cfg?.settings?.current_company);
+let unitPhotoURL=(p,size=480)=>`/api/preview?s=${encodeURIComponent(S.sid)}&p=${encodeURIComponent(p)}&size=${size}`;
 const unitMediaURL=p=>`/api/unit/media?s=${encodeURIComponent(S.sid)}&p=${encodeURIComponent(p)}`;
 const unitName=p=>String(p||'').split(/[\\/]/).pop();
 const unitBad=f=>U.data?.state.rejected.includes(f.path)||String(f.flags||'').split(',').some(x=>['white','black','blur','under','over','odd'].includes(x));

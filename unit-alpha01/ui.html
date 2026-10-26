@@ -401,6 +401,7 @@ button.chk:focus-visible{outline:2px solid white;outline-offset:3px}
 </style>
 <script>try{const theme=localStorage.getItem('lumio.theme');if(theme==='light'||theme==='dark')document.documentElement.dataset.theme=theme}catch(e){}</script>
 <link rel="stylesheet" href="/unit.css">
+<link rel="stylesheet" href="/lab.css">
 </head>
 <body>
 <aside id="side"></aside>
@@ -448,7 +449,7 @@ function envMenu(btn){closeMenu();const m=document.createElement('div');m.classN
  const r=btn.getBoundingClientRect();m.style.left=(r.right+8)+'px';m.style.top=r.top+'px';setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0)}
 async function switchEnv(id){if(typeof flush==='function')await flush();try{await api('/api/settings',{settings:{current_company:id}});S.sess=null;S.sid='';try{localStorage.removeItem('lumio.sid')}catch(e){}await load();toast('Среда: '+curEnv().name)}catch(e){toast(e.message,1)}}
 async function go(p,sub){if(typeof flush==='function')await flush();S.page=p;S.sub=sub||null;$('#side').classList.remove('open');side();render();window.scrollTo(0,0)}
-const UI_VERSION='4.21.2-unit-alpha01';
+const UI_VERSION='4.22.0-unit-processing-alpha01';
 async function load(){[S.stats,S.cfg]=await Promise.all([api('/api/stats'),api('/api/settings')]);if(S.cfg.version!==UI_VERSION)staleBanner();
  const env=curEnv().id;S.stats.allSessions=S.stats.sessions;S.stats.sessions=S.stats.sessions.filter(x=>(x.company||'vypusk')===env);applyTheme();if(!S.sid&&S.stats.sessions[0])S.sid=S.stats.sessions[0].id;if(S.sid&&!S.stats.sessions.some(x=>x.id===S.sid))S.sid=S.stats.sessions[0]?.id||'';side();render()}
 function applyTheme(){const s=S.cfg.settings;const a=curEnv().color||s.accent;document.documentElement.style.setProperty('--accent',a);document.documentElement.style.setProperty('--c1',a);document.documentElement.style.setProperty('--accent-soft',a+'24');document.documentElement.dataset.theme=s.theme;try{localStorage.setItem('lumio.theme',s.theme)}catch(e){}S.cmp=S.cmp||s.compare_to||'prev'}
@@ -1084,7 +1085,7 @@ window.addEventListener('beforeunload',()=>{const p=S.pending;if(p&&navigator.se
   if(build&&j.build!==build){if(typeof flush==='function')await flush();try{sessionStorage.setItem('lumio.place',JSON.stringify({page:S.page,sub:S.sub,tab:S.tab,atab:S.atab,pk:S.people&&S.people[S.pi]&&S.people[S.pi].key}))}catch(e){}location.reload()}
   build=j.build}catch(e){fails++}},1500)})();
 const linkedSession=new URLSearchParams(location.search).get('session');if(linkedSession&&/^[a-f0-9]{12}$/.test(linkedSession)){S.sid=linkedSession;S.sess=null;S.page='shoot';S._restoreKey=null;try{localStorage.setItem('lumio.sid',linkedSession)}catch(e){}window.history.replaceState(null,'',location.pathname)}
-</script><script src="/unit.js"></script><script src="/offline.js"></script><script>
+</script><script src="/unit.js"></script><script src="/lab.js"></script><script src="/offline.js"></script><script>
 load().catch(e=>{$('#main').innerHTML='<div class="page">'+empty('Сервер недоступен: '+esc(e.message))+'</div>'});
 </script>
 </body>

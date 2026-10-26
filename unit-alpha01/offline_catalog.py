@@ -24,7 +24,8 @@ def fingerprint(path):
 class OfflineCatalog:
     TABLES=('sessions','files','students','selections','selection_events','workflow_events',
             'ai_suggestions','anchor_overrides','marks','dividers','reason_ov','flag_ok',
-            'renames','series_cat','approvals','faces','unit_projects','scene_boundaries')
+            'renames','series_cat','approvals','faces','unit_projects','scene_boundaries',
+            'lab_projects','lab_assets','lab_sources','lab_renders','lab_jobs')
 
     def __init__(self, engine):
         self.e=engine;self.root=engine.db_path.parent/'projects';self.root.mkdir(parents=True,exist_ok=True)
@@ -103,9 +104,15 @@ class OfflineCatalog:
             if not current or not current.is_dir():return None
             try:
                 identity=self.e.session_id(current)
-                with self.e.conn() as c:ss=c.execute('SELECT company FROM sessions WHERE id=?',(sid,)).fetchone()
-                expected=hashlib.sha1(('unit|'+identity).encode()).hexdigest()[:12] if ss and ss['company']=='unit' else identity
-                if sid!=expected:return None
+                with self.e.conn() as c:
+                    ss=c.execute('SELECT company FROM sessions WHERE id=?',(sid,)).fetchone()
+                    managed=c.execute('SELECT bytes FROM lab_assets WHERE session_id=? AND path=?',(sid,path)).fetchone() if ss and ss['company']=='unitlab' else None
+                if ss and ss['company']=='unitlab':
+                    # UUID sessions use an explicitly verified managed-asset registry, not a card-path identity.
+                    if not managed or Path(self.resolve(sid,path)).stat().st_size!=managed['bytes']:return None
+                else:
+                    expected=hashlib.sha1(('unit|'+identity).encode()).hexdigest()[:12] if ss and ss['company']=='unit' else identity
+                    if sid!=expected:return None
             except OSError:return None
         try:
             before_signature=fingerprint(self.resolve(sid,path))

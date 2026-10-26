@@ -15,7 +15,7 @@ MEDIA = {'.mp4': 'video', '.mov': 'video', '.m4v': 'video', '.webm': 'video',
          '.wav': 'audio', '.mp3': 'audio', '.m4a': 'audio', '.ogg': 'audio', '.flac': 'audio'}
 
 
-def cluster_faces(frames, threshold=.45):
+def cluster_faces(frames, threshold=.45, min_height=.07, min_score=.80):
     """All faces, not just portraits. No two faces in one image may share an identity.
 
     Centroid AND fixed exemplar must agree, preventing unbounded similarity chains.
@@ -26,7 +26,7 @@ def cluster_faces(frames, threshold=.45):
     for path, faces in sorted(frames.items()):
         used = set()
         for f in sorted(faces, key=lambda x: -x.get('score', 0)):
-            if f.get('score', 0) < .80 or f.get('h', 0) < .07:
+            if f.get('score', 0) < min_score or f.get('h', 0) < min_height:
                 continue
             e = np.asarray(f['emb'], dtype='float32')
             if e.shape != (512,) or not np.isfinite(e).all() or np.linalg.norm(e) < .01:
@@ -62,17 +62,17 @@ class UnitWorkspace:
     def rows(self, sid):
         with self.e.conn() as c:
             ss = c.execute('SELECT * FROM sessions WHERE id=?', (sid,)).fetchone()
-            if not ss or ss['company'] != 'unit':
+            if not ss or ss['company'] not in ('unit', 'unitlab'):
                 raise ValueError('Это не проект UNIT')
             files = [dict(r) for r in c.execute('SELECT * FROM files WHERE session_id=? ORDER BY capture_at,name,path', (sid,))]
         return dict(ss), files
 
     def state(self, sid):
-        self.rows(sid)
+        session, _ = self.rows(sid)
         with self.e.conn() as c:
             r = c.execute('SELECT * FROM unit_projects WHERE session_id=?', (sid,)).fetchone()
         return (json.loads(r['data']), r['revision']) if r else ({'channel': 'unit', 'selected': [], 'items': [],
-            'jpeg': {}, 'media': {}, 'threshold': .45, 'rejected': []}, 0)
+            'jpeg': {}, 'media': {}, 'threshold': .55 if session['company']=='unitlab' else .45, 'rejected': []}, 0)
 
     def save(self, sid, state, revision):
         _, files = self.rows(sid)
@@ -173,7 +173,9 @@ class UnitWorkspace:
         key = (r['n'], r['detections'], threshold, bool(job.get('finished')), job.get('done'))
         if self.cache.get(sid, (None,))[0] == key:
             return self.cache[sid][1]
-        groups = cluster_faces(self.e._faces(sid), threshold)
+        session, _ = self.rows(sid)
+        groups = cluster_faces(self.e._faces(sid), threshold, min_height=.025 if session['company']=='unitlab' else .07,
+                               min_score=.70 if session['company']=='unitlab' else .80)
         with self.e.conn() as c:
             total=c.execute('SELECT COUNT(*) FROM files WHERE session_id=?',(sid,)).fetchone()[0]
         out = {'analyzed': r['n'], 'total': total, 'detections': r['detections'],
@@ -341,6 +343,8 @@ class UnitWorkspace:
                     im.save(dest,'JPEG',quality=95)
                 elif payload:
                     dest.write_bytes(payload)
+                elif item['kind']=='photo' and ss['company']=='unitlab' and src.suffix.lower() in ('.jpg','.jpeg'):
+                    shutil.copy2(src,dest)  # already rendered JPEG: preserve ICC and avoid another lossy encode
                 elif item['kind']=='photo':
                     from PIL import ImageOps
                     im=ImageOps.exif_transpose(Image.open(src)).convert('RGB');im.save(dest,'JPEG',quality=95)
@@ -349,7 +353,7 @@ class UnitWorkspace:
                 with dest.open('rb') as stream:
                     for chunk in iter(lambda:stream.read(1024*1024),b''):h.update(chunk)
                 digest=h.hexdigest()
-                manifest.append({'file':name,'kind':item['kind'],'source':item.get('path') or item.get('source'),
+                manifest.append({'file':name,'kind':item['kind'],'source':Path(item.get('path') or item.get('source') or '').name if ss['company']=='unitlab' else item.get('path') or item.get('source'),
                                  'sha256':digest,'bytes':dest.stat().st_size})
             (stage/'MANIFEST.json').write_text(json.dumps({'session':sid,'revision':rev,'draft':bool(draft),'items':manifest},ensure_ascii=False,indent=2),'utf-8')
             metrics=self.metrics(sid)
