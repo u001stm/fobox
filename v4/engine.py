@@ -8,12 +8,14 @@ import csv
 import hashlib
 import io
 import json
+import math
 import mmap
 import os
 import re
 import shutil
 import sqlite3
 import struct
+import sys
 import tempfile
 import threading
 from contextlib import contextmanager
@@ -23,7 +25,7 @@ from datetime import datetime
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageFilter, ImageStat
+    from PIL import Image, ImageChops, ImageFilter, ImageStat
     Image.MAX_IMAGE_PIXELS = 200_000_000
 except ImportError:  # analysis degrades gracefully
     Image = None
@@ -32,20 +34,20 @@ RAW_EXT = {'.arw', '.cr2', '.cr3', '.nef', '.nrw', '.raf', '.rw2', '.orf', '.dng
            '.3fr', '.srw', '.iiq', '.rwl', '.erf', '.k25', '.kdc', '.mos', '.mrw', '.x3f'}
 IMG_EXT = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.tif', '.tiff'}
 PREVIEWABLE = {'.jpg', '.jpeg', '.png', '.webp'}
-CATS = ['01_ДОКУМЕНТЫ', '02_ЗДАНИЕ', '03_ОБЩАЯ', '04_РЕПОРТАЖ', '05_УЧЕНИКИ', '06_УЧИТЕЛЯ', '07_ФОН']
-FLAG_NAMES = {'white': 'Пустой белый', 'black': 'Пустой чёрный', 'over': 'Пересвет',
-              'under': 'Недодержка', 'blur': 'Нерезкий', 'dup': 'Дубль'}
+CATS = ['доки', 'здание', 'общая', 'репортаж', 'ученики', 'учителя', 'фон']   # as delivered to the client, lower case
+FLAG_NAMES = {'white': 'Пустой белый', 'black': 'Пустой чёрный', 'over': 'Слишком светлый',
+              'under': 'Слишком тёмный', 'blur': 'Нерезкий', 'odd': 'Случайный кадр', 'noface': 'Без лица', 'dup': 'Дубль'}
 
 DEFAULT_SETTINGS = {
     'series_gap_sec': '90',        # new series when pause between frames is longer
     'radius': '12',                # school mode: frames around worksheet anchors
     'target_per_student': '18',    # school mode: kit size goal incl. the 5 worksheet frames
-    'group_dups': '6',             # common class photo: 1 main frame + this many duplicates (5–7)
+    'group_dups': '5',             # common class photo: 1 main frame + this many duplicates (5–7)
     'report_count': '15',          # reportage: frames in the order
-    'report_dups': '6',            # reportage: extra duplicates (5–7)
+    'report_dups': '5',            # reportage: extra duplicates (5–7)
     'kit_min': '15',               # automatic kit: at least this many frames when the series has them
     'kit_max': '20',               # automatic kit: never more than this (15–20 incl. the 5 worksheet frames)
-    'blur_threshold': '20',        # strongest-edge level below -> "blur"
+    'blur_threshold': '18',        # fine-detail level below -> "blur" (also: much softer than neighbours)
     'dup_distance': '5',           # dHash Hamming distance for near-duplicates
     'clip_threshold': '0.25',      # share of clipped pixels for over/under
     'accent': '#7738FF',
@@ -54,6 +56,7 @@ DEFAULT_SETTINGS = {
     'teacher_gap_sec': '30',       # teacher series ends at a longer pause between frames
     'person_gap_sec': '45',        # a child's series ends at a longer pause between frames
     'current_company': 'vypusk',   # the environment the app is switched to (top of the sidebar)
+    'faces_auto': '1',             # look for faces right after import when the face module is installed
     'yandex_token': '',            # OAuth token for Яндекс.Диск uploads
     'yandex_client_id': '',        # ID of the photographer's app at oauth.yandex.ru (to get a token)
     'date_format': 'dd.mm.yyyy',   # how dates are shown in the interface
@@ -94,6 +97,17 @@ CREATE TABLE IF NOT EXISTS marks (
  PRIMARY KEY(session_id, section_id, file_path));
 CREATE TABLE IF NOT EXISTS dividers (
  session_id TEXT NOT NULL, file_path TEXT NOT NULL, cat TEXT NOT NULL, PRIMARY KEY(session_id, file_path));
+CREATE TABLE IF NOT EXISTS reason_ov (
+ session_id TEXT NOT NULL, section_id TEXT NOT NULL, path TEXT NOT NULL, reason TEXT NOT NULL,
+ PRIMARY KEY(session_id, section_id, path));
+CREATE TABLE IF NOT EXISTS flag_ok (
+ session_id TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY(session_id, path));
+CREATE TABLE IF NOT EXISTS faces (
+ session_id TEXT NOT NULL, path TEXT NOT NULL, n INTEGER NOT NULL, meta TEXT, emb BLOB,
+ PRIMARY KEY(session_id, path));
+CREATE TABLE IF NOT EXISTS renames (
+ session_id TEXT NOT NULL, original TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', role TEXT,
+ PRIMARY KEY(session_id, original));
 CREATE TABLE IF NOT EXISTS series_cat (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, cat TEXT NOT NULL, PRIMARY KEY(session_id, section_id));
 CREATE TABLE IF NOT EXISTS companies (
@@ -110,7 +124,7 @@ MIGRATIONS = {
     'files': {'name': 'TEXT', 'frame': 'INTEGER', 'preview': 'TEXT', 'camera': 'TEXT',
               'series': 'INTEGER', 'brightness': 'REAL', 'sharpness': 'REAL',
               'clip_hi': 'REAL', 'clip_lo': 'REAL', 'dhash': 'TEXT', 'flags': 'TEXT',
-              'analyzed': 'INTEGER DEFAULT 0', 'orient': 'INTEGER', 'wide': 'INTEGER'},
+              'analyzed': 'INTEGER DEFAULT 0', 'orient': 'INTEGER', 'wide': 'INTEGER', 'detail': 'REAL'},
     'students': {'role': "TEXT DEFAULT 'student'", 'anchors': 'TEXT'},
     'selection_events': {'section_id': 'TEXT'},
     'profiles': {'email': 'TEXT', 'phone': 'TEXT', 'city': 'TEXT', 'avatar': 'TEXT', 'site': 'TEXT',
@@ -132,8 +146,8 @@ def frame_number(stem):
 # other companies use a template: {order} {school} {class} {date} {name} {orig} {n} {role}
 COMPANY_DEFAULTS = {
     'vypusk': {'name': 'Выпуск', 'layout': 'vypusk', 'color': '#7738FF', 'disk_parent': '', 'kit_min': 15, 'kit_max': 20, 'target': 18,
-               'teachers': True, 'common': True, 'report': True, 'report_count': 15, 'group_dups': 6, 'report_dups': 6,
-               'note': 'Полная школьная структура: 01_ДОКУМЕНТЫ … 07_ФОН, ЛР_/ЛС_/Друг1_/Друг2_, учителя, общая и репортаж с дублями.'},
+               'teachers': True, 'common': True, 'report': True, 'report_count': 15, 'group_dups': 5, 'report_dups': 5,
+               'note': 'Школьная структура: доки, здание, общая, репортаж, ученики, учителя, фон; ЛР_/ЛС_/Друг1_/Друг2_; учитель — своя папка; «Общая …» и «Репортаж_…» для основных кадров, дубли рядом под своими именами.'},
     'crous': {'name': 'Crous', 'layout': 'sort', 'color': '#E5484D', 'disk_parent': 'ФОТОГРАФ СЕРГЕЙ', 'kit_min': 0, 'kit_max': 0, 'target': 0,
               'teachers': True, 'common': True, 'report': False, 'report_count': 0, 'group_dups': 0, 'report_dups': 0,
               'root': '{date}. {school}', 'raw_dir': 'RAW', 'jpg_dir': 'JPG',
@@ -143,7 +157,7 @@ COMPANY_DEFAULTS = {
 TEMPLATE_KEYS = ('color', 'disk_parent', 'root', 'child_dir', 'worksheet_file', 'extra_file', 'teacher_dir', 'teacher_file', 'common_dir', 'report_dir',
                  'raw_dir', 'jpg_dir', 'cat_portrait', 'cat_group', 'cat_common', 'cat_teacher')
 CATEGORIES = ('portrait', 'group', 'common', 'teacher')
-DEFECTS = ('white', 'black', 'blur')     # «брак»: never in a sorted delivery unless the photographer brings it back
+DEFECTS = ('white', 'black', 'blur', 'under', 'over', 'odd', 'noface')     # «брак»: never in a sorted delivery unless the photographer brings it back
 
 
 def fill(template, **kw):
@@ -295,11 +309,20 @@ def analyze_image(img):
         if acc >= need:
             sharp = i
             break
+    # detail = fine texture left after a light blur (0.5% strongest): drops sharply on motion blur and
+    # missed focus, does not saturate on contrasty frames like the edge measure above
+    hf = ImageChops.difference(g, g.filter(ImageFilter.GaussianBlur(1.2))).histogram()
+    acc, detail, need = 0, 0, sum(hf) * 0.005
+    for i in range(255, -1, -1):
+        acc += hf[i]
+        if acc >= need:
+            detail = i
+            break
     d = g.resize((9, 8)).getdata()
     px = list(d)
     bits = ''.join('1' if px[r * 9 + c] > px[r * 9 + c + 1] else '0' for r in range(8) for c in range(8))
     return {'brightness': round(mean, 2), 'std': std, 'sharpness': round(sharp, 2),
-            'clip_hi': round(clip_hi, 4), 'clip_lo': round(clip_lo, 4), 'dhash': '%016x' % int(bits, 2)}
+            'clip_hi': round(clip_hi, 4), 'clip_lo': round(clip_lo, 4), 'dhash': '%016x' % int(bits, 2), 'detail': detail}
 
 
 def hamming(a, b):
@@ -481,8 +504,12 @@ def _load_rows(p):
     out = []
     for name, rows, comments in book:
         filled = [r for r in rows if any(str(x).strip() for x in r)]
-        if filled and sum(1 for r in filled if len([x for x in r if str(x).strip()]) == 1 and ';' in str(next(x for x in r if str(x).strip()))) > len(filled) * 0.6:
-            rows = [str(next((x for x in r if str(x).strip()), '')).split(';') for r in rows]
+        for delimiter in (';', ',', '\t'):
+            packed = [r for r in filled if len([x for x in r if str(x).strip()]) == 1
+                      and delimiter in str(next(x for x in r if str(x).strip()))]
+            if filled and len(packed) > len(filled) * 0.6:
+                rows = [next(csv.reader([str(next((x for x in r if str(x).strip()), ''))], delimiter=delimiter), []) for r in rows]
+                break
         out.append((name, rows, comments))
     return out
 
@@ -506,21 +533,32 @@ def _parse_rows(rows, columns, optional=None, comments=None, positional=None):
     taken by position (name, then the frame numbers in `positional` order)."""
     optional, comments = optional or {}, comments or {}
     alias = {_norm(a): key for key, names in {**columns, **optional}.items() for a in names + [key]}
-    mapping, hi = None, -1
+    mapping, hi, name_parts = None, -1, []
     for i, row in enumerate(rows[:15]):
         m = {}
         for j, h in enumerate(row):
             key = alias.get(_norm(h))
             if key and key not in m.values():
                 m[j] = key
-        if set(m.values()) >= set(columns):
+        present = set(m.values())
+        partial_student = 'V' in columns and 'Name' in present and bool(present & {'V', 'P1', 'P2', 'D1', 'D2'})
+        if present >= set(columns) or partial_student:
             mapping, hi = m, i
+            surname = next((j for j, h in enumerate(row) if _norm(h) == 'фамилия'), None)
+            given = next((j for j, h in enumerate(row) if _norm(h) == 'имя'), None)
+            if surname is not None and given is not None:
+                name_parts = [surname, given]
             break
     out = []
     if mapping is not None:
         for ri in range(hi + 1, len(rows)):
             row = rows[ri]
             rec = {key: _cell(row[i]) if i < len(row) else '' for i, key in mapping.items()}
+            if name_parts:
+                rec['Name'] = ' '.join(_cell(row[j]) for j in name_parts if j < len(row) and _cell(row[j]))
+            for key in ('V', 'P1', 'P2', 'D1', 'D2', 'T'):
+                if key in rec and re.fullmatch(r'0+(?:[.,]0+)?|[—–-]', rec[key]):
+                    rec[key] = ''
             if rec.get('Name') and not SKIP_ROW.match(rec['Name']):
                 unsure = {key: comments[(ri, i)] for i, key in mapping.items() if (ri, i) in comments}
                 if unsure:
@@ -539,7 +577,7 @@ def _parse_rows(rows, columns, optional=None, comments=None, positional=None):
             continue  # a title or label row, not a person
         rec = {'Name': cells[idx], 'Type': next((v for v in cells[:idx] if v and not v.isdigit()), '')}
         for k, v in zip(positional, rest):
-            rec[k] = v if v not in ('—', '-', '–') else ''
+            rec[k] = '' if re.fullmatch(r'0+(?:[.,]0+)?|[—–-]', v) else v
         unsure = {k: comments[(ri, idx + 1 + n)] for n, k in enumerate(positional) if (ri, idx + 1 + n) in comments}
         if (ri, idx) in comments:
             unsure['Name'] = comments[(ri, idx)]
@@ -560,7 +598,7 @@ def read_worksheet(path, columns, optional=None):
         expected = ', '.join(names[1] if len(names) > 1 else names[0] for names in columns.values())
         raise ValueError(f'{p.name}: не найдена строка заголовков. Нужны колонки: {expected}')
     if not out:
-        raise ValueError(f'{p.name}: не удалось прочитать. Нужно: Фамилия Имя и 5 номеров (Виньетка, ЛР, ЛС, Друг 1, Друг 2)')
+        raise ValueError(f'{p.name}: не удалось прочитать. Нужны имя и колонка номера кадра, например Виньетка. Неизвестные номера можно оставить пустыми или указать 0')
     return out
 
 
@@ -594,7 +632,7 @@ def read_workbook(path):
         recs = _parse_rows(rows, STUDENT_COLS, EXTRA_COLS, comments, ['V', 'P1', 'P2', 'D1', 'D2', 'T'])
         students = recs or []
     if not students and not teachers:
-        raise ValueError(f'{p.name}: не удалось прочитать. Нужно: Фамилия Имя и 5 номеров (Виньетка, ЛР, ЛС, Друг 1, Друг 2)')
+        raise ValueError(f'{p.name}: не удалось прочитать. Нужны имя и колонка номера кадра, например Виньетка. Неизвестные номера можно оставить пустыми или указать 0')
     return {'students': students, 'teachers': teachers, 'meta': meta, 'sheets': [b[0] for b in book]}
 
 
@@ -617,6 +655,7 @@ class Engine:
         self.cache.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         self.jobs = {}
+        self._fcache = {}
         self._migrate()
 
     # -------------------------------------------------------- db helpers
@@ -667,8 +706,12 @@ class Engine:
         with self.conn() as c:
             st = {r['key']: r['value'] for r in c.execute('SELECT key,value FROM settings')}
             if sid:
-                r = c.execute('SELECT company FROM sessions WHERE id=?', (sid,)).fetchone()
+                r = c.execute('SELECT company,meta FROM sessions WHERE id=?', (sid,)).fetchone()
                 cfg = self.company(r['company'] if r else None)
+                if r and json.loads(r['meta'] or '{}').get('shooting_format') == 'portraits_groups':
+                    cfg.update(friends=False, report=False)
+                if r and json.loads(r['meta'] or '{}').get('manual_teachers'):
+                    cfg['teachers'] = True
                 st.update({'kit_min': str(cfg['kit_min']), 'kit_max': str(cfg['kit_max']), 'target_per_student': str(cfg['target']),
                            'report_count': str(cfg['report_count']), 'group_dups': str(cfg['group_dups']), 'report_dups': str(cfg['report_dups'])})
                 st['_company'] = cfg
@@ -680,6 +723,8 @@ class Engine:
         out = []
         for r in rows:
             cfg = {**COMPANY_DEFAULTS.get(r['id'], COMPANY_DEFAULTS['crous']), **json.loads(r['config'] or '{}')}
+            if r['id'] in COMPANY_DEFAULTS:
+                cfg['note'] = COMPANY_DEFAULTS[r['id']]['note']      # the description follows the program version
             out.append({**cfg, 'id': r['id'], 'name': r['name']})
         return out
 
@@ -733,7 +778,7 @@ class Engine:
         allowed = set(DEFAULT_SETTINGS)
         with self.conn() as c:
             for k, v in data.items():
-                if k not in allowed:
+                if k not in allowed and not re.fullmatch(r'yandex_(token|client_id)@[a-z0-9_]+', k):
                     raise ValueError('Неизвестная настройка: ' + k)
                 if k == 'current_company' and not any(x['id'] == v for x in self.companies()):
                     raise ValueError('Нет такой среды')
@@ -767,8 +812,19 @@ class Engine:
     # -------------------------------------------------------- import
     @staticmethod
     def session_id(source):
-        norm = str(Path(source).resolve()).casefold()
-        return hashlib.sha1(norm.encode('utf-8')).hexdigest()[:12]
+        source = Path(source).resolve()
+        digest = hashlib.sha256(str(source).casefold().encode('utf-8'))
+        # A removable card path is reused by different shoots. Identify the media as well.
+        media = sorted((p for p in source.rglob('*') if p.is_file() and p.suffix.lower() in RAW_EXT | IMG_EXT),
+                       key=lambda p: str(p.relative_to(source)).casefold())
+        for p in media[:6]:
+            digest.update(str(p.relative_to(source)).casefold().encode('utf-8'))
+            digest.update(str(p.stat().st_size).encode())
+            with p.open('rb') as f:
+                digest.update(f.read(65536))
+                f.seek(max(0, p.stat().st_size - 65536))
+                digest.update(f.read(65536))
+        return digest.hexdigest()[:12]
 
     def start_import(self, opts):
         src = Path(str(opts.get('source', '')).strip().strip('"')).expanduser()
@@ -782,11 +838,51 @@ class Engine:
 
     def _import_job(self, src, opts, job):
         try:
-            self.import_folder(src, opts, job)
+            sid = self.import_folder(src, opts, job)
+            self._faces_auto(sid)
         except Exception as e:  # report to UI instead of dying silently
             job['error'] = str(e)
         finally:
             job['finished'] = True
+
+    def _faces_auto(self, sid):
+        """Faces are looked for in the background right after import, when the face module is installed."""
+        try:
+            if self.setting('faces_auto') != '0' and self.faces_status()['ready']:
+                self.start_faces(sid)
+        except Exception:
+            pass
+
+    def install_faces(self):
+        """One click: install onnxruntime + numpy for this Python and download the face models if missing."""
+        jid = 'faces:install'
+        job = {'session': '', 'stage': 'Установка', 'done': 0, 'total': 0, 'error': None, 'finished': False}
+        self.jobs[jid] = job
+
+        def run():
+            import importlib
+            import subprocess
+            try:
+                import faces as fm
+                if fm.np is None or fm.ort is None:
+                    job['stage'] = 'Установка onnxruntime и numpy (1–3 минуты)'
+                    r = subprocess.run([sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check', 'onnxruntime', 'numpy'],
+                                       capture_output=True, text=True)
+                    if r.returncode != 0:
+                        raise RuntimeError('pip: ' + (r.stderr or r.stdout).strip().splitlines()[-1][:300])
+                    importlib.invalidate_caches()
+                    fm = importlib.reload(fm)
+                if fm.status().get('missing') == 'models':
+                    fm.download_models(job)
+                st = fm.status()
+                if not st['ready']:
+                    raise RuntimeError(st['text'])
+                job['stage'] = 'Готово'
+            except Exception as e:
+                job['error'] = str(e)
+            job['finished'] = True
+        threading.Thread(target=run, daemon=True).start()
+        return {'job': jid}
 
     def import_folder(self, src, opts=None, job=None):
         opts = opts or {}
@@ -872,6 +968,11 @@ class Engine:
             span = c.execute('SELECT MIN(capture_at) a, MAX(capture_at) b FROM files WHERE session_id=?', (sid,)).fetchone()
             c.execute('UPDATE sessions SET first_capture=?, last_capture=?, shoot_date=? WHERE id=?',
                       (span['a'], span['b'], iso_date(opts.get('date')) or (span['a'] or '')[:10], sid))
+            if opts.get('shooting_format') in ('standard', 'portraits_groups'):
+                r = c.execute('SELECT meta FROM sessions WHERE id=?', (sid,)).fetchone()
+                shoot_meta = json.loads(r['meta'] or '{}')
+                shoot_meta['shooting_format'] = opts['shooting_format']
+                c.execute('UPDATE sessions SET meta=? WHERE id=?', (json.dumps(shoot_meta, ensure_ascii=False), sid))
             if mode == 'school':
                 self._load_people(c, sid, opts.get('students'), opts.get('teachers'))
             self.event(c, sid, 'import', 'end')
@@ -925,19 +1026,435 @@ class Engine:
             ns += 1
         if students_file and not (ns or nt):
             raise ValueError('В ведомости не найдено ни одного ученика')
+        self._apply_renames(c, sid)
         for r in read_worksheet(teachers_file, TEACHER_COLS) if teachers_file else []:
             anchors = {'Role': r.get('Role', ''), 'Start': r.get('Start', ''), 'End': r.get('End', '')}
             c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
                       (sid, f't{nt}', safe_name(r['Name']), 'teacher', json.dumps(anchors, ensure_ascii=False)))
             nt += 1
 
+        record = c.execute('SELECT meta FROM sessions WHERE id=?', (sid,)).fetchone()
+        for teacher in json.loads(record['meta'] or '{}').get('manual_teachers', []) if record else []:
+            c.execute('INSERT OR REPLACE INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
+                      (sid, teacher['id'], teacher['name'], 'teacher', json.dumps(teacher['anchors'], ensure_ascii=False)))
+        self._apply_renames(c, sid)
+
+    def add_teacher(self, sid, name, frame, role=''):
+        sid = self.active_session_id(sid)
+        name = safe_name(' '.join(str(name or '').split()))
+        role = ' '.join(str(role or '').split())
+        if not name:
+            raise ValueError('Укажите имя учителя')
+        with self.conn() as c:
+            session = c.execute('SELECT meta,mode FROM sessions WHERE id=?', (sid,)).fetchone()
+            if not session or session['mode'] != 'school':
+                raise ValueError('Учителя добавляются в школьную съёмку')
+            if c.execute('SELECT 1 FROM students WHERE session_id=? AND name=?', (sid, name)).fetchone():
+                raise ValueError('Человек с таким именем уже есть в съёмке')
+            errors = []
+            photo = self._resolve(self._files(c, sid), str(frame or '').strip(), errors, 'Фото учителя: ')
+            if not photo:
+                raise ValueError('; '.join(errors) or 'Укажите номер портретного кадра учителя')
+            teacher_id = 'mt' + hashlib.sha1((name + photo['path']).encode()).hexdigest()[:10]
+            anchors = {'T': photo['name'], 'Role': role, 'unsure': {}}
+            meta = json.loads(session['meta'] or '{}')
+            meta.setdefault('manual_teachers', []).append({'id': teacher_id, 'name': name, 'anchors': anchors})
+            c.execute('UPDATE sessions SET meta=? WHERE id=?', (json.dumps(meta, ensure_ascii=False), sid))
+            c.execute('INSERT INTO students(session_id,student_id,name,role,anchors) VALUES(?,?,?,?,?)',
+                      (sid, teacher_id, name, 'teacher', json.dumps(anchors, ensure_ascii=False)))
+            self.event(c, sid, 'review', 'add-teacher:' + teacher_id)
+        self.suggest(sid, {teacher_id})
+        return {'ok': True, 'person': teacher_id, 'name': name}
+
+    def _apply_renames(self, c, sid):
+        """Names and positions fixed in the app survive a re-import of the same worksheet."""
+        for r in c.execute('SELECT original, name, role FROM renames WHERE session_id=?', (sid,)).fetchall():
+            row = c.execute('SELECT student_id, anchors FROM students WHERE session_id=? AND name=?', (sid, r['original'])).fetchone()
+            if not row:
+                continue
+            a = json.loads(row['anchors'] or '{}')
+            if r['name']:
+                a.get('unsure', {}).pop('Name', None)
+            if r['role'] is not None:
+                a['Role'] = r['role']
+                a.get('unsure', {}).pop('Role', None)
+            c.execute('UPDATE students SET name=?, anchors=? WHERE session_id=? AND student_id=?',
+                      (r['name'] or r['original'], json.dumps(a, ensure_ascii=False), sid, row['student_id']))
+
+    def rename_person(self, sid, person, name=None, role=None):
+        """Fix a name (or a teacher's position) read wrongly from the worksheet. Export uses the new name."""
+        with self.conn() as c:
+            row = c.execute('SELECT name, role, anchors FROM students WHERE session_id=? AND student_id=?', (sid, person)).fetchone()
+            if not row:
+                raise ValueError('Человек не найден')
+            if row['role'] not in ('student', 'teacher'):
+                raise ValueError('Переименовать можно только ученика или учителя')
+            new = safe_name(' '.join((name if name is not None else row['name']).split()))
+            if not new:
+                raise ValueError('Имя не может быть пустым')
+            taken = c.execute('SELECT 1 FROM students WHERE session_id=? AND name=? AND student_id<>?', (sid, new, person)).fetchone()
+            if taken:
+                raise ValueError(f'«{new}» уже есть в этой съёмке')
+            prev = c.execute('SELECT original, name, role FROM renames WHERE session_id=? AND name=?', (sid, row['name'])).fetchone()
+            original = prev['original'] if prev else row['name']
+            keep_role = prev['role'] if prev else None
+            new_role = ' '.join(role.split()) if role is not None else keep_role
+            c.execute('INSERT OR REPLACE INTO renames(session_id, original, name, role) VALUES(?,?,?,?)',
+                      (sid, original, '' if new == original else new, new_role))
+            c.execute('UPDATE students SET name=? WHERE session_id=? AND student_id=?', (original, sid, person))
+            self._apply_renames(c, sid)
+            self.event(c, sid, 'review', f'rename:{person}')
+        return {'ok': True, 'name': new}
+
+    # -------------------------------------------------------- faces (optional, local)
+    FACE_SAME = 0.4          # ArcFace similarity: same person above (same child ≈0.85–0.97, others <0.2)
+    EYES_CLOSED = 0.12       # eye height/width of the more open eye below this -> «closed eyes?»
+
+    def faces_status(self):
+        import faces as fm
+        return fm.status()
+
+    def start_faces(self, sid, force=False, rebuild=False):
+        """Find faces on every frame in the background (once; later imports only do new frames)."""
+        import faces as fm
+        jid = sid + ':faces'
+        if jid in self.jobs and not self.jobs[jid].get('finished'):
+            return {'job': jid}
+        st = fm.status()
+        if not st['ready']:
+            raise ValueError(st['text'] + ' — Настройки → Отбор и качество → «Распознавание лиц»')
+        job = {'session': sid, 'stage': 'Поиск лиц', 'done': 0, 'total': 0, 'error': None, 'finished': False}
+        self.jobs[jid] = job
+
+        def run():
+            try:
+                eng = fm.FaceEngine()
+                with self.conn() as c:
+                    if force:
+                        c.execute('DELETE FROM faces WHERE session_id=?', (sid,))
+                    have = {r[0] for r in c.execute('SELECT path FROM faces WHERE session_id=?', (sid,))}
+                    rows = [r['path'] for r in c.execute('SELECT path FROM files WHERE session_id=? ORDER BY capture_at,name', (sid,))]
+                todo = [p for p in rows if p not in have]
+                job['total'] = len(todo)
+                batch = []
+                failed = []
+                self._fcache.pop(sid, None)
+                for p in todo:
+                    data = self.preview_bytes(sid, p, 1280)
+                    fs = []
+                    if data:
+                        try:
+                            fs = eng.analyze(Image.open(io.BytesIO(data)))
+                        except Exception as error:
+                            failed.append(Path(p).name + ': ' + str(error))
+                            job['done'] += 1
+                            continue
+                    else:
+                        failed.append(Path(p).name + ': нет превью')
+                        job['done'] += 1
+                        continue
+                    meta = [{k: f[k] for k in ('box', 'h', 'eye', 'eye2', 'g', 'age', 'score', 'iw', 'ih')} for f in fs]
+                    emb = b''.join(f['emb'].astype('float16').tobytes() for f in fs)
+                    batch.append((sid, p, len(fs), json.dumps(meta), emb))
+                    job['done'] += 1
+                    if len(batch) >= 20:
+                        with self.conn() as c:
+                            c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', batch)
+                        batch = []
+                if batch:
+                    with self.conn() as c:
+                        c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', batch)
+                self._fcache.pop(sid, None)
+                self._mark_noface(sid)
+                try:
+                    self.count_people(sid)
+                except Exception:
+                    pass
+                job['stage'] = 'Сборка по лицам'
+                with self.conn() as c:
+                    if rebuild:
+                        for table in ('selection_events', 'selections', 'ai_suggestions', 'approvals', 'marks', 'reason_ov'):
+                            c.execute(f'DELETE FROM {table} WHERE session_id=?', (sid,))
+                    else:
+                        c.execute('DELETE FROM approvals WHERE session_id=?', (sid,))
+                self.suggest(sid)                    # kits not touched by hand are assembled again with faces
+                job['stage'] = 'Готово'
+                job['failed'] = failed[:20]
+                if failed:
+                    job['error'] = f'Не обработано кадров: {len(failed)}. ' + '; '.join(failed[:3])
+            except Exception as e:
+                job['error'] = str(e)
+            job['finished'] = True
+        threading.Thread(target=run, daemon=True).start()
+        return {'job': jid}
+
+    def _faces(self, sid):
+        """{path: [face, …]} biggest face first; face = meta + 'emb' (numpy). Empty when not analysed."""
+        try:
+            import numpy as np
+        except ImportError:
+            return {}
+        with self.conn() as c:
+            n = c.execute('SELECT COUNT(*), COALESCE(SUM(n),0) FROM faces WHERE session_id=?', (sid,)).fetchone()
+            key = (n[0], n[1])
+            hit = self._fcache.get(sid)
+            if hit and hit[0] == key:
+                return hit[1]
+            out = {}
+            for r in c.execute('SELECT path, n, meta, emb FROM faces WHERE session_id=?', (sid,)):
+                meta = json.loads(r['meta'] or '[]')
+                em = np.frombuffer(r['emb'] or b'', dtype='float16').astype('float32').reshape(-1, 512) if r['n'] else []
+                for i, m in enumerate(meta):
+                    m['emb'] = em[i]
+                out[r['path']] = meta
+        self._fcache[sid] = (key, out)
+        return out
+
+    def _face_refine(self, sid, out, files):
+        """Match portraits across the complete shoot; never auto-select unverified faces."""
+        F = self._faces(sid)
+        try:
+            import numpy as np
+        except ImportError:
+            return
+        with self.conn() as c:
+            row = c.execute('SELECT meta FROM sessions WHERE id=?', (sid,)).fetchone()
+        settings = json.loads(row['meta'] or '{}') if row else {}
+        same = float(settings.get('face_similarity', 0.45))
+        margin = 0.05
+        shut = self.EYES_CLOSED
+        main = lambda p: (F.get(p) or [None])[0]
+        finfo = {f['path']: f for f in files}
+        def reference(paths):
+            embs = [main(p)['emb'] for p in paths if main(p)]
+            if not embs:
+                return None
+            best = max(embs, key=lambda e: sum(float(np.dot(e, v)) >= same for v in embs))
+            agree = [e for e in embs if float(np.dot(best, e)) >= same]
+            ref = np.mean(agree or [best], axis=0)
+            return ref / (np.linalg.norm(ref) + 1e-9)
+        refs = {}
+        for x in out:
+            if x['kind'] in ('portrait', 'teacher') and x['mandatory']:
+                preferred = [p for p, role in x['mandatory'].items() if role in ('V', 'T')]
+                ref = reference(preferred or list(x['mandatory']))
+                if ref is not None:
+                    refs[x['person']] = ref
+        for x in out:
+            if x['kind'] not in ('portrait', 'friends', 'teacher'):
+                continue
+            original = list(x['files'])
+            ref = refs.get(x['person'])
+            x['face_threshold'] = same
+            x['face_verified'] = []
+            x['face_unverified'] = []
+            if ref is None:
+                x['face_unverified'] = [q for q in original if q not in x['mandatory']]
+                x['face_reference_missing'] = True
+                continue
+            competitors = [r for person, r in refs.items() if person != x['person']]
+            def match(q):
+                faces = F.get(q) or []
+                if x['kind'] != 'friends':
+                    faces = faces[:1]
+                if not faces:
+                    return None
+                best = max(faces, key=lambda f: float(np.dot(f['emb'], ref)))
+                score = float(np.dot(best['emb'], ref))
+                rival = max((float(np.dot(best['emb'], r)) for r in competitors), default=-1)
+                return best if score >= same and score >= rival + margin else None
+            # Portraits are searched throughout the shoot, without a +/- frame-number window.
+            candidates = original if x['kind'] == 'friends' else [f['path'] for f in files if f.get('wide') != 1]
+            candidates = list(dict.fromkeys(candidates + list(x['mandatory'])))
+            keep, closed, verified = [], [], []
+            for q in candidates:
+                f = match(q)
+                if q in x['mandatory']:
+                    keep.append(q)
+                    if f is None and F.get(q):
+                        role = x['mandatory'][q]
+                        msg = 'на кадре, похоже, другой человек — проверьте номер'
+                        alt = self._misread_fix(q, ref, F, files, same, x)
+                        if alt:
+                            x.setdefault('fix', {})[role] = alt
+                        x.setdefault('unsure', {})[role] = msg
+                elif f is not None:
+                    keep.append(q)
+                elif q in original and (q not in F or not F[q]):
+                    x['face_unverified'].append(q)
+                if f is not None and q in keep:
+                    verified.append(q)
+                    if f.get('eye2', 1) < shut:
+                        closed.append(q)
+            # Unknown/no-face frames remain visible in a separate review group, never in auto picks.
+            x['files'] = sorted(set(keep + x['face_unverified']), key=lambda q: (finfo[q]['capture_at'], finfo[q]['name']))
+            x['face_verified'] = verified
+            x['closed'] = closed
+            x['strangers'] = sum(q not in keep and q not in x['face_unverified'] for q in original)
+
+    def set_reason(self, sid, section, path, reason):
+        """Move an extra frame between «Дополнительная виньетка» and «Дополнительные портреты»."""
+        if reason not in ('vignette', 'portrait'):
+            raise ValueError('Неизвестный раздел')
+        with self.conn() as c:
+            c.execute('INSERT OR REPLACE INTO reason_ov VALUES(?,?,?,?)', (sid, section, path, reason))
+            self.event(c, sid, 'review', f'reason:{section}:{reason}')
+        return {'ok': True}
+
+    def not_defect(self, sid, path, ok=True):
+        """The photographer says «не брак»: the frame loses its defect marks and keeps them off on re-checks."""
+        with self.conn() as c:
+            r = c.execute('SELECT flags FROM files WHERE session_id=? AND path=?', (sid, path)).fetchone()
+            if not r:
+                raise ValueError('Кадр не найден')
+            if ok:
+                c.execute('INSERT OR REPLACE INTO flag_ok VALUES(?,?)', (sid, path))
+                fl = [x for x in (r['flags'] or '').split(',') if x and x not in DEFECTS]
+                c.execute('UPDATE files SET flags=? WHERE session_id=? AND path=?', (','.join(fl) or None, sid, path))
+            else:
+                c.execute('DELETE FROM flag_ok WHERE session_id=? AND path=?', (sid, path))
+            self.event(c, sid, 'review', 'not-defect' if ok else 'defect-again')
+        self.suggest(sid)                 # kits not touched by hand may now use the frame
+        return {'ok': True}
+
+    def count_people(self, sid):
+        """How many different people were photographed, by faces (for shoots without a worksheet, e.g. Crous):
+        portraits (and the «Педагоги» part) are grouped by face; a person needs at least two frames."""
+        import numpy as np
+        F = self._faces(sid)
+        if not F:
+            return None
+        secs, _ = self.sections(sid)
+        tl = next((x for x in secs if x['kind'] == 'timeline'), None)
+        with self.conn() as c:
+            wide = {r['path']: r['wide'] for r in c.execute('SELECT path, wide FROM files WHERE session_id=?', (sid,))}
+        if tl:
+            parts = {'students': [p for p in tl['files'] if tl['cats'].get(p) == 'portrait'],
+                     'teachers': [p for p in tl['files'] if tl['cats'].get(p) == 'teacher']}
+        else:
+            parts = {'students': [p for p in F if wide.get(p) == 0], 'teachers': []}
+
+        def clusters(paths):
+            cents, counts = [], []
+            for p in paths:
+                fs = [f for f in F.get(p, []) if f['h'] >= 0.08]
+                if not fs:
+                    continue
+                e = fs[0]['emb']
+                sims = [float(np.dot(e, c_ / (np.linalg.norm(c_) + 1e-9))) for c_ in cents]
+                i = int(np.argmax(sims)) if sims else -1
+                if i >= 0 and sims[i] >= self.FACE_SAME + 0.05:
+                    cents[i] = cents[i] + e
+                    counts[i] += 1
+                else:
+                    cents.append(np.array(e, dtype='float32'))
+                    counts.append(1)
+            return sum(1 for n in counts if n >= 2)
+        res = {k: clusters(v) for k, v in parts.items()}
+        with self.conn() as c:
+            r = c.execute('SELECT meta FROM sessions WHERE id=?', (sid,)).fetchone()
+            meta = json.loads((r['meta'] if r else None) or '{}')
+            meta['people_faces'] = res
+            c.execute('UPDATE sessions SET meta=? WHERE id=?', (json.dumps(meta, ensure_ascii=False), sid))
+        return res
+
+    def _mark_noface(self, sid):
+        """«Без лица»: nobody's face on the frame while the frames around it have faces — a back, a passer-by,
+        a hand over the lens. A far-away group (no face found on the neighbours either) is not marked."""
+        F = self._faces(sid)
+        with self.conn() as c:
+            rows = c.execute('SELECT path, flags, wide FROM files WHERE session_id=? ORDER BY capture_at, name', (sid,)).fetchall()
+            okset = {r_[0] for r_ in c.execute('SELECT path FROM flag_ok WHERE session_id=?', (sid,))}
+            for i, r in enumerate(rows):
+                fl = [x for x in (r['flags'] or '').split(',') if x and x != 'noface']
+                p = r['path']
+                # only vertical (portrait) frames: in group photos a missed small face must not make a frame «брак»
+                if p in F and not F[p] and r['wide'] == 0 and p not in okset and not any(x in DEFECTS for x in fl):
+                    near = [rows[j]['path'] for j in range(max(0, i - 2), min(len(rows), i + 3)) if j != i]
+                    # neighbours with clearly visible faces (portrait / small group scale), not a far-away crowd
+                    if sum(1 for q in near if any(f['h'] >= 0.06 for f in F.get(q, []))) >= 2:
+                        fl.append('noface')
+                new = ','.join(fl) or None
+                if new != r['flags']:
+                    c.execute('UPDATE files SET flags=? WHERE session_id=? AND path=?', (new, sid, p))
+
+    def _faces_info(self, sid, total):
+        with self.conn() as c:
+            done = c.execute('SELECT COUNT(*) FROM faces WHERE session_id=?', (sid,)).fetchone()[0]
+        j = self.jobs.get(sid + ':faces')
+        try:
+            ready = self.faces_status()['ready']
+        except Exception:
+            ready = False
+        return {'done': done, 'total': total, 'ready': ready, 'running': bool(j and not j.get('finished')),
+                'job': sid + ':faces' if j else None, 'error': (j or {}).get('error')}
+
+    @staticmethod
+    def _misread_fix(path, ref, F, files, same, sec):
+        """A hand-written number read wrong (223 instead of 233): look for a frame whose number differs by one
+        digit or two swapped digits and shows this child, in the right orientation."""
+        import numpy as np
+        byname = {f['frame']: f for f in files if f['frame'] is not None}
+        cur = next((f for f in files if f['path'] == path), None)
+        if not cur or cur['frame'] is None:
+            return None
+        s0 = str(cur['frame'])
+        subst, swap = set(), set()                     # one wrong digit is more likely than two swapped
+        for i in range(len(s0)):
+            for d in '0123456789':
+                if d != s0[i]:
+                    subst.add(s0[:i] + d + s0[i + 1:])
+            if i + 1 < len(s0) and s0[i] != s0[i + 1]:
+                swap.add(s0[:i] + s0[i + 1] + s0[i] + s0[i + 2:])
+        for group in (subst, swap - subst):
+            hit = Engine._best_face(group, byname, cur, F, ref, same, sec)
+            if hit:
+                return hit
+        return None
+
+    @staticmethod
+    def _best_face(cands, byname, cur, F, ref, same, sec):
+        import numpy as np
+        best, score = None, same
+        for c in cands:
+            f = byname.get(int(c))
+            if not f or f['path'] in sec['mandatory'] or (cur.get('wide') is not None and f.get('wide') != cur.get('wide')):
+                continue
+            m = (F.get(f['path']) or [None])[0]
+            if m is not None and float(np.dot(m['emb'], ref)) > score:
+                best, score = f['path'], float(np.dot(m['emb'], ref))
+        return best
+
+    def _face_summary(self, sid):
+        """Per frame: number of clearly visible faces and of those with closed eyes."""
+        F = self._faces(sid)
+        return {p: (sum(1 for f in fs if f['h'] > 0.02), sum(1 for f in fs if f['h'] > 0.02 and f.get('eye2', 1) < self.EYES_CLOSED))
+                for p, fs in F.items()}
+
     # -------------------------------------------------------- previews
+    @staticmethod
+    def preview_revision(sid, path, preview, orient):
+        if not preview:
+            return None
+        source = Path(path if preview.startswith('embedded:') else preview)
+        try:
+            st = source.stat()
+        except OSError:
+            return None
+        identity = f'{sid}|{Path(path).resolve()}|{source.resolve()}|{preview}|{orient}|{st.st_size}|{st.st_mtime_ns}|{st.st_ctime_ns}|v4'
+        return hashlib.sha256(identity.encode()).hexdigest()[:24]
+
     def preview_bytes(self, sid, path, size=640):
         with self.conn() as c:
-            r = c.execute('SELECT preview, orient FROM files WHERE session_id=? AND path=?', (sid, path)).fetchone()
+            r = c.execute('SELECT preview, orient, bytes, capture_at FROM files WHERE session_id=? AND path=?', (sid, path)).fetchone()
         if not r or not r['preview']:
             return None
-        key = hashlib.sha1(f'{r["preview"]}|{size}|o{r["orient"]}|v2'.encode()).hexdigest()
+        if not self._src_ok(path, r['bytes'], r['capture_at'], r['preview']):
+            return None
+        revision = self.preview_revision(sid, path, r['preview'], r['orient'])
+        if revision is None:
+            return None
+        key = hashlib.sha1(f'{revision}|{size}'.encode()).hexdigest()
         cached = self.cache / f'{key}.jpg'
         if cached.exists():
             return cached.read_bytes()
@@ -1010,14 +1527,22 @@ class Engine:
                     res = None
             results.append((r, res))
             job['done'] = i + 1
-        # sharpness is judged relative to the series median, so a soft-light series is not all "blur"
-        by_series = defaultdict(list)
-        for r, res in results:
-            if res:
-                by_series[r['series']].append(res['sharpness'])
-        med = {s: sorted(v)[len(v) // 2] for s, v in by_series.items()}
+        # «брак» is judged against the neighbouring frames (±6 by time): a frame much softer, or completely
+        # different from both neighbours, stands out; plain thresholds catch empty, too dark and too light frames
+        ok = [(r, res) for r, res in results if res]
+        detail_of = [res['detail'] for _, res in ok]
+        near_med = {}
+        for i, (r, res) in enumerate(ok):
+            win = sorted(detail_of[max(0, i - 6):i] + detail_of[i + 1:i + 7])
+            near_med[r['path']] = win[len(win) // 2] if win else res['detail']
+        odd = set()
+        for i in range(1, len(ok) - 1):
+            a_, b_ = ok[i - 1][1], ok[i + 1][1]
+            if hamming(a_['dhash'], ok[i][1]['dhash']) > 28 and hamming(ok[i][1]['dhash'], b_['dhash']) > 28:
+                odd.add(ok[i][0]['path'])
         prev = None
         with self.conn() as c:
+            okset = {r_[0] for r_ in c.execute('SELECT path FROM flag_ok WHERE session_id=?', (sid,))}
             for r, res in results:
                 if not res:
                     c.execute('UPDATE files SET analyzed=0, flags=NULL WHERE session_id=? AND path=?', (sid, r['path']))
@@ -1028,30 +1553,66 @@ class Engine:
                 elif res['brightness'] < 12 and res['std'] < 12:
                     flags.append('black')
                 else:
-                    if res['clip_hi'] > clip_t:
+                    if res['clip_hi'] > min(clip_t, 0.08) or res['brightness'] > 185:
                         flags.append('over')
-                    if res['clip_lo'] > clip_t * 2 or res['brightness'] < 35:
+                    if res['clip_lo'] > clip_t * 2 or res['brightness'] < 40:
                         flags.append('under')
-                    m = med.get(r['series']) or 0
-                    if res['sharpness'] < blur_t or (m and res['sharpness'] < m * 0.45):
+                    m = near_med.get(r['path']) or 0
+                    if res['detail'] < blur_t or (m and res['detail'] < m * 0.6):
                         flags.append('blur')
+                    if not flags and r['path'] in odd:
+                        flags.append('odd')
                     if not flags and prev and prev[0]['series'] == r['series'] and hamming(prev[1]['dhash'], res['dhash']) <= dup_d:
                         # near-identical pair (bracketing, burst): keep the sharper one
-                        if res['sharpness'] <= prev[1]['sharpness']:
+                        if res['detail'] <= prev[1]['detail']:
                             flags.append('dup')
                         else:
                             c.execute("UPDATE files SET flags='dup' WHERE session_id=? AND path=?", (sid, prev[0]['path']))
                             prev = (r, res)
                     elif not flags:
                         prev = (r, res)
+                if r['path'] in okset:              # «не брак» said by the photographer
+                    flags = [x for x in flags if x not in DEFECTS]
                 c.execute('''UPDATE files SET brightness=?, sharpness=?, clip_hi=?, clip_lo=?, dhash=?,
-                             flags=?, analyzed=1, wide=? WHERE session_id=? AND path=?''',
-                          (res['brightness'], res['sharpness'], res['clip_hi'], res['clip_lo'], res['dhash'],
-                           ','.join(flags) or None, res.get('wide'), sid, r['path']))
+                             flags=?, analyzed=1, wide=?, detail=? WHERE session_id=? AND path=?''',
+                          (res['brightness'], res['detail'], res['clip_hi'], res['clip_lo'], res['dhash'],
+                           ','.join(flags) or None, res.get('wide'), res['detail'], sid, r['path']))
             c.execute("UPDATE sessions SET status=CASE WHEN status='imported' THEN 'analyzed' ELSE status END WHERE id=?", (sid,))
+            r_ = c.execute('SELECT meta FROM sessions WHERE id=?', (sid,)).fetchone()
+            meta_ = json.loads((r_['meta'] if r_ else None) or '{}')
+            meta_['preview_v'] = 3                 # previews keyed by file size+time (no stale pictures)
+            c.execute('UPDATE sessions SET meta=? WHERE id=?', (json.dumps(meta_, ensure_ascii=False), sid))
             self.event(c, sid, 'analysis', 'end')
 
     # -------------------------------------------------------- sections
+    _src_memo = {}
+
+    def _src_ok(self, path, size, capture_at, preview=None):
+        """Is the source file still the one imported? A memory card is reformatted and reused: the same name
+        ANT00268.ARW may now be a frame of another shoot. Checked by size and by the file time vs the shot time."""
+        try:
+            source_stat = os.stat(path)
+        except OSError:
+            return False
+        k = (path, size, capture_at, source_stat.st_size, source_stat.st_mtime_ns, source_stat.st_ctime_ns)
+        hit = self._src_memo.get(k)
+        if hit and time.time() - hit[1] < 15:
+            return hit[0]
+        try:
+            st_ = os.stat(path)
+            ok = st_.st_size == size
+            if ok and capture_at:
+                shot = datetime.strptime(str(capture_at)[:19], '%Y-%m-%d %H:%M:%S')
+                if abs((datetime.fromtimestamp(st_.st_mtime) - shot).total_seconds()) > 26 * 3600:
+                    # file time can be lost by copying; then the shot time written inside the files decides
+                    srcs = [path] + ([preview] if preview and not preview.startswith('embedded:') else [])
+                    times = {(read_meta(Path(q)).get('capture_at') or '')[:19] for q in srcs if os.path.exists(q)} - {''}
+                    ok = not times or str(capture_at)[:19] in times
+        except (OSError, ValueError):
+            ok = False
+        self._src_memo[k] = (ok, time.time())
+        return ok
+
     def _files(self, c, sid):
         return [dict(r) for r in c.execute('SELECT * FROM files WHERE session_id=? ORDER BY capture_at,name', (sid,))]
 
@@ -1091,11 +1652,39 @@ class Engine:
                     must.setdefault(f['path'], k)
         return must
 
+    @staticmethod
+    def _scenes(fs):
+        """Split frames into scenes (one group set-up each): a new scene starts after a pause of more than
+        a minute when the picture changes, after 3 minutes in any case, or on a completely different picture."""
+        fs = sorted(fs, key=lambda f: (f['capture_at'], f['name']))
+        if not fs:
+            return []
+        t = lambda f: datetime.strptime(f['capture_at'], '%Y-%m-%d %H:%M:%S')
+        out = [[fs[0]]]
+        for a, b in zip(fs, fs[1:]):
+            gap = (t(b) - t(a)).total_seconds()
+            h = hamming(a['dhash'], b['dhash']) if a['dhash'] and b['dhash'] else 64
+            if gap > 180 or (gap > 60 and h > 20) or h > 30:
+                out.append([b])
+            else:
+                out[-1].append(b)
+        return out
+
     def _common_sections(self, files, frames, people, out, conflicts, sid=None):
         """«Общая фотография» and «Репортаж»: frames that belong to nobody's series.
         Worksheet rows typed «общая» / «репортаж» may give numbers ('612', '640-700', '640 641')."""
         used = {p for x in out for p in x['files']} | {p for x in out for p in x['mandatory']}
         free = [f for f in frames if f['path'] not in used]
+        if self.settings(sid)['_company'].get('layout') == 'vypusk':
+            free = [f for f in free if f.get('wide') != 0]    # Выпуск: common photo and reportage are horizontal
+        # leftovers between the children's own series (other kids walking in, test shots) are neither
+        # the class photo nor reportage: group set-ups are shot before or after the personal portraits
+        ptimes = sorted(fp['capture_at'] for x in out if x['kind'] in ('portrait', 'friends') for fp in frames if fp['path'] in set(x['files']))
+        if len(ptimes) > 10:
+            lo, hi = ptimes[0], ptimes[-1]
+            outside = [f for f in free if not (lo < f['capture_at'] < hi)]
+            if outside:
+                free = outside
         sheet = {p['role']: json.loads(p['anchors'] or '{}').get('nums', '') for p in people if p['role'] in ('group', 'report')}
         fnum = {f['frame']: f for f in frames if f['frame'] is not None}
 
@@ -1108,19 +1697,28 @@ class Engine:
         st = self.settings(sid)
         res = []
         g_must = nums_of(sheet.get('group'))[:1]
+        if sid:
+            with self.conn() as c:
+                r = c.execute("SELECT file_path FROM anchor_overrides WHERE session_id=? AND person='__common__' AND key='G'", (sid,)).fetchone()
+            if r and r['file_path'] in {f['path'] for f in frames}:
+                g_must = [r['file_path']]                      # chosen by the photographer in the app
         r_range = nums_of(sheet.get('report'))
         g_files = [f['path'] for f in free] if not g_must else sorted(set(g_must) | {f['path'] for f in free}, key=lambda p: next((f['capture_at'] for f in frames if f['path'] == p), ''))
         r_files = [p for p in r_range if p not in g_must] if r_range else [f['path'] for f in free]
         dg, dr = int(st['group_dups']), int(st['report_dups'])
+        fpath = {f['path']: f for f in frames}
+        scenes = [[f['path'] for f in sc] for sc in self._scenes([fpath[p] for p in dict.fromkeys(g_files + r_files) if p in fpath])]
         if g_files and int(st['group_dups']) >= 0:
             res.append({'id': 'common', 'title': 'Общая фотография', 'subtitle': f'1 кадр + {dg} дублей', 'kind': 'group',
                         'person': None, 'files': g_files, 'mandatory': {p: 'G' for p in g_must}, 'limit': 1 + dg,
-                        'main_limit': 1, 'dup_limit': dg, 'roles': [], 'overridden': False, 'unsure': {}})
+                        'main_limit': 1, 'dup_limit': dg, 'dup_per_main': dg, 'roles': [], 'overridden': False, 'unsure': {},
+                        'scenes': [sc for sc in scenes if set(sc) & set(g_files)]})
         if r_files and int(st['report_count']) > 0:
             n = int(st['report_count'])
-            res.append({'id': 'report', 'title': 'Репортаж', 'subtitle': f'{n} кадров + {dr} дублей', 'kind': 'reportage',
-                        'person': None, 'files': r_files, 'mandatory': {}, 'limit': n + dr,
-                        'main_limit': n, 'dup_limit': dr, 'roles': [], 'overridden': False, 'unsure': {}})
+            res.append({'id': 'report', 'title': 'Репортаж', 'subtitle': f'{n} основных, до {dr} дублей к каждому', 'kind': 'reportage',
+                        'person': None, 'files': r_files, 'mandatory': {}, 'limit': n * (1 + dr),
+                        'main_limit': n, 'dup_limit': n * dr, 'dup_per_main': dr, 'roles': [], 'overridden': False, 'unsure': {},
+                        'scenes': [sc for sc in scenes if set(sc) & set(r_files)]})
         return res
 
     def _teacher_series(self, frames, own, anchors_all, gap=None, max_side=10):
@@ -1162,9 +1760,10 @@ class Engine:
             for r in c.execute('SELECT person,key,file_path FROM anchor_overrides WHERE session_id=?', (sid,)):
                 ov[r['person']][r['key']] = r['file_path']
         radius = self.setting('radius', int)
-        # when the card has RAW files, standalone JPEGs are not offered for orders (RAW only)
+        # when the card has RAW files, stray JPEGs (not camera frames) are not offered; a camera frame whose RAW
+        # is missing (deleted, not copied) is still offered as JPEG and marked — a frame is never hidden silently
         if any(f['kind'] == 'raw' for f in files):
-            files = [f for f in files if f['kind'] == 'raw']
+            files = [f for f in files if f['kind'] == 'raw' or f['frame'] is not None]
         out, conflicts = [], []
         if people:
             frames = [f for f in files if f['frame'] is not None]
@@ -1228,6 +1827,8 @@ class Engine:
                 a = json.loads(p['anchors'] or '{}')
                 if p['role'] == 'student':
                     for suffix, cols, label in (('p', ['V', 'P1', 'P2'], 'Портреты / виньетка'), ('f', ['D1', 'D2'], 'Друзья')):
+                        if suffix == 'f' and not self.settings(sid)['_company'].get('friends', True):
+                            continue
                         o = {k: v for k, v in ov[p['student_id']].items() if k in cols}
                         must = self._anchors(files, a, cols, conflicts, p['name'], o)
                         # the window stays around the worksheet numbers even if a frame was reassigned
@@ -1267,7 +1868,7 @@ class Engine:
                     near = self._teacher_series(frames, set(must) | set(sheet), anchors_all)
                     if not must and not o:
                         continue
-                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель',
+                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель', 'role_raw': a.get('Role', ''),
                                 'kind': 'teacher', 'person': p['student_id'],
                                 'files': [f['path'] for f in near], 'mandatory': must, 'limit': 5,
                                 'roles': ['T'], 'overridden': bool(o), 'unsure': a.get('unsure') or {}})
@@ -1275,10 +1876,27 @@ class Engine:
                     s0 = self._resolve(files, a.get('Start'), conflicts, p['name'] + ', начало: ')
                     s1 = self._resolve(files, a.get('End'), conflicts, p['name'] + ', конец: ')
                     lo, hi = sorted([s0['frame'], s1['frame']]) if s0 and s1 else (0, -1)
-                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель',
+                    out.append({'id': p['student_id'], 'title': p['name'], 'subtitle': teacher_title(a.get('Role')) or 'Учитель', 'role_raw': a.get('Role', ''),
                                 'kind': 'teacher', 'person': p['student_id'],
                                 'files': [f['path'] for f in frames if lo <= f['frame'] <= hi], 'mandatory': {}, 'limit': 5,
                                 'roles': [], 'overridden': False})
+            # Выпуск: every vertical frame is a portrait (vignette, ЛР, ЛС, extra portraits, teachers), every
+            # horizontal one is a group shot (friends, common photo, reportage). Frames of the wrong
+            # orientation are not offered; a worksheet frame of the wrong orientation is flagged.
+            wmap = {f['path']: f.get('wide') for f in files}
+            want = {'portrait': 0, 'teacher': 0, 'friends': 1} if self.settings(sid)['_company'].get('layout') == 'vypusk' else {}
+            for x in out:
+                w = want.get(x['kind'])
+                if w is None:
+                    continue
+                x['files'] = [q for q in x['files'] if wmap.get(q) in (None, w) or q in x['mandatory']]
+                for q, k in x['mandatory'].items():
+                    if wmap.get(q) is not None and wmap[q] != w:
+                        what = 'горизонтальный' if wmap[q] else 'вертикальный'
+                        need = 'вертикальный (портрет)' if w == 0 else 'горизонтальный (фото с друзьями)'
+                        prev_ = x.setdefault('unsure', {}).get(k)
+                        x['unsure'][k] = ((prev_ + '; ') if prev_ else '') + f'кадр {what}, а нужен {need} — проверьте номер'
+            self._face_refine(sid, out, files)
             # a teacher's set never offers another teacher's worksheet photo
             tmand = {}
             for x in out:
@@ -1328,6 +1946,8 @@ class Engine:
             if k:
                 for p in list(x['files']) + list(x['mandatory']):
                     kind_of.setdefault(p, k)
+        if not kind_of:
+            return self._plan_dividers(seq)
         guesses = []
         for fs in series:
             votes = Counter(kind_of[f['path']] for f in fs if f['path'] in kind_of)
@@ -1355,6 +1975,76 @@ class Engine:
                 last = g
         return out
 
+    def _plan_dividers(self, seq):
+        """Guess by the CROUSALBM shooting plan: first the class photo, girls, boys (the first three set-ups),
+        then 8–12 group set-ups (vertical or horizontal), then portraits (the rest of the card is vertical)."""
+        good = [f for f in seq if not any(x in DEFECTS for x in (f['flags'] or '').split(','))] or seq
+        scenes = self._scenes(good)
+        if not scenes:
+            return [(seq[0]['path'], 'portrait')]
+        n = [len(sc) for sc in scenes]
+        vert = [sum(1 for f in sc if f.get('wide') == 0) for sc in scenes]
+        start = len(scenes)                                  # first scene of the portrait block
+        for i in range(len(scenes)):
+            rest_n, rest_v = sum(n[i:]), sum(vert[i:])
+            if vert[i] * 2 > n[i] and rest_v >= 0.85 * rest_n:
+                start = i
+                break
+        out, last, commons = [], None, 0
+        for i, sc in enumerate(scenes):
+            if i >= start:
+                g = 'portrait'
+            elif commons < 3 and len(sc) >= 2:
+                g, commons = 'common', commons + 1
+            else:
+                g = 'group'
+            if g != last:
+                out.append((sc[0]['path'], g))
+                last = g
+        return out
+
+    def plan_check(self, sid, sec=None):
+        """Checklist of the CROUSALBM shooting plan over the current dividers."""
+        if sec is None:
+            sec = next((x for x in self.sections(sid)[0] if x['id'] == 'timeline'), None)
+        if not sec:
+            return []
+        with self.conn() as c:
+            info = {f['path']: f for f in self._files(c, sid)}
+        ok = lambda p: p in info and not any(x in DEFECTS for x in (info[p]['flags'] or '').split(','))
+        part = lambda k: [info[p] for p in sec['files'] if sec['cats'].get(p) == k and ok(p)]
+        res = []
+        com = self._scenes(part('common'))
+        res.append({'t': 'Общие: класс, девочки, мальчики', 'v': f'{len(com)} из 3',
+                    'ok': len(com) >= 3, 'h': 'по одной сцене на каждую общую' if len(com) < 3 else ''})
+        gr = [sc for sc in self._scenes(part('group')) if len(sc) >= 1]
+        gv = sum(1 for sc in gr if sum(1 for f in sc if f.get('wide') == 0) * 2 > len(sc))
+        gh = len(gr) - gv
+        res.append({'t': 'Групповые: 8–12 сцен', 'v': f'{len(gr)}', 'ok': 8 <= len(gr) <= 12,
+                    'h': '' if 8 <= len(gr) <= 12 else ('мало групповых сцен' if len(gr) < 8 else 'больше 12 — проверьте разделители')})
+        res.append({'t': 'Групповые: вертикальных и горизонтальных чётно', 'v': f'верт. {gv} · гор. {gh}',
+                    'ok': gv % 2 == 0 and gh % 2 == 0, 'h': '' if gv % 2 == 0 and gh % 2 == 0 else 'нужно чётное число каждой ориентации'})
+        # portraits: one child = one run of frames between pauses
+        pr = part('portrait')
+        gap = self.setting('person_gap_sec', int)
+        kids, cur, prev = [], [], None
+        for f in pr:
+            t = datetime.strptime(f['capture_at'], '%Y-%m-%d %H:%M:%S')
+            if prev and (t - prev).total_seconds() > gap and cur:
+                kids.append(cur)
+                cur = []
+            cur.append(f)
+            prev = t
+        if cur:
+            kids.append(cur)
+        few = [k for k in kids if len(k) < 12]
+        res.append({'t': 'Портреты: 12–15 кадров на ученика', 'v': f'{len(kids)} серий' + (f' · меньше 12: {len(few)}' if few else ''),
+                    'ok': bool(kids) and not few, 'h': ', '.join(f"{k[0]['name']} ({len(k)})" for k in few[:6]),
+                    'jump': few[0][0]['path'] if few else None})
+        te = part('teacher')
+        res.append({'t': 'Портреты педагогов', 'v': f'{len(te)} кадров', 'ok': bool(te), 'h': '' if te else 'нет кадров с разделителем «Педагоги»'})
+        return res
+
     def _sort_sections(self, sid, files, person_secs, cfg):
         """Sorted delivery (Crous): the whole card as one time line; dividers set the kind of everything after them."""
         seq = sorted(files, key=lambda f: (f['capture_at'], f['name']))
@@ -1378,6 +2068,7 @@ class Engine:
                  'kind': 'timeline', 'person': None, 'files': [f['path'] for f in seq], 'mandatory': {}, 'limit': None,
                  'roles': [], 'overridden': not auto, 'unsure': {}, 'dividers': [{'path': p, 'cat': k} for p, k in divs],
                  'cats': cats, 'labels': labels}]
+
 
     def set_divider(self, sid, path, cat):
         """Put a divider before this frame (cat), or remove it (cat=None). The first edit keeps the automatic guess."""
@@ -1419,65 +2110,147 @@ class Engine:
             pool = [f for f in pool if not ref or dist(f) > hard]
             if not pool:
                 break
-            best = max(pool, key=lambda f: (min(dist(f), 20), inside(f), f['sharpness'] or 0))
+
+            def pose_d(a, b):
+                # with faces: a different pose = the face elsewhere in the frame or a different framing
+                if not a.get('pose') or not b.get('pose'):
+                    return 0
+                (ax, ay, ah), (bx, by, bh) = a['pose'], b['pose']
+                return (abs(ax - bx) + abs(ay - by)) * 60 + abs(math.log(ah / bh)) * 25
+            score = lambda f: min((hamming(f['dhash'], x['dhash']) + pose_d(f, x) for x in ref), default=99)
+            best = max(pool, key=lambda f: (min(score(f), 30), inside(f), f['sharpness'] or 0))
             if stop is not None and ref and dist(best) <= stop:
                 break
             picks.append(best)
             pool.remove(best)
         return picks
 
+    @staticmethod
+    def duplicate_parent(section, path, mains, info):
+        if not mains:
+            return None
+        scenes = {q: i for i, group in enumerate(section.get('scenes', [])) for q in group}
+        frame = info[path]
+        def distance(q):
+            other = info[q]
+            return (scenes.get(path, -1) != scenes.get(q, -1), hamming(frame.get('dhash'), other.get('dhash')),
+                    abs((frame.get('frame') or 0) - (other.get('frame') or 0)), q)
+        return min(mains, key=distance)
+
     def _pick_common(self, s, info, dup_d, picks_by):
-        """Common photo: the sharpest frame of the longest run of near-identical frames (a group shot is a burst),
-        plus its closest repeats as duplicates. Reportage: diverse frames, plus a few near-repeats as duplicates."""
+        """Common photo: by default the first group set-up of the day (usually the class photo is shot first),
+        its most typical sharp frame, plus duplicates from the same set-up.
+        Reportage: one frame from each of the biggest other set-ups (about 15), duplicates from the same set-ups."""
         bad = lambda f: any(x and x != 'dup' for x in (f['flags'] or '').split(','))
         taken = {f['path'] for v in picks_by.values() for f in v}
-        cand = [info[p] for p in s['files'] if p in info and not bad(info[p]) and p not in taken and info[p]['dhash']]
-        cand.sort(key=lambda f: (f['capture_at'], f['name']))
-        if not cand:
+        ok = lambda p: p in info and not bad(info[p]) and p not in taken and info[p]['dhash']
+        raw = s.get('scenes') or [s['files']]
+        if s['kind'] == 'reportage' and len(raw) > 1:
+            raw = [sc for sc in raw if not set(sc) & taken] or raw   # the class photo set-up is not reportage
+        scenes = [[info[p] for p in sc if ok(p)] for sc in raw]
+        scenes = [sc for sc in scenes if sc]
+        if not scenes:
             return [], []
+        where = {f['path']: i for i, sc in enumerate(scenes) for f in sc}
+        sharp = lambda f: f['sharpness'] or 0
+
+        def nearest(m, pool, k):
+            return sorted((f for f in pool if f['path'] != m['path']), key=lambda f: hamming(f['dhash'], m['dhash']))[:k]
         if s['kind'] == 'group':
             must = [info[p] for p in s['mandatory'] if p in info]
             if must:
                 main = must[0]
+                sc = scenes[where[main['path']]] if main['path'] in where else []
             else:
-                runs, cur = [], [cand[0]]
-                for a, b in zip(cand, cand[1:]):
-                    if hamming(a['dhash'], b['dhash']) <= dup_d + 7:
-                        cur.append(b)
-                    else:
-                        runs.append(cur)
-                        cur = [b]
-                runs.append(cur)
-                run = max(runs, key=len)
-                main = max(run, key=lambda f: f['sharpness'] or 0)
-            rest = sorted((f for f in cand if f['path'] != main['path']), key=lambda f: hamming(f['dhash'], main['dhash']))
-            dups = [f for f in rest if hamming(f['dhash'], main['dhash']) <= dup_d + 12][:s['dup_limit']]
+                med = lambda x: sorted(f.get('nf', 0) for f in x)[len(x) // 2]
+                crowd = max((x for x in scenes if len(x) >= 2), key=med, default=None)
+                if crowd is not None and med(crowd) >= 8:
+                    # with faces: the class photo is the set-up with the most people in it (earliest on a tie)
+                    sc = crowd
+                else:
+                    sc = next((x for x in scenes if len(x) >= 3), max(scenes, key=len))
+                # everybody's eyes open first, then the most typical frame of the set-up, sharpest on a tie
+                main = min(sc, key=lambda f: (f.get('nclosed', 0), sum(hamming(f['dhash'], g['dhash']) for g in sc), -sharp(f)))
+            dups = nearest(main, sc, s['dup_limit'])
             return ([] if main['path'] in s['mandatory'] else [main]), dups
-        main = self._pick_diverse(cand, [], s['main_limit'], hard=2)
-        left = [f for f in cand if f not in main]
-        dups = []
+        clip = float(self.setting('clip_threshold') or 0.25)
+        lit = lambda f: (f['clip_hi'] or 0) < min(0.05, clip)
+        scenes = [[f for f in sc if lit(f)] or sc for sc in scenes]
+        big = sorted(scenes, key=len, reverse=True)
+        main, dups = [], []
+        for sc in big[:s['main_limit']]:
+            m = max(sc, key=sharp)
+            main.append(m)
+        if len(main) < s['main_limit']:                     # few set-ups: add different frames from the biggest
+            rest = [f for sc in big for f in sc if f not in main]
+            main += self._pick_diverse(rest, main, s['main_limit'] - len(main), hard=2)
+        main.sort(key=lambda f: (f['capture_at'], f['name']))
+        mains = [f['path'] for f in main]
+        buckets = defaultdict(list)
+        for sc in scenes:
+            for frame in sc:
+                if frame['path'] in mains:
+                    continue
+                parent = self.duplicate_parent(s, frame['path'], mains, info)
+                if parent and where.get(parent) == where.get(frame['path']):
+                    buckets[parent].append(frame)
         for m in main:
-            if len(dups) >= s['dup_limit']:
-                break
-            near = min(left, key=lambda f: hamming(f['dhash'], m['dhash']), default=None)
-            if near and hamming(near['dhash'], m['dhash']) <= dup_d + 8:
-                dups.append(near)
-                left.remove(near)
+            dups.extend(nearest(m, buckets[m['path']], s.get('dup_per_main', s['dup_limit'])))
         return main, dups
 
-    def suggest(self, sid):
+    def set_common(self, sid, path, scene=False):
+        """The photographer picks the class photo; its duplicates are re-picked from the same set-up.
+        scene=True: `path` only names the set-up, the most typical sharp frame of it becomes the class photo."""
+        secs, _ = self.sections(sid)
+        s = next((x for x in secs if x['id'] == 'common'), None)
+        if not s or path not in s['files']:
+            raise ValueError('Этот кадр нельзя сделать общей фотографией')
+        if scene:
+            with self.conn() as c:
+                info = {f['path']: f for f in self._files(c, sid)}
+            sc = next((x for x in s.get('scenes', []) if path in x), [path])
+            good = [info[p] for p in sc if p in info and info[p]['dhash'] and
+                    not any(x and x != 'dup' for x in (info[p]['flags'] or '').split(','))] or [info[path]]
+            path = min(good, key=lambda f: (sum(hamming(f['dhash'], g['dhash']) for g in good if g['dhash']), -(f['sharpness'] or 0)))['path']
+        with self.conn() as c:
+            c.execute('INSERT OR REPLACE INTO anchor_overrides(session_id,person,key,file_path,at) VALUES(?,?,?,?,CURRENT_TIMESTAMP)',
+                      (sid, '__common__', 'G', path))
+            for t in ('selections', 'approvals', 'marks'):
+                c.execute(f"DELETE FROM {t} WHERE session_id=? AND section_id='common'", (sid,))
+            c.execute("DELETE FROM selection_events WHERE session_id=? AND section_id='common' AND actor='user'", (sid,))
+            self.event(c, sid, 'review', 'set-common')
+        self.suggest(sid)
+        return {'ok': True}
+
+    def suggest(self, sid, section_ids=None):
         """Assemble kits automatically. A child gets 15–20 frames in total, the 5 worksheet frames included:
         up to 2 extra vignettes (most like the worksheet vignette), extra portraits and extra group photos —
         sharp, without defects, as different from each other as the series allows.
         A teacher gets 3–5 different poses. Sections the photographer already edited are left alone."""
         secs, _ = self.sections(sid)
+        if section_ids is not None:
+            secs = [x for x in secs if x['id'] in section_ids]
         st = self.settings(sid)
         kmin, kmax = int(st['kit_min']), int(st['kit_max'])
         target = max(kmin, min(kmax, int(st['target_per_student'])))
         dup_d = int(st['dup_distance'])
         with self.conn() as c:
             info = {f['path']: f for f in self._files(c, sid)}
-            c.execute('DELETE FROM ai_suggestions WHERE session_id=?', (sid,))
+            if section_ids is None:
+                c.execute('DELETE FROM ai_suggestions WHERE session_id=?', (sid,))
+            else:
+                c.executemany('DELETE FROM ai_suggestions WHERE session_id=? AND section_id=?', [(sid, key) for key in section_ids])
+            for p_, (nf, nc) in self._face_summary(sid).items():
+                if p_ in info:
+                    info[p_]['nf'], info[p_]['nclosed'] = nf, nc
+            # pose of a frame = where the main face is and how big (full length / waist / close-up)
+            for p_, fs in self._faces(sid).items():
+                if p_ in info and fs:
+                    f = fs[0]
+                    W = f.get('iw') or 1280
+                    H = f.get('ih') or 1280
+                    x1, y1, x2, y2 = f['box']
+                    info[p_]['pose'] = ((x1 + x2) / 2 / W, (y1 + y2) / 2 / H, max(f['h'], 0.01))
             approved = {r['section_id'] for r in c.execute('SELECT section_id FROM approvals WHERE session_id=? AND approved=1', (sid,))}
             edited = {r['section_id'] for r in c.execute("SELECT DISTINCT section_id FROM selection_events WHERE session_id=? AND actor='user'", (sid,))}
             picks_by, reason = {}, {}
@@ -1504,12 +2277,17 @@ class Engine:
             def pool_of(s):
                 # 'Дубль' only means "looks like a neighbour": such frames stay candidates, the picker skips copies
                 bad = lambda f: any(x and x != 'dup' for x in (f['flags'] or '').split(','))
-                pool = [info[p] for p in s['files'] if p in info and p not in s['mandatory'] and not bad(info[p])]
+                pool = [info[p] for p in s['files'] if p in info and p not in s['mandatory'] and p not in s.get('face_unverified', []) and not bad(info[p])]
                 sp = span_of(s)
-                if sp and s['kind'] in ('portrait', 'friends'):
+                if sp and s['kind'] in ('portrait', 'friends') and not s.get('face_verified'):
                     left, right = safe_side(s, -1), safe_side(s, 1)
                     pool = [f for f in pool if f['frame'] is None or sp[0] <= f['frame'] <= sp[1]
                             or (f['frame'] < sp[0] and left) or (f['frame'] > sp[1] and right)]
+                shut = set(s.get('closed') or [])
+                if shut:            # closed eyes: only when there is nothing else
+                    open_ = [f for f in pool if f['path'] not in shut]
+                    if len(open_) >= max(8, len(pool) // 2):
+                        pool = open_
                 return pool
             by_person = defaultdict(list)
             for s in sorted(secs, key=lambda x: {'group': 1, 'reportage': 2}.get(x['kind'], 0)):
@@ -1589,7 +2367,20 @@ class Engine:
                               (sid, p, 'worksheet' if p in s['mandatory'] else 'auto', 'select', s['id'], now()))
 
     # -------------------------------------------------------- review state
+    def active_session_id(self, sid):
+        with self.conn() as c:
+            for _ in range(5):
+                row = c.execute('SELECT meta FROM sessions WHERE id=?', (sid,)).fetchone()
+                target = json.loads(row['meta'] or '{}').get('superseded_by') if row else None
+                if not target or target == sid:
+                    return sid
+                sid = target
+        raise ValueError('Некорректная ссылка на восстановленную съёмку')
+
     def session(self, sid):
+        active = self.active_session_id(sid)
+        if active != sid:
+            return self.session(active)
         with self.conn() as c:
             s = c.execute('SELECT * FROM sessions WHERE id=?', (sid,)).fetchone()
             if not s:
@@ -1606,6 +2397,8 @@ class Engine:
             for r in c.execute('SELECT section_id,file_path,reason FROM ai_suggestions WHERE session_id=?', (sid,)):
                 sugg[r['section_id']].append(r['file_path'])
                 reasons[r['section_id']][r['file_path']] = r['reason']
+            for r in c.execute('SELECT section_id,path,reason FROM reason_ov WHERE session_id=?', (sid,)):
+                reasons[r['section_id']][r['path']] = r['reason']      # moved by the photographer
         secs, conflicts = self.sections(sid)
         # a section that was never assembled (new layout, catalog from an older version): assemble it now
         if any(not sel.get(x['id']) and x['kind'] in ('timeline', 'cat') for x in secs):
@@ -1614,6 +2407,12 @@ class Engine:
             if any(x['id'] not in touched and not sel.get(x['id']) for x in secs if x['kind'] in ('timeline', 'cat')):
                 self.suggest(sid)
                 return self.session(sid)
+        # Crous time line: closed eyes are only marked (the photographer decides), never removed
+        tl = [x for x in secs if x['kind'] == 'timeline']
+        if tl:
+            F = self._faces(sid)
+            if F:
+                tl[0]['closed'] = [p for p in tl[0]['files'] if any(f['h'] > 0.05 and f.get('eye2', 1) < self.EYES_CLOSED for f in F.get(p, [])[:3])]
         # worksheet frames are always part of the kit; stale picks from an earlier import are dropped
         for x in secs:
             have = [p for p in sel.get(x['id'], []) if p in x['files'] or p in x['mandatory']]
@@ -1622,11 +2421,15 @@ class Engine:
             people = c.execute("SELECT student_id, name FROM students WHERE session_id=? ORDER BY rowid", (sid,)).fetchall()
         present = {x['person'] for x in secs}
         absent = [r['name'] for r in people if r['student_id'] not in present]
-        slim = [{k: f[k] for k in ('path', 'name', 'capture_at', 'kind', 'frame', 'series', 'flags', 'sharpness', 'brightness', 'analyzed')}
-                | {'has_preview': bool(f['preview'])} for f in files]
+        slim = [{k: f[k] for k in ('path', 'name', 'capture_at', 'kind', 'frame', 'series', 'flags', 'sharpness', 'brightness', 'analyzed', 'wide', 'dhash')}
+                | {'has_preview': bool(f['preview']), 'preview_rev': self.preview_revision(sid, f['path'], f['preview'], f['orient']), 'gone': not self._src_ok(f['path'], f['bytes'], f['capture_at'], f['preview'])} for f in files]
         return {'session': dict(s), 'files': slim, 'sections': secs, 'conflicts': conflicts,
                 'selected': sel, 'approved': appr, 'absent': absent, 'reasons': reasons, 'dups': dmarks, 'suggested': sugg, 'pillow': Image is not None,
-                'flag_names': FLAG_NAMES}
+                'flag_names': FLAG_NAMES,
+                'plan': next((self.plan_check(sid, x) for x in secs if x['kind'] == 'timeline'), []),
+                'faces': self._faces_info(sid, len(files)), 'gone': sum(bool(f.get('gone')) for f in slim),
+                'jpeg_only': [f['name'] for f in files if f['kind'] != 'raw' and f['frame'] is not None]
+                             if any(f['kind'] == 'raw' for f in files) else []}
 
     def review(self, sid, body):
         secs, _ = self.sections(sid)
@@ -1646,6 +2449,16 @@ class Engine:
                 raise ValueError(f'Дублей не больше {s["dup_limit"]}')
             if len(chosen) - len(dups) > s['main_limit']:
                 raise ValueError(f'Основных кадров не больше {s["main_limit"]} — остальные отметьте как дубли (клавиша D)')
+            if s.get('dup_per_main') is not None:
+                with self.conn() as c:
+                    info = {f['path']: f for f in self._files(c, sid)}
+                mains = [p for p in chosen if p not in dups]
+                counts = Counter(self.duplicate_parent(s, p, mains, info) for p in dups)
+                if None in counts:
+                    raise ValueError('Сначала выберите основной кадр для дублей')
+                for parent, count in counts.items():
+                    if count > s['dup_per_main']:
+                        raise ValueError(f"К {Path(parent).name} можно выбрать до {s['dup_per_main']} дублей")
         elif s['limit'] and len(chosen) > s['limit']:
             raise ValueError(f'Максимум {s["limit"]} кадров')
         approve = bool(body.get('approved'))
@@ -1714,7 +2527,7 @@ class Engine:
                               [(sid, s['person'], k) for k in s['roles']])
                 self.event(c, sid, 'review', 'reset-roles:' + s['id'])
             else:
-                if path not in s['files']:
+                if path not in s['files'] and path not in (s.get('fix') or {}).values():
                     raise ValueError('Кадр не из этой секции')
                 if role is None:
                     key = s['mandatory'].get(path)
@@ -1752,6 +2565,13 @@ class Engine:
             if not r:
                 raise ValueError('Съёмка не найдена')
             meta = json.loads(r['meta'] or '{}')
+            if 'face_similarity' in body:
+                threshold = float(body['face_similarity'])
+                if not 0.3 <= threshold <= 0.8:
+                    raise ValueError('Строгость лиц: от 0.30 до 0.80')
+                meta['face_similarity'] = threshold
+            if body.get('shooting_format') in ('standard', 'portraits_groups'):
+                meta['shooting_format'] = body['shooting_format']
             if 'background' in body:
                 bg = str(body['background']).strip().strip('"')
                 if bg and not Path(bg).is_file():
@@ -1760,6 +2580,8 @@ class Engine:
             for k in ('disk_link', 'disk_path'):
                 if k in body:
                     meta[k] = str(body[k])
+            if isinstance(body.get('disk_check'), dict):
+                meta['disk_check'] = body['disk_check']
             if 'last_export' in body:
                 meta['last_export'] = str(body['last_export'])
             if 'output' in body:
@@ -1784,6 +2606,8 @@ class Engine:
         ops, names = [], set()
 
         def add(p, rel, who='', what='', role=''):
+            if files.get(p, {}).get('gone'):
+                raise ValueError('Исходник изменён или отсутствует на карте: ' + Path(p).name + '. Вставьте карту этой съёмки.')
             if str(rel).casefold() in names:
                 raise ValueError('Конфликт имён: ' + str(rel))
             names.add(str(rel).casefold())
@@ -1803,10 +2627,13 @@ class Engine:
             for sec in st['sections']:
                 if sec['kind'] in ('group', 'reportage'):
                     cat = CATS[2] if sec['kind'] == 'group' else CATS[3]
+                    mark = 'Общая ' if sec['kind'] == 'group' else 'Репортаж_'
                     dset = set(st['dups'].get(sec['id'], []))
                     for p in sorted(st['selected'].get(sec['id'], []), key=lambda x: files[x]['name'] if x in files else x):
                         if p in files:
-                            rel = root / cat / ('Дубли' if p in dset else '') / files[p]['name']
+                            # main frames are marked («Общая ANT00094.ARW», «Репортаж_ANT00051.ARW»), duplicates lie
+                            # next to them under their camera names
+                            rel = root / cat / (files[p]['name'] if p in dset else mark + files[p]['name'])
                             add(p, rel, sec['title'], sec['title'], 'дубль' if p in dset else 'основной')
                     continue
                 key = (sec['person'], sec['kind'] == 'teacher', sec['title'])
@@ -1831,7 +2658,7 @@ class Engine:
                     if is_teacher:
                         teacher_done.add(p)
                         title = safe_name(' '.join(x for x in (name, teacher_title(sub) if sub != 'Учитель' else '') if x))
-                        rel = root / CATS[5] / (title + Path(nm).suffix if p == main else nm)
+                        rel = root / CATS[5] / title / (title + Path(nm).suffix if p == main else nm)
                     else:
                         rel = root / CATS[4] / name / (mand.get((person, p), '') + nm)
                     add(p, rel, name, 'Учитель' if is_teacher else 'Ученик', roles.get((person, p), ''))
@@ -1863,7 +2690,7 @@ class Engine:
         if update:
             wanted = {str(out / op[1]).casefold() for op in ops}
             for f in (out / root).rglob('*'):
-                if f.is_file() and not f.name.startswith(('_LUMIO_', '_FOBOX_')) and str(f).casefold() not in wanted:
+                if f.is_file() and not f.name.startswith(('_LUMIO_', '_FOBOX_')) and f.suffix.lower() != '.xmp' and str(f).casefold() not in wanted:
                     warnings.append(f'Лишний файл в заказе (снят с выбора, удалите вручную): {f.relative_to(out / root)}')
         need = sum(Path(op[0]).stat().st_size for op in ops if str(op[1]) not in skip)
         free = shutil.disk_usage(out if out.exists() else out.parent if out.parent.exists() else Path.home()).free
@@ -1979,6 +2806,11 @@ class Engine:
         job['stage'] = 'Готово'
         return {'root': plan['root'], 'files': plan['files'], 'new': plan['new'], 'update': plan['update'], 'bytes': plan['bytes'], 'report': str(root / '_LUMIO_отчёт.csv'), 'warnings': plan['warnings']}
 
+    def disk_token(self, company):
+        """Every company uploads to its own Яндекс.Диск. The token set up before 4.11 belongs to Crous."""
+        st = self.settings()
+        return st.get('yandex_token@' + company) or (st.get('yandex_token', '') if company == 'crous' else '')
+
     def disk_target(self, sid):
         """Where an upload goes: disk:/<company folder>/<order folder>."""
         s = self.session(sid)['session']
@@ -1991,7 +2823,12 @@ class Engine:
     def start_upload(self, sid):
         """Upload the order straight from the card to Яндекс.Диск, in the same layout as a local export."""
         from yadisk import YaDisk
-        disk = YaDisk(self.setting('yandex_token'))
+        s = self.session(sid)['session']
+        cfg = self.company(s.get('company'))
+        tok = self.disk_token(cfg['id'])
+        if not tok:
+            raise ValueError(f'Яндекс.Диск для «{cfg["name"]}» не подключён — Настройки → Яндекс.Диск')
+        disk = YaDisk(tok)
         tmp = Path(tempfile.gettempdir()) / 'lumio_plan_probe'
         plan = self.plan_export(sid, tmp)
         target = self.disk_target(sid)
@@ -2012,19 +2849,44 @@ class Engine:
                         disk.mkdirs(target + '/' + d)
                 job['stage'] = 'Загрузка'
                 up = sk = 0
+                want = {}                                    # path on the Disk -> (local file, size, md5)
                 for p, rel, *_ in plan['ops']:
-                    r = disk.upload(str(p), target + '/' + Path(rel).relative_to(plan['rootrel']).as_posix())
-                    up += r == 'uploaded'
-                    sk += r == 'skipped'
+                    r_ = Path(rel).relative_to(plan['rootrel']).as_posix()
+                    res, md5 = disk.upload(str(p), target + '/' + r_)
+                    want[r_] = (p, Path(p).stat().st_size, md5)
+                    up += res == 'uploaded'
+                    sk += res == 'skipped'
                     job['done'] += 1
                     job['bytes_done'] += Path(p).stat().st_size
+
+                def verify():
+                    have = disk.tree(target)
+                    bad = [r_ for r_, (_, size, md5) in want.items()
+                           if r_ not in have or have[r_]['size'] != size or (have[r_].get('md5') and have[r_]['md5'] != md5)]
+                    return have, bad
+                # check: every file is on the Disk with the same size and MD5; what does not match is sent again once
+                job.update(stage='Проверка контрольных сумм', done=0, total=len(want))
+                have, bad = verify()
+                job['done'] = len(want)
+                if bad:
+                    job.update(stage='Повторная загрузка несовпавших', done=0, total=len(bad))
+                    for r_ in bad:
+                        disk.upload(str(want[r_][0]), target + '/' + r_, force=True)
+                        job['done'] += 1
+                    job.update(stage='Повторная проверка', done=0, total=len(want))
+                    have, bad = verify()
+                    job['done'] = len(want)
+                extra = sorted(set(have) - set(want))
+                check = {'expected': len(want), 'ok': len(want) - len(bad), 'bad': bad[:50], 'extra': len(extra),
+                         'md5': all(v.get('md5') for v in have.values()), 'at': now()}
                 job['stage'] = 'Ссылка'
                 link = disk.publish(target)
                 with self.conn() as c:
-                    self.event(c, sid, 'upload', 'end')
+                    self.event(c, sid, 'upload', 'end' if not bad else 'end-with-errors')
                     c.execute("UPDATE sessions SET status='exported' WHERE id=?", (sid,))
-                self.set_meta(sid, {'disk_link': link, 'disk_path': target})
-                job['result'] = {'link': link, 'target': target, 'uploaded': up, 'skipped': sk, 'warnings': plan['warnings']}
+                self.set_meta(sid, {'disk_link': link, 'disk_path': target, 'disk_check': check})
+                job['result'] = {'link': link, 'target': target, 'uploaded': up, 'skipped': sk, 'warnings': plan['warnings'], 'check': check,
+                                 'files': len(plan['ops'])}
                 job['stage'] = 'Готово'
             except Exception as e:
                 job['error'] = str(e)
@@ -2054,7 +2916,7 @@ class Engine:
             if not c.execute('SELECT 1 FROM sessions WHERE id=?', (sid,)).fetchone():
                 raise ValueError('Съёмка не найдена')
             for t in ('selection_events', 'ai_suggestions', 'selections', 'approvals', 'anchor_overrides',
-                      'marks', 'dividers', 'series_cat'):
+                      'marks', 'dividers', 'series_cat', 'reason_ov'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             self.event(c, sid, 'review', 'reset-all')
         self.suggest(sid)
@@ -2064,7 +2926,7 @@ class Engine:
         """Removes the session from the catalog only. Source files are not touched."""
         with self.conn() as c:
             for t in ('files', 'students', 'selection_events', 'workflow_events', 'ai_suggestions', 'selections', 'approvals',
-                      'anchor_overrides', 'marks', 'dividers', 'series_cat'):
+                      'anchor_overrides', 'marks', 'dividers', 'series_cat', 'renames', 'faces', 'flag_ok', 'reason_ov'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             c.execute('DELETE FROM sessions WHERE id=?', (sid,))
 
@@ -2076,7 +2938,7 @@ class Engine:
             sessions = [dict(r) for r in c.execute('SELECT * FROM sessions ORDER BY first_capture DESC')]
             per = {s['id']: s for s in sessions}
             for s in sessions:
-                s.update(frames=0, raw=0, analyzed=0, flags={}, students=0, kits=0, selected=0, sections=0, approved=0,
+                s.update(frames=0, raw=0, analyzed=0, flags={}, students=0, teachers=0, kits=0, selected=0, sections=0, approved=0,
                          suggested=0, accepted=0, replaced=0, manual_added=0, untouched=0, durations={}, cover=None, hours=None)
             for r in c.execute("SELECT session_id, COUNT(*) n, SUM(kind='raw') nr, SUM(analyzed) na FROM files GROUP BY session_id"):
                 if r['session_id'] in per:
@@ -2089,9 +2951,14 @@ class Engine:
             days, day_hours = defaultdict(int), defaultdict(float)
             for r in c.execute('SELECT substr(capture_at,1,10) d, COUNT(*) n FROM files GROUP BY d'):
                 days[r['d']] += r['n']
-            for r in c.execute("SELECT session_id, COUNT(*) n FROM students WHERE role='student' GROUP BY session_id"):
+            for r in c.execute("SELECT session_id, role, COUNT(*) n FROM students WHERE role IN ('student','teacher') GROUP BY session_id, role"):
                 if r['session_id'] in per:
-                    per[r['session_id']]['students'] = r['n']
+                    per[r['session_id']]['students' if r['role'] == 'student' else 'teachers'] = r['n']
+            for s_ in sessions:                      # no worksheet (Crous): people counted by faces
+                if not s_['students'] and not s_['teachers']:
+                    pf = json.loads(s_.get('meta') or '{}').get('people_faces') or {}
+                    s_['students'], s_['teachers'] = pf.get('students', 0), pf.get('teachers', 0)
+                    s_['people_by_faces'] = bool(pf)
             for r in c.execute('SELECT session_id, COUNT(DISTINCT file_path) n FROM selections GROUP BY session_id'):
                 if r['session_id'] in per:
                     per[r['session_id']]['selected'] = r['n']

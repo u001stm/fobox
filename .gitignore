@@ -2,3 +2,21 @@ __pycache__/
 *.pyc
 *.sqlite3
 lumio3_state.json
+
+# Local catalogs, credentials and media
+*.sqlite*
+*.db
+.env
+.env.*
+.lumio/
+.fobox/
+__pycache__/
+*.pyc
+work/
+exports/
+*.ARW
+*.arw
+*.CR2
+*.cr2
+*.NEF
+*.nef

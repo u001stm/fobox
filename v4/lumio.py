@@ -20,13 +20,13 @@ from urllib.parse import parse_qs, urlparse
 from engine import Engine
 
 UI = Path(__file__).with_name('ui.html')
-CODE = [Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).with_name('yadisk.py')]
+CODE = [Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).with_name('yadisk.py'), Path(__file__).with_name('faces.py')]
 
 
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.5.0'  # bump together with UI_VERSION in ui.html
+APP_VERSION = '4.20.1'  # bump together with UI_VERSION in ui.html
 
 
 def pick_path(kind):
@@ -89,7 +89,9 @@ def make_handler(engine):
                 elif u.path == '/api/build':
                     self.send(200, {'build': build_id(), 'version': APP_VERSION})
                 elif u.path == '/api/settings':
-                    self.send(200, {'settings': engine.settings(), 'profile': engine.profile(), 'version': APP_VERSION, 'companies': engine.companies()})
+                    j = engine.jobs.get('faces:install')
+                    self.send(200, {'settings': engine.settings(), 'profile': engine.profile(), 'version': APP_VERSION, 'companies': engine.companies(),
+                                    'faces_install': ({k: j.get(k) for k in ('stage', 'done', 'total', 'error', 'finished')} if j else None)})
                 elif u.path == '/api/session':
                     self.send(200, engine.session(q.get('id', '')))
                 elif u.path == '/api/job':
@@ -99,7 +101,7 @@ def make_handler(engine):
                     if data is None:
                         self.send(404, {'error': 'Нет превью'})
                     else:
-                        self.send(200, data, 'image/jpeg', cache=True)
+                        self.send(200, data, 'image/jpeg', cache=False)
                 else:
                     self.send(404, {'error': 'Не найдено'})
             except (ValueError, OSError) as e:
@@ -111,6 +113,8 @@ def make_handler(engine):
                 if n > 2_000_000:
                     raise ValueError('Слишком большой запрос')
                 b = json.loads(self.rfile.read(n) or b'{}')
+                if b.get('session') and urlparse(self.path).path != '/api/delete':
+                    b['session'] = engine.active_session_id(b['session'])
                 p = urlparse(self.path).path
                 if p == '/api/import':
                     out = engine.start_import(b)
@@ -133,7 +137,7 @@ def make_handler(engine):
                     out = {'target': engine.disk_target(b['session'])}
                 elif p == '/api/disk-check':
                     from yadisk import YaDisk
-                    out = YaDisk(b.get('token') or engine.setting('yandex_token')).info()
+                    out = YaDisk(b.get('token') or engine.disk_token(b.get('company') or 'crous')).info()
                 elif p == '/api/rebuild':
                     out = engine.rebuild(b['session'], b.get('sections'))
                 elif p == '/api/role':
@@ -152,6 +156,22 @@ def make_handler(engine):
                     if 'profile' in b:
                         engine.save_profile(b['profile'])
                     out = {'ok': True}
+                elif p == '/api/add-teacher':
+                    out = engine.add_teacher(b['session'], b.get('name'), b.get('frame'), b.get('role', ''))
+                elif p == '/api/rename':
+                    out = engine.rename_person(b['session'], b['person'], b.get('name'), b.get('role'))
+                elif p == '/api/set-common':
+                    out = engine.set_common(b['session'], b['path'], bool(b.get('scene')))
+                elif p == '/api/faces':
+                    out = engine.faces_status()
+                elif p == '/api/faces-install':
+                    out = engine.install_faces()
+                elif p == '/api/faces-run':
+                    out = engine.start_faces(b['session'], bool(b.get('force')), bool(b.get('rebuild')))
+                elif p == '/api/not-defect':
+                    out = engine.not_defect(b['session'], b['path'], b.get('ok', True) is not False)
+                elif p == '/api/reason':
+                    out = engine.set_reason(b['session'], b['section'], b['path'], b['reason'])
                 elif p == '/api/reset':
                     out = engine.reset_session(b['session'])
                 elif p == '/api/delete':
@@ -166,6 +186,7 @@ def make_handler(engine):
                         try:
                             engine.analyze(sid, job)
                             engine.suggest(sid)
+                            engine._faces_auto(sid)
                         except Exception as e:
                             job['error'] = str(e)
                         job['finished'] = True
@@ -269,6 +290,13 @@ def main():
     engine = Engine(Path(a.db).expanduser())
     server.RequestHandlerClass = make_handler(engine)
     print(f'LUMIO {APP_VERSION}: {url} | база: {a.db} | Ctrl+C — остановить', flush=True)
+    # face recognition is part of the normal flow: on first start it installs itself in the background
+    try:
+        if not engine.faces_status()['ready']:
+            engine.install_faces()
+            print('Устанавливаю распознавание лиц в фоне (один раз)…', flush=True)
+    except Exception as e:
+        print('Распознавание лиц:', e, flush=True)
     if not a.no_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     restart = threading.Event()

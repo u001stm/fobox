@@ -16,8 +16,9 @@ except ImportError:
     Image = None
 
 
-def jpeg(color, when, blank=False):
-    im = Image.new('RGB', (300, 200), color)
+def jpeg(color, when, blank=False, wide=False):
+    """Portraits are vertical, group photos horizontal — as on a real school card."""
+    im = Image.new('RGB', (300, 200) if wide else (200, 300), color)
     if not blank:
         from PIL import ImageDraw
         d = ImageDraw.Draw(im)
@@ -65,7 +66,8 @@ class EngineTest(unittest.TestCase):
         for n in range(100, 140):
             t += timedelta(seconds=5 if n != 120 else 900)
             colour = (60 + n % 7 * 20, 90, 140)
-            (self.src / f'ABC0{n}.JPG').write_bytes(jpeg((252, 252, 252) if n == 105 else colour, t, blank=(n == 105)))
+            (self.src / f'ABC0{n}.JPG').write_bytes(jpeg((252, 252, 252) if n == 105 else colour, t, blank=(n == 105),
+                                                         wide=120 <= n < 128))   # group block; teachers after it
             (self.src / f'ABC0{n}.ARW').write_bytes(b'RAW' * 50 + bytes([n % 256]))
         (self.tmp / 'students.csv').write_text('Name,V,P1,P2,D1,D2\nИванов Иван Петрович,110,111,112,125,126\n', encoding='utf-8')
         self.e = Engine(self.tmp / 'db' / 'f.sqlite3')
@@ -78,6 +80,41 @@ class EngineTest(unittest.TestCase):
         st = self.e.session(sid)
         for s in st['sections']:
             self.e.review(sid, {'section': s['id'], 'selected': st['selected'][s['id']], 'approved': True})
+
+    def test_replaced_card_at_same_path_is_a_separate_session(self):
+        first = self.school()
+        self.approve_all(first)
+        path = self.src / 'ABC0100.JPG'
+        path.write_bytes(jpeg((190, 30, 40), datetime(2026, 10, 23, 12, 0)))
+        second = self.school()
+        self.assertNotEqual(first, second)
+        with self.e.conn() as c:
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM approvals WHERE session_id=?', (second,)).fetchone()[0], 0)
+            self.assertGreater(c.execute('SELECT COUNT(*) FROM approvals WHERE session_id=?', (first,)).fetchone()[0], 0)
+        self.assertEqual(self.school(), second)
+
+    def test_preview_revision_changes_and_missing_source_never_uses_cache(self):
+        sid = self.school()
+        raw = str(self.src / 'ABC0110.ARW')
+        image = self.src / 'ABC0110.JPG'
+        before = self.e.session(sid)
+        token = next(f['preview_rev'] for f in before['files'] if f['path'] == raw)
+        self.assertTrue(self.e.preview_bytes(sid, raw, 480))
+        image.write_bytes(jpeg((190, 30, 40), datetime(2026, 10, 23, 12, 0)))
+        after = self.e.session(sid)
+        self.assertNotEqual(token, next(f['preview_rev'] for f in after['files'] if f['path'] == raw))
+        image.unlink()
+        self.assertIsNone(self.e.preview_bytes(sid, raw, 480))
+
+    def test_portraits_groups_format_has_no_friends_or_reportage(self):
+        sid = self.e.import_folder(self.src, {'students': str(self.tmp / 'students.csv'),
+                                             'shooting_format': 'portraits_groups'})
+        kinds = {sec['kind'] for sec in self.e.session(sid)['sections']}
+        self.assertIn('portrait', kinds)
+        self.assertNotIn('friends', kinds)
+        self.assertNotIn('reportage', kinds)
+        self.assertFalse(self.e.settings(sid)['_company']['report'])
+        self.assertTrue(self.e.company('vypusk')['report'])
 
     def test_import_is_idempotent_and_series_split(self):
         sid = self.e.import_folder(self.src)
@@ -105,12 +142,12 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(dry['warnings'])
         self.approve_all(sid)
         r = self.e.export(sid, self.tmp / 'out')
-        kid = Path(r['root']) / '05_УЧЕНИКИ' / 'Иванов Иван'
+        kid = Path(r['root']) / 'ученики' / 'Иванов Иван'
         names = {p.name for p in kid.iterdir()}
         for n in ('Иванов Иван_ABC0110.ARW', 'ЛР_Иванов Иван_ABC0111.ARW', 'ЛС_Иванов Иван_ABC0112.ARW',
                   'Друг1_ABC0125.ARW', 'Друг2_ABC0126.ARW'):
             self.assertIn(n, names)
-        self.assertTrue((Path(r['root']) / '07_ФОН').is_dir())
+        self.assertTrue((Path(r['root']) / 'фон').is_dir())
         again = self.e.export(sid, self.tmp / 'out')   # re-export = top-up, nothing copied twice
         self.assertEqual(again['new'], 0)
         (Path(r['root']) / 'чужой.txt').write_text('x')
@@ -185,6 +222,17 @@ class EngineTest(unittest.TestCase):
         f = self.tmp / 'v.csv'
         f.write_text('ФИО;В;ЛР;ЛС;Д1;Д2\nСоседка Ада;102;104;106;;\nГорбо Михаил;118;124;128;;\nСосед Боря;140;142;144;;\n', encoding='utf-8')
         sid = self.e.import_folder(d, {'students': str(f)})
+        import numpy as np
+        import json
+        with self.e.conn() as c:
+            records = []
+            for row in c.execute('SELECT path,frame FROM files WHERE session_id=?', (sid,)).fetchall():
+                vector = np.zeros(512, dtype='float32')
+                vector[0 if row['frame'] < 110 else (1 if row['frame'] <= 134 else 2)] = 1
+                face = {'box': [0, 0, 50, 50], 'h': .3, 'eye2': .3, 'eye': .3}
+                records.append((sid, row['path'], 1, json.dumps([face]), vector.astype('float16').tobytes()))
+            c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', records)
+        self.e.suggest(sid)
         st = self.e.session(sid)
         g = next(x for x in st['sections'] if x['title'] == 'Горбо Михаил')
         sel = st['selected'][g['id']]
@@ -225,9 +273,37 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(sorted(st['sections'][1]['mandatory'].values()), ['D1', 'D2'])
         self.approve_all(sid)
         r = self.e.export(sid, self.tmp / 'out')
-        names = {x.name for x in (Path(r['root']) / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()}
+        names = {x.name for x in (Path(r['root']) / 'ученики' / 'Иванов Иван').iterdir()}
         self.assertTrue({'Иванов Иван_ABC0110.ARW', 'ЛР_Иванов Иван_ABC0111.ARW', 'ЛС_Иванов Иван_ABC0112.ARW',
                          'Друг1_ABC0125.ARW', 'Друг2_ABC0126.ARW'} <= names)
+
+    def test_comma_excel_vignette_only_and_unknown_numbers(self):
+        import openpyxl
+        from engine import read_workbook, worksheet_summary
+        wb = openpyxl.Workbook()
+        for line in ('Фамилия,Имя,Виньетка,ЛР,ЛС,Друг 1,Друг 2',
+                     'Иванов,Иван,110,0,0,0,0', 'Петрова,Анна,0,0,0,0,0'):
+            wb.active.append([line])
+        xlsx = self.tmp / 'partial.xlsx'
+        wb.save(xlsx)
+        rows = read_workbook(xlsx)['students']
+        self.assertEqual(rows[0]['Name'], 'Иванов Иван')
+        self.assertEqual(rows[0]['V'], '110')
+        self.assertTrue(all(not rows[0][k] for k in ('P1', 'P2', 'D1', 'D2')))
+        self.assertEqual(worksheet_summary(xlsx)['no_numbers'], 1)
+        sid = self.e.import_folder(self.src, {'students': str(xlsx)})
+        state = self.e.session(sid)
+        self.assertEqual(state['conflicts'], [])
+        portrait = next(sec for sec in state['sections'] if sec['id'] == 's0p')
+        self.assertEqual(list(portrait['mandatory'].values()), ['V'])
+
+    def test_partial_worksheet_with_only_name_and_vignette_columns(self):
+        from engine import read_workbook
+        f = self.tmp / 'partial.csv'
+        f.write_text('Фамилия,Имя,Виньетка\nИванов,Иван,110\nПетрова,Анна,0\n', encoding='utf-8')
+        rows = read_workbook(f)['students']
+        self.assertEqual([r['Name'] for r in rows], ['Иванов Иван', 'Петрова Анна'])
+        self.assertEqual(rows[1]['V'], '')
 
     def test_combined_worksheet_pasted_in_one_excel_column(self):
         """The real-life layout: CSV text in column A, type column, teachers in the same file,
@@ -255,10 +331,10 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len(secs['t0']['mandatory']), 1)
         self.approve_all(sid)
         root = Path(self.e.export(sid, self.tmp / 'out')['root'])
-        anna = {x.name for x in (root / '05_УЧЕНИКИ' / 'Петрова Анна').iterdir()}
+        anna = {x.name for x in (root / 'ученики' / 'Петрова Анна').iterdir()}
         self.assertTrue({'ЛР_Петрова Анна_ABC0114.ARW', 'Друг1_ABC0125.ARW', 'Друг2_ABC0127.ARW', 'Друг2_ABC0128.ARW'} <= anna)
-        self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
-        self.assertTrue(any((root / '06_УЧИТЕЛЯ').iterdir()))
+        self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / 'ученики' / 'Иванов Иван').iterdir()})
+        self.assertTrue(any((root / 'учителя').iterdir()))
 
     def test_missing_number_is_reported_with_child_name(self):
         f = self.tmp / 'v.csv'
@@ -292,7 +368,7 @@ class EngineTest(unittest.TestCase):
         self.e.set_role(sid, {'section': p['id'], 'path': right, 'role': 'P1'})
         self.approve_all(sid)
         r = self.e.export(sid, self.tmp / 'out')
-        names = {x.name for x in (Path(r['root']) / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()}
+        names = {x.name for x in (Path(r['root']) / 'ученики' / 'Иванов Иван').iterdir()}
         self.assertIn('ЛР_Иванов Иван_' + Path(right).name, names)
         self.assertNotIn('ЛР_Иванов Иван_ABC0111.ARW', names)
         self.e.set_role(sid, {'section': p['id'], 'reset': True})                     # back to the worksheet
@@ -313,6 +389,178 @@ class EngineTest(unittest.TestCase):
         self.assertEqual({k: sorted(v) for k, v in after['selected'].items()},
                          {k: sorted(v) for k, v in before['selected'].items()})     # same as right after import
 
+    def test_rename_child_and_teacher_kept_after_reimport(self):
+        sid = self.school()
+        st = self.e.session(sid)
+        p = st['sections'][0]
+        self.e.rename_person(sid, p['person'], 'Иванова  Ивана')
+        self.assertEqual(self.e.session(sid)['sections'][0]['title'], 'Иванова Ивана')
+        with self.assertRaises(ValueError):
+            self.e.rename_person(sid, p['person'], '   ')
+        self.assertEqual(self.school(), sid)                           # re-import the same worksheet
+        self.assertIn('Иванова Ивана', [x['title'] for x in self.e.session(sid)['sections']])
+        self.approve_all(sid)
+        r = self.e.export(sid, self.tmp / 'out_rn')
+        self.assertTrue((Path(r['root']) / 'ученики' / 'Иванова Ивана').exists())
+
+    def test_common_photo_chosen_by_photographer(self):
+        sid = self.school()
+        st = self.e.session(sid)
+        com = next((x for x in st['sections'] if x['id'] == 'common'), None)
+        if not com:
+            self.skipTest('no common section in this fixture')
+        pick = com['files'][-1]
+        self.e.set_common(sid, pick)
+        st = self.e.session(sid)
+        com = next(x for x in st['sections'] if x['id'] == 'common')
+        self.assertEqual(com['mandatory'], {pick: 'G'})
+        self.assertIn(pick, st['selected']['common'])
+
+    def test_vypusk_vertical_is_portrait_horizontal_is_group(self):
+        sid = self.school()
+        st = self.e.session(sid)
+        wide = {f['path']: f['wide'] for f in st['files']}
+        por = next(x for x in st['sections'] if x['kind'] == 'portrait')
+        fr = next(x for x in st['sections'] if x['kind'] == 'friends')
+        self.assertTrue(all(wide[p] == 0 for p in por['files']))
+        self.assertTrue(all(wide[p] == 1 for p in fr['files']))
+        self.assertTrue(all(wide[p] == 0 for p in st['selected'][por['id']]))
+
+    def test_face_search_finds_distant_portraits_and_excludes_strangers(self):
+        import json
+        import numpy as np
+        f = self.tmp / 'vignette_only.csv'
+        f.write_text('ФИО;Виньетка\nИванов Иван;110\n', encoding='utf-8')
+        sid = self.e.import_folder(self.src, {'students': str(f)})
+        before = self.e.session(sid)
+        section = next(x for x in before['sections'] if x['kind'] == 'portrait')
+        self.assertEqual(set(before['selected'][section['id']]), set(section['mandatory']))
+        with self.e.conn() as c:
+            rows = []
+            for row in c.execute('SELECT path,frame FROM files WHERE session_id=?', (sid,)).fetchall():
+                vector = np.zeros(512, dtype='float32')
+                vector[0 if row['frame'] in (110, 138) else 1] = 1
+                face = {'box': [0, 0, 50, 50], 'h': .3, 'eye2': .3, 'eye': .3}
+                rows.append((sid, row['path'], 1, json.dumps([face]), vector.astype('float16').tobytes()))
+            c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', rows)
+        self.e.suggest(sid)
+        state = self.e.session(sid)
+        section = next(x for x in state['sections'] if x['kind'] == 'portrait')
+        self.assertEqual({Path(q).name for q in section['files']}, {'ABC0110.ARW', 'ABC0138.ARW'})
+        self.assertEqual(len(section['face_unverified']), 0)
+        self.assertIn(str(self.src / 'ABC0138.ARW'), section['face_verified'])
+
+    def test_add_teacher_keeps_existing_selection_and_survives_reimport(self):
+        sid = self.school()
+        self.approve_all(sid)
+        with self.e.conn() as c:
+            selected = [tuple(r) for r in c.execute('SELECT section_id,file_path FROM selections WHERE session_id=? ORDER BY section_id,file_path', (sid,))]
+            approvals = [tuple(r) for r in c.execute('SELECT section_id,approved FROM approvals WHERE session_id=? ORDER BY section_id', (sid,))]
+        teacher = self.e.add_teacher(sid, 'Лазаренко Татьяна Юрьевна', '135', 'Классный руководитель')
+        state = self.e.session(sid)
+        section = next(x for x in state['sections'] if x['person'] == teacher['person'])
+        self.assertEqual(section['kind'], 'teacher')
+        self.assertEqual(section['mandatory'], {str(self.src / 'ABC0135.ARW'): 'T'})
+        with self.e.conn() as c:
+            after = [tuple(r) for r in c.execute('SELECT section_id,file_path FROM selections WHERE session_id=? AND section_id<>? ORDER BY section_id,file_path', (sid, teacher['person']))]
+            self.assertEqual(selected, after)
+            self.assertEqual(approvals, [tuple(r) for r in c.execute('SELECT section_id,approved FROM approvals WHERE session_id=? ORDER BY section_id', (sid,))])
+        self.school()
+        self.assertTrue(any(x['person'] == teacher['person'] for x in self.e.session(sid)['sections']))
+        with self.assertRaises(ValueError):
+            self.e.add_teacher(sid, 'Лазаренко Татьяна Юрьевна', '135')
+        with self.assertRaises(ValueError):
+            self.e.add_teacher(sid, 'Другой учитель', '99999')
+
+    def test_legacy_session_resolves_to_restored_catalog(self):
+        import json
+        sid = self.school()
+        with self.e.conn() as c:
+            c.execute('INSERT INTO sessions(id,title,source,meta) VALUES(?,?,?,?)',
+                      ('legacy', 'Legacy', str(self.src), json.dumps({'superseded_by': sid})))
+        self.assertEqual(self.e.active_session_id('legacy'), sid)
+        self.assertEqual(self.e.session('legacy')['session']['id'], sid)
+
+    def test_faces_keep_only_this_child_and_flag_wrong_number(self):
+        """Face data (normally from the local face models) cleans a child's series; injected here directly."""
+        import json as js
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('numpy not installed')
+        sid = self.school()
+        st = self.e.session(sid)
+        por = next(x for x in st['sections'] if x['kind'] == 'portrait')
+        ivan, other = np.zeros(512, 'float32'), np.zeros(512, 'float32')
+        ivan[0], other[1] = 1, 1
+        byname = {Path(p).name: p for p in por['files']}
+        rows = []
+        for name, p in byname.items():
+            n = int(name[3:7])
+            emb, eye = (other, 0.3) if n in (113, 114) else (ivan, 0.05 if n == 115 else 0.3)
+            if n == 111:
+                emb = other                              # ЛР number points at someone else
+            rows.append((sid, p, 1, js.dumps([{'box': [0, 0, 10, 10], 'h': 0.3, 'eye': eye, 'eye2': eye, 'g': 'm', 'age': 10, 'score': 0.9}]),
+                         emb.astype('float16').tobytes()))
+        with self.e.conn() as c:
+            c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', rows)
+        st = self.e.session(sid)
+        por = next(x for x in st['sections'] if x['kind'] == 'portrait')
+        names = {Path(p).name for p in por['files']}
+        self.assertFalse({'ABC0113.ARW', 'ABC0114.ARW'} & names)           # another child: removed
+        self.assertIn('ABC0111.ARW', names)                                # a worksheet frame is never removed…
+        self.assertIn('другой человек', por['unsure'].get('P1', ''))        # …but flagged
+        self.assertIn(byname['ABC0115.ARW'], por['closed'])                # closed eyes: marked only
+        self.assertEqual(por['strangers'], 2)
+
+    def test_portrait_without_face_is_marked_as_defect(self):
+        import json as js
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('numpy not installed')
+        sid = self.school()
+        files = sorted((f for f in self.e.session(sid)['files'] if f['wide'] == 0), key=lambda f: f['name'])
+        face = js.dumps([{'box': [0, 0, 10, 10], 'h': 0.3, 'eye': .3, 'eye2': .3, 'g': 'm', 'age': 10, 'score': .9}])
+        emb = np.ones(512, 'float16').tobytes()
+        back = next(f['path'] for f in files if f['name'] == 'ABC0108.ARW')
+        with self.e.conn() as c:
+            c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)',
+                          [(sid, f['path'], 0, '[]', b'') if f['path'] == back else (sid, f['path'], 1, face, emb) for f in files])
+        self.e._mark_noface(sid)
+        fl = {f['path']: f['flags'] or '' for f in self.e.session(sid)['files']}
+        self.assertIn('noface', fl[back])                                   # someone's back among portraits
+        self.assertEqual(sum('noface' in v for v in fl.values()), 1)
+
+    def test_people_counted_by_faces_without_worksheet(self):
+        import json as js
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('numpy not installed')
+        sid = self.e.import_folder(self.src)                         # no worksheet
+        files = sorted((f for f in self.e.session(sid)['files'] if f['wide'] == 0), key=lambda f: f['name'])
+        rows = []
+        for i, f in enumerate(files):
+            e = np.zeros(512, 'float32'); e[i // 5] = 1                # a new person every 5 frames
+            rows.append((sid, f['path'], 1, js.dumps([{'box': [0, 0, 10, 10], 'h': 0.3, 'eye': .3, 'eye2': .3}]), e.astype('float16').tobytes()))
+        with self.e.conn() as c:
+            c.executemany('INSERT OR REPLACE INTO faces VALUES(?,?,?,?,?)', rows)
+        n = self.e.count_people(sid)['students']
+        groups = [min(5, len(files) - k) for k in range(0, len(files), 5)]
+        self.assertEqual(n, sum(1 for g in groups if g >= 2))
+        st = next(s for s in self.e.stats()['sessions'] if s['id'] == sid)
+        self.assertEqual(st['students'], n)
+
+    def test_scenes_split_by_pause_and_picture(self):
+        from engine import Engine
+        f = lambda n, t, h: {'name': f'A{n}', 'capture_at': f'2026-10-16 09:{t}', 'dhash': h}
+        a, b = '0' * 16, 'f' * 16
+        fs = [f(1, '00:00', a), f(2, '00:05', a), f(3, '00:50', a),      # one set-up
+              f(4, '02:30', b), f(5, '02:33', b),                         # pause + other picture
+              f(6, '06:00', b)]                                           # long pause
+        self.assertEqual([[x['name'] for x in sc] for sc in Engine._scenes(fs)], [['A1', 'A2', 'A3'], ['A4', 'A5'], ['A6']])
+
     def test_raw_and_jpeg_in_different_folders_are_paired(self):
         d = self.tmp / 'split'
         (d / 'RAW').mkdir(parents=True)
@@ -332,10 +580,26 @@ class EngineTest(unittest.TestCase):
         offered = {p for s in st['sections'] for p in s['files']}
         self.assertFalse(any(p.endswith('.JPG') for p in offered))
 
+    def test_frame_with_lost_raw_is_offered_as_jpeg_and_listed(self):
+        (self.src / 'ABC0111.ARW').unlink()                       # RAW of a worksheet frame disappeared from the card
+        sid = self.school()
+        st = self.e.session(sid)
+        offered = {p for s in st['sections'] for p in s['files'] + list(s['mandatory'])}
+        self.assertIn(str(self.src / 'ABC0111.JPG'), offered)
+        self.assertEqual(st['jpeg_only'], ['ABC0111.JPG'])
+
+    def test_not_defect_survives_recheck(self):
+        sid = self.e.import_folder(self.src)
+        blank = next(f['path'] for f in self.e.session(sid)['files'] if f['name'] == 'ABC0105.ARW')
+        self.e.not_defect(sid, blank)
+        self.e.analyze(sid)
+        f = next(f for f in self.e.session(sid)['files'] if f['path'] == blank)
+        self.assertNotIn('white', f['flags'] or '')
+
     def test_vertical_raw_preview_is_rotated(self):
         d = self.tmp / 'vert'
         d.mkdir()
-        raw = bytearray(fake_tiff_raw(jpeg((10, 120, 200), datetime(2026, 5, 1, 12))))
+        raw = bytearray(fake_tiff_raw(jpeg((10, 120, 200), datetime(2026, 5, 1, 12), wide=True)))
         # add Orientation=6 (camera held vertically) to IFD0: patch entry count and append an entry
         n = struct.unpack_from('<H', raw, 8)[0]
         entries = [raw[10 + i * 12:22 + i * 12] for i in range(n)] + [struct.pack('<HHII', 0x0112, 3, 1, 6)]
@@ -378,7 +642,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len([w for w in r['warnings'] if 'Общая' not in w and 'Репортаж' not in w]), 3)
         root = Path(r['root'])
         self.assertIn('999', (root / '_LUMIO_замечания.txt').read_text(encoding='utf-8-sig'))
-        self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
+        self.assertIn('Друг1_ABC0125.ARW', {x.name for x in (root / 'ученики' / 'Иванов Иван').iterdir()})
 
     def test_fix_after_export_and_top_up(self):
         f = self.tmp / 'v.csv'
@@ -394,7 +658,7 @@ class EngineTest(unittest.TestCase):
         second = self.e.export(sid, self.tmp / 'out')
         self.assertTrue(second['update'])
         self.assertEqual(second['new'], 1)
-        self.assertIn('Друг2_' + Path(fix).name, {x.name for x in (root / '05_УЧЕНИКИ' / 'Иванов Иван').iterdir()})
+        self.assertIn('Друг2_' + Path(fix).name, {x.name for x in (root / 'ученики' / 'Иванов Иван').iterdir()})
         self.assertFalse((root / '_LUMIO_замечания.txt').exists())
 
     def test_dashboard_stats_per_shoot_and_profile(self):
@@ -441,7 +705,8 @@ class EngineTest(unittest.TestCase):
             sel = list(s['mandatory']) + (extra if s is tsec else [])
             self.e.review(sid, {'section': s['id'], 'selected': sel, 'approved': True})
         root = Path(self.e.export(sid, self.tmp / 'out')['root'])
-        names = {x.name for x in (root / '06_УЧИТЕЛЯ').iterdir()}
+        tdir = root / 'учителя' / 'Петрова Анна Сергеевна учитель английского языка'
+        names = {x.name for x in tdir.iterdir() if x.suffix != '.xmp'}
         self.assertIn('Петрова Анна Сергеевна учитель английского языка.ARW', names)
         self.assertEqual(len(names), 4)                      # worksheet photo + 3 other poses
         self.assertTrue({Path(p).name for p in extra} <= names)
@@ -478,7 +743,8 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(te[1]['unsure'], {'T': '136 или 135', 'Note': 'пометка у номера'})
         self.approve_all(sid)
         root = Path(self.e.export(sid, self.tmp / 'out')['root'])
-        names = {x.name for x in (root / '06_УЧИТЕЛЯ').iterdir()}
+        names = {x.name for d in (root / 'учителя').iterdir() for x in d.iterdir()}
+        self.assertIn('Яковлева Ангелина Федоровна учитель физкультуры', {d.name for d in (root / 'учителя').iterdir()})
         self.assertIn('Яковлева Ангелина Федоровна учитель физкультуры.ARW', names)
         self.assertIn('Курашова Вероника Анатольевна классный руководитель.ARW', names)
 
@@ -494,6 +760,47 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(1 <= len(sel) <= 5)
         self.assertIn(next(iter(t['mandatory'])), sel)
 
+    def test_reportage_fifteen_mains_have_five_duplicates_each(self):
+        from collections import Counter
+        scenes, info = [], {}
+        for scene in range(15):
+            paths = []
+            for n in range(6):
+                path = f'scene{scene}_{n}'
+                paths.append(path)
+                info[path] = {'path': path, 'name': path, 'flags': None, 'dhash': f'{scene+1:016x}',
+                              'frame': scene*10+n, 'capture_at': f'2026-10-22 10:{scene:02}:00', 'sharpness': 100-n, 'clip_hi': 0}
+            scenes.append(paths)
+        section = {'kind': 'reportage', 'files': list(info), 'scenes': scenes, 'mandatory': {},
+                   'main_limit': 15, 'dup_limit': 75, 'dup_per_main': 5}
+        mains, dups = self.e._pick_common(section, info, 5, {})
+        self.assertEqual(len(mains), 15)
+        self.assertEqual(len(dups), 75)
+        counts = Counter(self.e.duplicate_parent(section, d['path'], [m['path'] for m in mains], info) for d in dups)
+        self.assertEqual(set(counts.values()), {5})
+
+    def test_sixth_duplicate_for_one_main_is_rejected(self):
+        from unittest.mock import patch
+        sid = self.school()
+        with self.e.conn() as c:
+            files = self.e._files(c, sid)
+        paths = [f['path'] for f in files[:14]]
+        section = {'id': 'duptest', 'kind': 'reportage', 'files': paths, 'mandatory': {},
+                   'main_limit': 2, 'dup_limit': 10, 'dup_per_main': 5, 'limit': 12, 'scenes': [paths[:7], paths[7:]]}
+        mains = [paths[0], paths[7]]
+        with patch.object(self.e, 'sections', return_value=([section], [])):
+            with self.assertRaises(ValueError):
+                self.e.review(sid, {'section': 'duptest', 'selected': mains+paths[1:7], 'dups': paths[1:7]})
+            dups = paths[1:6]+paths[8:13]
+            self.e.review(sid, {'section': 'duptest', 'selected': mains+dups, 'dups': dups})
+
+    def test_export_blocks_replaced_source(self):
+        sid = self.school()
+        raw = self.src / 'ABC0110.ARW'
+        raw.write_bytes(b'REPLACED-CARD')
+        with self.assertRaisesRegex(ValueError, 'Исходник'):
+            self.e.plan_export(sid, self.tmp / 'out')
+
     def test_common_photo_and_reportage(self):
         """Free frames (nobody's series) become «Общая фотография» (1 + 5–7 duplicates) and «Репортаж» (15 + 5–7)."""
         from PIL import ImageDraw
@@ -502,7 +809,7 @@ class EngineTest(unittest.TestCase):
         t = datetime(2026, 10, 16, 12, 0, 0)
         for n in range(100, 160):
             t += timedelta(seconds=90 if n in (110, 120, 128) else 4)
-            im = Image.new('RGB', (450, 300), (50, 70, 90))
+            im = Image.new('RGB', (300, 450) if n < 120 else (450, 300), (50, 70, 90))   # portraits vertical
             dr = ImageDraw.Draw(im)
             if 120 <= n < 128:            # group burst: same composition, tiny changes
                 for k in range(6):
@@ -532,9 +839,15 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(not set(rsel) & set(gsel))
         self.approve_all(sid)
         root = Path(self.e.export(sid, self.tmp / 'out')['root'])
-        self.assertEqual(len([x for x in (root / '03_ОБЩАЯ').iterdir() if x.is_file()]), 1)
-        self.assertEqual(len(list((root / '03_ОБЩАЯ' / 'Дубли').iterdir())), len(gdup))
-        self.assertEqual(len([x for x in (root / '04_РЕПОРТАЖ').iterdir() if x.is_file()]), 15)
+        common = sorted(x.name for x in (root / 'общая').iterdir() if x.suffix != '.xmp')
+        self.assertFalse(list(root.rglob('*.xmp')))  # export never generates sidecars
+        self.assertEqual(len(common), 1 + len(gdup))                       # duplicates next to the main frame
+        self.assertEqual([n for n in common if n.startswith('Общая ')], ['Общая ' + Path(next(p for p in gsel if p not in gdup)).name])
+        rep = [x.name for x in (root / 'репортаж').iterdir() if x.suffix != '.xmp']
+        self.assertEqual(len([n for n in rep if n.startswith('Репортаж_')]), 15)
+        self.assertEqual(len(rep), 15 + len(rdup))
+        self.assertEqual(sorted(x.name for x in root.iterdir() if x.is_dir()),
+                         sorted(['доки', 'здание', 'общая', 'репортаж', 'ученики', 'учителя', 'фон']))
         with self.assertRaises(ValueError):                                     # 2 main group photos are not allowed
             self.e.review(sid, {'section': 'common', 'selected': gsel, 'dups': gdup[1:], 'approved': True})
 
@@ -547,7 +860,7 @@ class EngineTest(unittest.TestCase):
         t = datetime(2026, 10, 23, 10, 0, 0)
         def shot(n, size, draw, pause=False):
             nonlocal t
-            t += timedelta(seconds=120 if pause else 4)
+            t += timedelta(seconds=200 if pause else 4)
             im = Image.new('RGB', size, (60, 80, 100))
             draw(ImageDraw.Draw(im), n)
             ex = Image.Exif()
@@ -559,18 +872,20 @@ class EngineTest(unittest.TestCase):
         person = lambda dr, n: (dr.ellipse([60 + n % 5 * 9, 60, 140 + n % 5 * 9, 140], fill=(230, 200, 180)), dr.line([0, n * 13 % 400, 200, 0], fill=(255, 255, 255), width=5))
         crowd = lambda dr, n: [dr.ellipse([20 + k * 60, 80, 70 + k * 60, 130], fill=(230, 200, 180)) for k in range(6)]
         pair = lambda dr, n: (dr.ellipse([60 + n % 4 * 30, 60, 120 + n % 4 * 30, 120], fill=(230, 200, 180)), dr.line([0, n * 17 % 300, 450, 0], fill=(255, 255, 255), width=5))
+        # in the order of the CROUSALBM plan: class photo, group photos, then portraits
         for n in range(100, 108):
-            shot(n, (200, 300), person, pause=(n == 100))       # portraits: vertical
+            shot(n, (450, 300), crowd, pause=(n == 100))        # class photo: horizontal burst
         (d / 'ANT0103.JPG').write_bytes(jpeg((252, 252, 252), t, blank=True))   # a blank (defect) frame
         for n in range(108, 114):
-            shot(n, (450, 300), pair, pause=(n == 108))         # group photos: horizontal, varied
+            shot(n, (450, 300), pair, pause=True)               # group photos: a new set-up each
         for n in range(114, 122):
-            shot(n, (450, 300), crowd, pause=(n == 114))        # class photo: horizontal burst
+            shot(n, (200, 300), person, pause=(n == 114))       # portraits: vertical, the rest of the card
         sid = self.e.import_folder(d, {'company': 'crous', 'school': 'Школа 2044', 'date': '23.10.2026'})
         st = self.e.session(sid)
         tl = st['sections'][0]
         self.assertEqual([x['kind'] for x in st['sections']], ['timeline'])            # one time line, no worksheet
-        self.assertEqual([dv['cat'] for dv in tl['dividers']], ['portrait', 'group', 'common'])
+        self.assertEqual([dv['cat'] for dv in tl['dividers']], ['common', 'group', 'portrait'])
+        self.assertTrue(any(i['t'].startswith('Групповые: 8') and not i['ok'] for i in st['plan']))   # too few group set-ups
         self.assertNotIn(str(d / 'ANT0103.ARW'), st['selected']['timeline'])            # defect left out
         self.e.set_divider(sid, str(d / 'ANT0108.ARW'), 'teacher')                      # the photographer fixes a divider
         self.e.set_divider(sid, str(d / 'ANT0110.ARW'), 'group')
@@ -584,14 +899,16 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len(list((root / 'RAW').iterdir())), 21)                  # 22 frames − 1 defect
         self.assertEqual(sorted(x.name for x in (root / 'JPG').iterdir()), ['Общая', 'Педагоги', 'Портреты'])
         self.assertEqual(len(list((root / 'JPG' / 'Педагоги').iterdir())), 6)
-        self.assertEqual(len(list((root / 'JPG' / 'Портреты').iterdir())), 7)
+        self.assertEqual(len(list((root / 'JPG' / 'Портреты').iterdir())), 8)
+        self.assertEqual(len(list((root / 'JPG' / 'Общая').iterdir())), 7)            # 8 − the blank frame
         self.assertTrue(all(x.suffix == '.JPG' for x in (root / 'JPG' / 'Общая').iterdir()))
 
     def test_upload_to_yandex_disk_fake_server(self):
         """Upload goes straight from the card into disk:/<photographer>/<date>. <school>/RAW + JPG/… (fake Disk API)."""
         import threading, json as js, urllib.parse as up
         from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-        store, dirs = {}, set()
+        import hashlib as hl
+        store, dirs, broken = {}, set(), []
 
         class H(BaseHTTPRequestHandler):
             def _ok(self, code=200, body=None):
@@ -605,13 +922,25 @@ class EngineTest(unittest.TestCase):
                     if q.get('fields') == 'public_url':
                         return self._ok(200, {'public_url': 'https://disk.yandex.ru/d/TEST'})
                     if q['path'] in store:
-                        return self._ok(200, {'size': len(store[q['path']]), 'type': 'file'})
+                        b_ = store[q['path']]
+                        return self._ok(200, {'size': len(b_), 'type': 'file', 'md5': hl.md5(b_).hexdigest()})
+                    if q['path'] in dirs:                                   # folder listing with sizes and MD5
+                        pre = q['path'].rstrip('/') + '/'
+                        kids = {k[len(pre):].split('/')[0] for k in list(store) + list(dirs) if k.startswith(pre)}
+                        items = [{'name': n, 'type': 'dir'} if pre + n in dirs else
+                                 {'name': n, 'type': 'file', 'size': len(store[pre + n]), 'md5': hl.md5(store[pre + n]).hexdigest()}
+                                 for n in sorted(kids)]
+                        off, lim = int(q.get('offset', 0)), int(q.get('limit', 20))
+                        return self._ok(200, {'_embedded': {'items': items[off:off + lim], 'total': len(items)}})
                     return self._ok(404, {'error': 'DiskNotFoundError'})
                 return self._ok(200, {'user': {'display_name': 'Сергей'}})
             def do_PUT(self):
                 u = up.urlparse(self.path); q = dict(up.parse_qsl(u.query))
                 if u.path == '/put':
-                    store[q['p']] = self.rfile.read(int(self.headers['Content-Length'])); return self._ok(201)
+                    data = self.rfile.read(int(self.headers['Content-Length']))
+                    if not broken and q['p'].endswith('.ARW'):         # the first RAW arrives damaged
+                        broken.append(q['p']); data = data[:-1] + bytes([data[-1] ^ 1])
+                    store[q['p']] = data; return self._ok(201)
                 if u.path.endswith('/resources'):
                     if q['path'] in dirs:
                         return self._ok(409, {'error': 'DiskPathPointsToExistentDirectoryError'})
@@ -636,6 +965,9 @@ class EngineTest(unittest.TestCase):
             job = self.e.jobs[jid]
             self.assertIsNone(job['error'])
             self.assertEqual(job['result']['link'], 'https://disk.yandex.ru/d/TEST')
+            chk = job['result']['check']
+            self.assertEqual((chk['expected'], chk['ok'], chk['bad']), (78, 78, []))   # damaged file found and sent again
+            self.assertEqual(len(broken), 1)
             raws = [k for k in store if '/RAW/' in k]
             jpgs = [k for k in store if '/JPG/' in k]
             self.assertEqual(len(raws), 39)                                   # 40 frames − 1 blank defect
@@ -647,6 +979,23 @@ class EngineTest(unittest.TestCase):
                     break
                 time.sleep(0.05)
             self.assertEqual(self.e.jobs[again]['result']['uploaded'], 0)
+            # Выпуск: its own Disk (own token), full order layout without generated sidecars
+            vs = self.school()
+            with self.assertRaises(ValueError):                               # Crous token is not used for Выпуск
+                self.e.start_upload(vs)
+            self.e.save_settings({'yandex_token@vypusk': 'TOKEN2'})
+            self.approve_all(vs)
+            vj = self.e.start_upload(vs)['job']
+            for _ in range(400):
+                if self.e.jobs[vj]['finished']:
+                    break
+                time.sleep(0.05)
+            self.assertIsNone(self.e.jobs[vj]['error'])
+            vk = [k for k in store if '/ученики/Иванов Иван/' in k]
+            self.assertTrue(any(k.endswith('.ARW') for k in vk))
+            self.assertFalse(any(k.lower().endswith('.xmp') for k in store))
+            chk = self.e.jobs[vj]['result']['check']
+            self.assertEqual(chk['ok'], chk['expected'])
         finally:
             srv.shutdown()
 
