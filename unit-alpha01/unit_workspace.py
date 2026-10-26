@@ -150,9 +150,8 @@ class UnitWorkspace:
         st = p.stat()
         return {'path': str(p), 'size': st.st_size, 'mtime': st.st_mtime_ns}
 
-    @staticmethod
-    def checked(record):
-        p = Path(record['path'])
+    def checked(self, record, sid=None):
+        p = Path(self.e.offline.resolve(sid,record['path']) if sid else record['path'])
         if not p.is_file() or p.stat().st_size != record['size'] or p.stat().st_mtime_ns != record['mtime']:
             raise ValueError('Файл исчез или изменился: ' + p.name + '. Подключите папку заново.')
         return p
@@ -304,10 +303,10 @@ class UnitWorkspace:
             if kind=='photo':
                 f=bypath[item['path']]
                 if item['path'] in state['jpeg']:
-                    src=self.checked(state['jpeg'][item['path']])
+                    src=self.checked(state['jpeg'][item['path']],sid)
                 elif f['kind']!='raw':
-                    src=Path(f['path'])
-                    if not self.e._src_ok(f['path'],f['bytes'],f['capture_at'],f['preview']):
+                    src=Path(self.e.offline.resolve(sid,f['path']))
+                    if not self.e.offline.available(sid,f['path'],fresh=True):
                         raise ValueError('Исходник изменился: '+f['name'])
                 elif draft:
                     payload=self.e.preview_bytes(sid,item['path'],2048)
@@ -315,7 +314,7 @@ class UnitWorkspace:
                 else:raise ValueError('Нет обработанного JPEG: '+f['name']+'. Подключите JPEG или выберите черновик.')
                 ext='.jpg'
             elif kind in ('audio','video'):
-                src=self.checked(state['media'][item['path']]);ext=src.suffix.lower()
+                src=self.checked(state['media'][item['path']],sid);ext=src.suffix.lower()
             else:
                 ext='.jpg'
                 payload=(bypath[item['source']]['capture_at'][11:19] if kind=='time' else item.get('text',''))
@@ -400,7 +399,7 @@ class UnitWorkspace:
         record = state['media'].get(query.get('p', ''))
         if not record:
             raise ValueError('Медиафайл не подключён')
-        path = self.checked(record)
+        path = self.checked(record,query.get('s'))
         size = path.stat().st_size
         start, end = 0, size - 1
         header = handler.headers.get('Range')

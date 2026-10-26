@@ -93,18 +93,20 @@ class EngineTest(unittest.TestCase):
             self.assertGreater(c.execute('SELECT COUNT(*) FROM approvals WHERE session_id=?', (first,)).fetchone()[0], 0)
         self.assertEqual(self.school(), second)
 
-    def test_preview_revision_changes_and_missing_source_never_uses_cache(self):
+    def test_persistent_preview_survives_side_jpeg_replacement_and_removal(self):
         sid = self.school()
         raw = str(self.src / 'ABC0110.ARW')
         image = self.src / 'ABC0110.JPG'
+        cached = self.e.preview_bytes(sid, raw, 480)
         before = self.e.session(sid)
         token = next(f['preview_rev'] for f in before['files'] if f['path'] == raw)
         self.assertTrue(self.e.preview_bytes(sid, raw, 480))
         image.write_bytes(jpeg((190, 30, 40), datetime(2026, 10, 23, 12, 0)))
         after = self.e.session(sid)
-        self.assertNotEqual(token, next(f['preview_rev'] for f in after['files'] if f['path'] == raw))
+        self.assertEqual(token, next(f['preview_rev'] for f in after['files'] if f['path'] == raw))
+        self.assertEqual(cached, self.e.preview_bytes(sid, raw, 480))
         image.unlink()
-        self.assertIsNone(self.e.preview_bytes(sid, raw, 480))
+        self.assertEqual(cached, self.e.preview_bytes(sid, raw, 480))
 
     def test_portraits_groups_format_has_no_friends_or_reportage(self):
         sid = self.e.import_folder(self.src, {'students': str(self.tmp / 'students.csv'),
