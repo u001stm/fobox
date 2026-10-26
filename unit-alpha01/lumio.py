@@ -22,12 +22,13 @@ from engine import Engine
 UI = Path(__file__).with_name('ui.html')
 CODE = [Path(__file__).with_name('offline_catalog.py'), Path(__file__).with_name('offline.js'), Path(__file__).with_name('unit_workspace.py'), Path(__file__).with_name('unit.js'), Path(__file__).with_name('unit.css'), Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).with_name('yadisk.py'), Path(__file__).with_name('faces.py')]
 CODE += [Path(__file__).with_name(n) for n in ('lab_workspace.py','lab_render.py','lab.js','lab.css')]
+CODE += [Path(__file__).with_name(n) for n in ('ml_core.py','ml_metadata.py','ml_service.py','ml_contracts.py','ml_schema.json','ml_outputs.py','ml.js','ml.css')]
 
 
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.22.2-scene-view'
+APP_VERSION = '4.23.0-multilayer-alpha01'
 
 
 def pick_path(kind):
@@ -90,13 +91,22 @@ def make_handler(engine):
             try:
                 if u.path == '/':
                     self.send(200, UI.read_bytes(), 'text/html; charset=utf-8')
-                elif u.path in ('/unit.js', '/unit.css', '/lab.js', '/lab.css'):
+                elif u.path in ('/unit.js', '/unit.css', '/lab.js', '/lab.css', '/ml.js','/ml.css'):
                     self.send(200, UI.with_name(u.path[1:]).read_bytes(), 'application/javascript; charset=utf-8' if u.path.endswith('.js') else 'text/css; charset=utf-8')
                 elif u.path == '/api/unit/project':
                     project = unit.project(q.get('id', ''))
                     if project['session']['company'] == 'unitlab':
                         project['lab'] = lab.project(q['id'])
+                        project['multilayer'] = lab.multilayer.project(q['id'])
                     self.send(200, project)
+                elif u.path == '/api/ml/project':
+                    self.send(200,lab.multilayer.project(q.get('session','')))
+                elif u.path == '/api/ml/media':
+                    lab.multilayer.serve(self,q)
+                elif u.path == '/api/ml/file':
+                    import mimetypes
+                    file=lab.multilayer.file(q.get('session',''),q.get('name',''))
+                    self.send(200,file.read_bytes(),mimetypes.guess_type(str(file))[0] or 'application/octet-stream')
                 elif u.path == '/api/lab/job':
                     self.send(200, lab.job(q.get('id', '')))
                 elif u.path == '/api/lab/jobs':
@@ -113,7 +123,15 @@ def make_handler(engine):
                     if q.get('ui'):
                         import time
                         engine.offline.ui_seen = time.time()
-                    self.send(200, engine.offline.api_state(q.get('session')))
+                    media_state = engine.offline.api_state(q.get('session'))
+                    sid = q.get('session')
+                    if sid:
+                        with engine.conn() as connection:
+                            ml_row = connection.execute('SELECT data FROM ml_projects WHERE session_id=?', (sid,)).fetchone()
+                        if ml_row and media_state.get('project'):
+                            sources = json.loads(ml_row['data'])['config']['sources']
+                            media_state['project']['ml_sources'] = {'total': len(sources), 'online': sum(Path(s['root']).is_dir() for s in sources)}
+                    self.send(200, media_state)
                 elif u.path == '/offline.js':
                     self.send(200, UI.with_name('offline.js').read_bytes(), 'application/javascript; charset=utf-8')
                 elif u.path == '/api/stats':
@@ -148,7 +166,24 @@ def make_handler(engine):
                 if b.get('session') and urlparse(self.path).path != '/api/delete' and not urlparse(self.path).path.startswith('/api/unit/'):
                     b['session'] = engine.active_session_id(b['session'])
                 p = urlparse(self.path).path
-                if p == '/api/lab/import':
+                if p == '/api/ml/create':
+                    out=lab.multilayer.create(b.get('title',''))
+                elif p == '/api/ml/cancel':
+                    out=lab.multilayer.cancel(b['job'])
+                elif p == '/api/ml/open':
+                    result=lab.multilayer.latest(b['session'])
+                    if not result:raise ValueError('Нет готового отчёта')
+                    path=Path(result['folder'])
+                    if b.get('kind') in ('working','final'):
+                        root=lab.multilayer.folder(b['session'])/('WORK' if b['kind']=='working' else 'EXPORTS')
+                        folders=sorted(p for p in root.glob('v*') if p.is_dir())
+                        if not folders:raise ValueError('Сначала создайте рабочую последовательность')
+                        path=folders[-1]/'TIMELINE' if b['kind']=='working' else folders[-1]/'CLIENT'/'MEDIA'
+                    if os.name=='nt':os.startfile(str(path))
+                    out={'path':str(path)}
+                elif p.startswith('/api/ml/'):
+                    out=lab.multilayer.post(p.rsplit('/',1)[-1],b)
+                elif p == '/api/lab/import':
                     out = lab.start_import(b)
                 elif p == '/api/lab/render':
                     out = lab.start_render(b)

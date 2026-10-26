@@ -66,6 +66,8 @@ class LabWorkspace:
             c.execute("UPDATE lab_jobs SET status='queued',stage='Продолжение после перезапуска' WHERE status='running'")
         for row in interrupted:
             self.pending.put(row['id'])
+        from ml_service import MultiLayer
+        self.multilayer = MultiLayer(self)
         if autostart:
             threading.Thread(target=self.worker, daemon=True).start()
 
@@ -87,7 +89,7 @@ class LabWorkspace:
             raise ValueError('Задача не найдена')
         d = dict(row)
         return {k: d[k] for k in ('id', 'session_id', 'kind', 'status', 'done', 'total', 'stage', 'error')} | {
-            'finished': d['status'] in ('complete', 'failed'), 'result': json.loads(d['result'] or '{}')}
+            'finished': d['status'] in ('complete', 'failed', 'cancelled'), 'result': json.loads(d['result'] or '{}')}
 
     def enqueue(self, sid, kind, payload):
         jid = uuid.uuid4().hex
@@ -137,11 +139,14 @@ class LabWorkspace:
                 result = self.render_files(row['session_id'], payload, jid)
             elif row['kind'] == 'faces':
                 result = self.run_faces(row['session_id'], payload, jid)
+            elif row['kind'].startswith('ml-'):
+                result = self.multilayer.run(row['kind'][3:],row['session_id'],payload,jid)
             else:
                 raise ValueError('Неизвестная задача')
             self.update(jid, status='complete', stage='Готово', result=json.dumps(result))
         except Exception as exc:
-            self.update(jid, status='failed', stage='Задача остановлена', error=str(exc))
+            from ml_metadata import Cancelled
+            self.update(jid, status='cancelled' if isinstance(exc,Cancelled) else 'failed', stage='Отменено' if isinstance(exc,Cancelled) else 'Задача остановлена', error=str(exc))
 
     def import_files(self, sid, payload, jid):
         source = Path(payload['source'])
@@ -163,6 +168,8 @@ class LabWorkspace:
                     raise ValueError('Повреждена локальная копия: ' + src.name)
                 duplicates += 1
             else:
+                if shutil.disk_usage(dest.parent).free < stat.st_size + 20*1024*1024:
+                    raise ValueError('Недостаточно места для копии '+src.name)
                 temp = dest.with_name(dest.name + '.partial')
                 with src.open('rb') as inp, temp.open('wb') as out:
                     shutil.copyfileobj(inp, out, 1024 * 1024)

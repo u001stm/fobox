@@ -3,6 +3,13 @@ const OFF={last:0,started:false,busy:false,state:null,pending:null};
 function offlineBadge(p){
  const host=document.querySelector('.shoot-actions,.unit-heading');if(!host)return;
  let b=document.getElementById('offline_badge');if(!b){b=document.createElement('button');b.id='offline_badge';b.className='btn sm';b.style.cssText='font-size:11px;color:var(--muted);background:none;border-color:transparent';b.onclick=offlineDialog;host.append(b)}
+ if(typeof labActive==='function'&&labActive()&&typeof L!=='undefined'&&L.view==='multilayer'&&p.ml_sources){
+  const s=p.ml_sources,online=s.total>0&&s.online===s.total;
+  b.classList.toggle('source-online',online);b.classList.toggle('source-offline',!online);
+  b.textContent='Папки источников · '+s.online+'/'+s.total;
+  b.title='Доступность папок проверяется сейчас. Целостность отдельных файлов проверяется при Analyze и экспорте.';
+  return;
+ }
  b.classList.toggle('source-online',p.online);b.classList.toggle('source-offline',!p.online);
  if(typeof labActive==='function'&&labActive()){
   b.textContent=p.online?'Локальные оригиналы':'Локальные оригиналы недоступны';

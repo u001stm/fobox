@@ -25,7 +25,7 @@ class OfflineCatalog:
     TABLES=('sessions','files','students','selections','selection_events','workflow_events',
             'ai_suggestions','anchor_overrides','marks','dividers','reason_ov','flag_ok',
             'renames','series_cat','approvals','faces','unit_projects','scene_boundaries',
-            'lab_projects','lab_assets','lab_sources','lab_renders','lab_jobs')
+            'lab_projects','lab_assets','lab_sources','lab_renders','lab_jobs','ml_projects','ml_assets','ml_analyses')
 
     def __init__(self, engine):
         self.e=engine;self.root=engine.db_path.parent/'projects';self.root.mkdir(parents=True,exist_ok=True)

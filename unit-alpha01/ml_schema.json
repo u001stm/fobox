@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "unit.multilayer.contracts/1",
+  "$defs": {
+    "device": {
+      "type":"object", "required":["device_id","role","offset_seconds"],
+      "properties": {
+        "device_id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,60}$"},
+        "role":{"enum":["MASTER_PHOTO","PHOTO","POV","FIXED","OVERHEAD","HAND","AUDIO","SMALL_WITNESSES"]},
+        "offset_seconds":{"type":"number","minimum":-604800,"maximum":604800},
+        "priority":{"type":"integer","minimum":0,"maximum":1000},
+        "timezone":{"type":"string","maxLength":100},
+        "quicktime_utc":{"type":"boolean"}
+      }
+    },
+    "event": {
+      "type":"object", "required":["schema_version","record_id","timezone","devices"],
+      "properties": {
+        "schema_version":{"const":"unit.multilayer.event/1"},
+        "record_id":{"type":"string","maxLength":200},
+        "event_id":{"type":["string","null"],"pattern":"^[0-9]{3,}$"},
+        "shoot_id":{"type":["string","null"]},
+        "timezone":{"type":"string","maxLength":100},
+        "devices":{"type":"array","items":{"$ref":"#/$defs/device"},"minItems":1,"maxItems":30}
+      }
+    },
+    "asset": {
+      "type":"object", "required":["asset_id","device_id","media_type","bytes","corrected_start_utc","warnings"],
+      "properties": {
+        "asset_id":{"type":"string","maxLength":200},
+        "device_id":{"type":"string"},
+        "media_type":{"enum":["photo","video","audio"]},
+        "bytes":{"type":"integer","minimum":0},
+        "corrected_start_utc":{"type":["string","null"],"format":"date-time"},
+        "capture_duration_seconds":{"type":["number","null"],"minimum":0},
+        "warnings":{"type":"array","items":{"type":"string"}}
+      }
+    },
+    "assets":{"type":"object","required":["assets"],"properties":{"assets":{"type":"array","items":{"$ref":"#/$defs/asset"}}}},
+    "timeline": {
+      "type":"object","required":["items","unplaced","ordering_policy"],
+      "properties": {
+        "ordering_policy":{"enum":["manual","corrected_start_photo_first"]},
+        "items":{"type":"array","items":{"type":"object","required":["item_id","asset_id","working_filename","selection"],
+          "properties":{"item_id":{"type":"string"},"asset_id":{"type":"string"},"working_filename":{"type":"string"},
+          "selection":{"enum":["undecided","keep","reject"]}}}},
+        "unplaced":{"type":"array","items":{"type":"string"}}
+      }
+    },
+    "markers":{"type":"object","required":["markers"],"properties":{"markers":{"type":"array","maxItems":10000,
+      "items":{"type":"object","required":["id","asset_id","text"],"properties":{"id":{"type":"string"},"asset_id":{"type":"string"},"text":{"type":"string","maxLength":3000}}}}}},
+    "stats": {
+      "type":"object","required":["schema_version","capture_count","source_file_count","duration_seconds","activity","quality"],
+      "properties": {
+        "schema_version":{"const":"unit.multilayer.stats/1"},
+        "capture_count":{"type":"integer","minimum":0},"source_file_count":{"type":"integer","minimum":0},
+        "duration_seconds":{"type":["number","null"],"minimum":0},
+        "activity":{"type":"object","required":["bins","interval_minutes"],"properties":{
+          "interval_minutes":{"enum":[5,10,30]},
+          "bins":{"type":"array","items":{"type":"object","required":["start_utc","end_utc","count","actual_duration_seconds","rate_per_minute","partial"],
+            "properties":{"start_utc":{"type":"string","format":"date-time"},"end_utc":{"type":"string","format":"date-time"},
+              "count":{"type":"integer","minimum":0},"actual_duration_seconds":{"type":"number","minimum":0},
+              "rate_per_minute":{"type":["number","null"],"minimum":0},"partial":{"type":"boolean"}}}}}},
+        "quality":{"type":"object","required":["analysis_complete"],"properties":{"analysis_complete":{"type":"boolean"}}}
+      }
+    }
+  }
+}
