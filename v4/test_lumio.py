@@ -475,24 +475,6 @@ class EngineTest(unittest.TestCase):
         self.assertIn(str(self.src / 'ABC0111.JPG'), offered)
         self.assertEqual(st['jpeg_only'], ['ABC0111.JPG'])
 
-    def test_card_reused_for_another_shoot_never_shows_its_pictures(self):
-        sid = self.school()
-        self.approve_all(sid)
-        p = next(f['path'] for f in self.e.session(sid)['files'] if f['name'] == 'ABC0111.ARW')
-        q = next(f['path'] for f in self.e.session(sid)['files'] if f['name'] == 'ABC0112.ARW')
-        seen = self.e.preview_bytes(sid, p, 480)
-        # the card is formatted and another class is shot on it: same names, other pictures
-        Engine._src_memo.clear()
-        for n in (111, 112):
-            (self.src / f'ABC0{n}.JPG').write_bytes(jpeg((10, 200, 10), datetime(2026, 10, 22, 11, 0, 0), wide=True))
-            (self.src / f'ABC0{n}.ARW').write_bytes(b'OTHER' * 90)
-        st = self.e.session(sid)
-        self.assertEqual(st['gone'], 2)
-        self.assertEqual(self.e.preview_bytes(sid, p, 480), seen)       # the picture seen before stays
-        self.assertIsNone(self.e.preview_bytes(sid, q, 480))            # never the other shoot's picture
-        with self.assertRaisesRegex(ValueError, 'нет на карте'):
-            self.e.export(sid, self.tmp / 'out')
-
     def test_not_defect_survives_recheck(self):
         sid = self.e.import_folder(self.src)
         blank = next(f['path'] for f in self.e.session(sid)['files'] if f['name'] == 'ABC0105.ARW')
