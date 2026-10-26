@@ -24,7 +24,7 @@ def fingerprint(path):
 class OfflineCatalog:
     TABLES=('sessions','files','students','selections','selection_events','workflow_events',
             'ai_suggestions','anchor_overrides','marks','dividers','reason_ov','flag_ok',
-            'renames','series_cat','approvals','faces','unit_projects','scene_boundaries',
+            'renames','series_cat','approvals','faces','unit_projects','scene_boundaries','report_edits',
             'lab_projects','lab_assets','lab_sources','lab_renders','lab_jobs','ml_projects','ml_assets','ml_analyses')
 
     def __init__(self, engine):

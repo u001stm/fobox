@@ -22,13 +22,13 @@ from engine import Engine
 UI = Path(__file__).with_name('ui.html')
 CODE = [Path(__file__).with_name('offline_catalog.py'), Path(__file__).with_name('offline.js'), Path(__file__).with_name('unit_workspace.py'), Path(__file__).with_name('unit.js'), Path(__file__).with_name('unit.css'), Path(__file__), Path(__file__).with_name('engine.py'), Path(__file__).with_name('yadisk.py'), Path(__file__).with_name('faces.py')]
 CODE += [Path(__file__).with_name(n) for n in ('lab_workspace.py','lab_render.py','lab.js','lab.css')]
-CODE += [Path(__file__).with_name(n) for n in ('ml_core.py','ml_metadata.py','ml_service.py','ml_contracts.py','ml_schema.json','ml_outputs.py','ml.js','ml.css')]
+CODE += [Path(__file__).with_name(n) for n in ('ml_core.py','ml_metadata.py','ml_service.py','ml_contracts.py','ml_schema.json','ml_outputs.py','ml.js','ml.css','report-edit.js')]
 
 
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.23.0-multilayer-alpha01'
+APP_VERSION = '4.23.1-reportage-edit'
 
 
 def pick_path(kind):
@@ -91,7 +91,7 @@ def make_handler(engine):
             try:
                 if u.path == '/':
                     self.send(200, UI.read_bytes(), 'text/html; charset=utf-8')
-                elif u.path in ('/unit.js', '/unit.css', '/lab.js', '/lab.css', '/ml.js','/ml.css'):
+                elif u.path in ('/unit.js', '/unit.css', '/lab.js', '/lab.css', '/ml.js','/ml.css','/report-edit.js'):
                     self.send(200, UI.with_name(u.path[1:]).read_bytes(), 'application/javascript; charset=utf-8' if u.path.endswith('.js') else 'text/css; charset=utf-8')
                 elif u.path == '/api/unit/project':
                     project = unit.project(q.get('id', ''))

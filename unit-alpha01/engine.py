@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS selections (
 CREATE TABLE IF NOT EXISTS anchor_overrides (
  session_id TEXT NOT NULL, person TEXT NOT NULL, key TEXT NOT NULL, file_path TEXT NOT NULL,
  at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(session_id, person, key));
+CREATE TABLE IF NOT EXISTS report_edits (
+ session_id TEXT NOT NULL, section_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(session_id,section_id));
 CREATE TABLE IF NOT EXISTS marks (
  session_id TEXT NOT NULL, section_id TEXT NOT NULL, file_path TEXT NOT NULL, mark TEXT NOT NULL,
  PRIMARY KEY(session_id, section_id, file_path));
@@ -1995,6 +1997,11 @@ class Engine:
         cfg = self.settings(sid).get('_company') or {}
         if cfg.get('layout') == 'sort':
             return self._sort_sections(sid, files, out, cfg), []
+        with self.conn() as c:
+            edits = {r[0]: json.loads(r[1]) for r in c.execute("SELECT section_id,data FROM report_edits WHERE session_id=?", (sid,))}
+        for section in out:
+            if section["kind"] in ("group", "reportage"):
+                section["report_edit"] = edits.get(section["id"], {"parents": {}, "hidden": [], "order": []})
         return out, conflicts
 
     def _auto_dividers(self, files, person_secs):
@@ -2201,6 +2208,9 @@ class Engine:
     def duplicate_parent(section, path, mains, info):
         if not mains:
             return None
+        explicit = section.get("report_edit", {}).get("parents", {}).get(path)
+        if explicit in mains:
+            return explicit
         scenes = {q: i for i, group in enumerate(section.get('scenes', [])) for q in group}
         if path in scenes:
             mains = [q for q in mains if scenes.get(q) == scenes[path]]
@@ -2219,7 +2229,8 @@ class Engine:
         Reportage: one frame from each of the biggest other set-ups (about 15), duplicates from the same set-ups."""
         bad = lambda f: any(x and x != 'dup' for x in (f['flags'] or '').split(','))
         taken = {f['path'] for v in picks_by.values() for f in v}
-        ok = lambda p: p in info and not bad(info[p]) and p not in taken and info[p]['dhash']
+        hidden = set(s.get('report_edit', {}).get('hidden', []))
+        ok = lambda p: p not in hidden and p in info and not bad(info[p]) and p not in taken and info[p]['dhash']
         raw = s.get('scenes') or [s['files']]
         if s['kind'] == 'reportage' and len(raw) > 1:
             raw = [sc for sc in raw if not set(sc) & taken] or raw   # the class photo set-up is not reportage
@@ -2515,12 +2526,25 @@ class Engine:
         chosen = body.get('selected')
         if not isinstance(chosen, list) or not set(chosen) <= set(s['files']):
             raise ValueError('Неверный набор кадров')
+        report_edit = body.get('report_edit')
+        if report_edit is not None:
+            if s['kind'] not in ('group','reportage') or not isinstance(report_edit,dict):raise ValueError('Неверная правка репортажа')
+            parents=report_edit.get('parents',{});hidden=report_edit.get('hidden',[]);order=report_edit.get('order',[])
+            allowed=set(s['files'])
+            if not isinstance(parents,dict) or not isinstance(hidden,list) or not isinstance(order,list):raise ValueError('Неверные связи комплектов')
+            if any(k not in allowed or v not in allowed or k==v for k,v in parents.items()) or not set(hidden)<=allowed or not set(order)<=allowed or len(order)!=len(set(order)):raise ValueError('Кадры другого репортажа')
+            if set(hidden)&set(chosen):raise ValueError('Скрытый кадр не может быть выбран')
+            report_edit={'parents':parents,'hidden':hidden,'order':order}
+            s['report_edit']=report_edit
         dups = body.get('dups')
         if s.get('dup_limit') is not None:
             if dups is None:   # caller did not send duplicates: keep the stored marks
                 with self.conn() as c:
                     dups = [r[0] for r in c.execute("SELECT file_path FROM marks WHERE session_id=? AND section_id=? AND mark='dup'", (sid, s['id']))]
             dups = [p for p in dups if p in chosen]
+            if report_edit is not None:
+                mains=set(chosen)-set(dups)
+                if any(p in dups and parent not in mains for p,parent in report_edit['parents'].items()):raise ValueError('У дополнительного кадра нет выбранного основного')
             if len(dups) > s['dup_limit']:
                 raise ValueError(f'Дублей не больше {s["dup_limit"]}')
             if len(chosen) - len(dups) > s['main_limit']:
@@ -2541,6 +2565,8 @@ class Engine:
         if any(p not in chosen for p in s['mandatory']):
             raise ValueError('Обязательные кадры из ведомости нельзя снять. Если кадр неверный — исправьте ведомость.')
         with self.conn() as c:
+            if report_edit is not None:
+                c.execute('INSERT OR REPLACE INTO report_edits VALUES(?,?,?)',(sid,s['id'],json.dumps(report_edit,ensure_ascii=False)))
             before = {r['file_path'] for r in c.execute('SELECT file_path FROM selections WHERE session_id=? AND section_id=?', (sid, s['id']))}
             after = set(chosen)
             for p in after - before:
@@ -2998,7 +3024,7 @@ class Engine:
             if not c.execute('SELECT 1 FROM sessions WHERE id=?', (sid,)).fetchone():
                 raise ValueError('Съёмка не найдена')
             for t in ('selection_events', 'ai_suggestions', 'selections', 'approvals', 'anchor_overrides',
-                      'marks', 'dividers', 'series_cat', 'reason_ov', 'scene_boundaries'):
+                      'marks', 'dividers', 'series_cat', 'reason_ov', 'scene_boundaries', 'report_edits'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             self.event(c, sid, 'review', 'reset-all')
         self.suggest(sid)
@@ -3008,7 +3034,7 @@ class Engine:
         """Removes the session from the catalog only. Source files are not touched."""
         with self.conn() as c:
             for t in ('files', 'students', 'selection_events', 'workflow_events', 'ai_suggestions', 'selections', 'approvals',
-                      'anchor_overrides', 'marks', 'dividers', 'series_cat', 'renames', 'faces', 'flag_ok', 'reason_ov', 'scene_boundaries'):
+                      'anchor_overrides', 'marks', 'dividers', 'series_cat', 'renames', 'faces', 'flag_ok', 'reason_ov', 'scene_boundaries', 'report_edits'):
                 c.execute(f'DELETE FROM {t} WHERE session_id=?', (sid,))
             c.execute('DELETE FROM sessions WHERE id=?', (sid,))
 

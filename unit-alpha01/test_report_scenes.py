@@ -59,5 +59,31 @@ class SceneTests(unittest.TestCase):
         self.assertIsNone(self.e.duplicate_parent(section,paths[3],[paths[0]],info))
         self.assertEqual(self.e.duplicate_parent(section,paths[1],[paths[0]],info),paths[0])
 
+    def test_explicit_parent_overrides_visual_guess_and_survives_snapshot(self):
+        paths=[f['path'] for f in self.frames]
+        section={'id':'report','kind':'reportage','files':paths,'mandatory':{},'main_limit':15,'dup_limit':75,'dup_per_main':5,'scenes':[paths[:3],paths[3:]]}
+        edit={'parents':{paths[3]:paths[0]},'hidden':[paths[6]],'order':[]}
+        with patch.object(self.e,'sections',return_value=([section],[])),patch.object(self.e,'_files',return_value=self.frames):
+            self.e.review(self.sid,{'section':'report','selected':[paths[0],paths[3]],'dups':[paths[3]],'report_edit':edit})
+        with self.e.conn() as c:stored=json.loads(c.execute('SELECT data FROM report_edits WHERE session_id=?',(self.sid,)).fetchone()[0])
+        self.assertEqual(stored,edit)
+        self.assertEqual(self.e.duplicate_parent(section,paths[3],[paths[0]],{f['path']:f for f in self.frames}),paths[0])
+        snap=json.loads(Path(self.e.offline.snapshot(self.sid)).read_text('utf-8'))
+        self.assertEqual(len(snap['tables']['report_edits']),1)
+
+    def test_invalid_parent_or_hidden_selected_does_not_change_selection(self):
+        paths=[f['path'] for f in self.frames]
+        section={'id':'report','kind':'reportage','files':paths,'mandatory':{},'main_limit':15,'dup_limit':75,'dup_per_main':5,'scenes':[paths]}
+        with self.e.conn() as c:before=[tuple(r) for r in c.execute('SELECT * FROM selections')]
+        with patch.object(self.e,'sections',return_value=([section],[])):
+            for edit in ({'parents':{paths[1]:paths[2]}},{'hidden':[paths[0]]},{'parents':{paths[1]:'foreign'}}):
+                with self.assertRaises(ValueError):self.e.review(self.sid,{'section':'report','selected':paths[:2],'dups':[paths[1]],'report_edit':edit})
+        with self.e.conn() as c:self.assertEqual([tuple(r) for r in c.execute('SELECT * FROM selections')],before)
+
+    def test_rebuild_does_not_restore_hidden_frames(self):
+        paths=[f['path'] for f in self.frames]
+        section={'kind':'reportage','files':paths,'scenes':[paths],'report_edit':{'hidden':paths}}
+        self.assertEqual(self.e._pick_common(section,{f['path']:f for f in self.frames},{},{}),([],[]))
+
 
 if __name__=='__main__':unittest.main()
