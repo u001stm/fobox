@@ -49,6 +49,18 @@ class LabTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.lab.start_import({'source':str(self.card),'session':'111111111111'})
         with self.assertRaises(ValueError):self.lab.start_render({'session':'111111111111','paths':[]})
 
+    def test_processing_is_unit_only_without_changing_legacy_channels(self):
+        sid=self.imported()
+        st,rev=self.u.state(sid);st['channel']='crous'
+        self.u.save(sid,st,rev)
+        self.assertEqual(self.u.state(sid)[0]['channel'],'unit')
+        self.assertEqual(list(self.u.project(sid)['channels']),['unit'])
+        with self.e.conn() as c:
+            c.execute("INSERT INTO sessions(id,title,company,source) VALUES('111111111111','Legacy','unit',?)",(str(self.card),))
+        old,revision=self.u.state('111111111111');old['channel']='model'
+        self.u.save('111111111111',old,revision)
+        self.assertEqual(self.u.state('111111111111')[0]['channel'],'model')
+
     def test_nan_and_unknown_recipe_and_unselected_paths_rejected(self):
         for value in ({'exposure':float('nan')},{'exposure':4},{'wb':'bad'},{'unknown':1}):
             with self.assertRaises(ValueError):recipe(value)

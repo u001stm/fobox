@@ -75,7 +75,9 @@ class UnitWorkspace:
             'jpeg': {}, 'media': {}, 'threshold': .55 if session['company']=='unitlab' else .45, 'rejected': []}, 0)
 
     def save(self, sid, state, revision):
-        _, files = self.rows(sid)
+        session, files = self.rows(sid)
+        if session['company'] == 'unitlab':
+            state = {**state, 'channel': 'unit'}
         paths = {f['path'] for f in files}
         if state.get('channel') not in CHANNELS:
             raise ValueError('Неизвестный канал')
@@ -254,7 +256,8 @@ class UnitWorkspace:
             metrics = {k: v for k, v in metrics.items() if k != 'per_frame'}
         return {'session': ss, 'files': [{k: f[k] for k in ('path','name','capture_at','kind','flags','brightness','sharpness','preview','analyzed')} for f in files],
                 'state': state, 'revision': rev, 'people': self.people(sid, float(state.get('threshold', .45))), 'metrics': metrics,
-                'metrics_job': self.e.jobs.get(sid + ':unit-metrics'), 'channels': CHANNELS}
+                'metrics_job': self.e.jobs.get(sid + ':unit-metrics'),
+                'channels': {'unit':'UNIT · мультилеерный репортаж'} if ss['company']=='unitlab' else CHANNELS}
 
     def summary(self, channel=None):
         with self.e.conn() as c:
