@@ -1440,21 +1440,18 @@ class Engine:
     # -------------------------------------------------------- previews
     def preview_bytes(self, sid, path, size=640):
         with self.conn() as c:
-            r = c.execute('SELECT preview, orient FROM files WHERE session_id=? AND path=?', (sid, path)).fetchone()
+            r = c.execute('SELECT preview, orient, bytes, capture_at FROM files WHERE session_id=? AND path=?', (sid, path)).fetchone()
         if not r or not r['preview']:
             return None
-        # the key includes the source file's size and time: another card with the same file names
-        # (ANT00264.JPG of a different shoot) must never show the old cached picture
-        src_file = path if r['preview'].startswith('embedded:') else r['preview']
-        try:
-            st_ = os.stat(src_file)
-            stamp = f'{st_.st_size}:{int(st_.st_mtime)}'
-        except OSError:
-            stamp = '?'
-        key = hashlib.sha1(f'{r["preview"]}|{size}|o{r["orient"]}|{stamp}|v3'.encode()).hexdigest()
+        # the key is the frame as it was at import (size and shooting time), never what is on the card now:
+        # a card reused for another shoot (ANT00264 of a different class) must not show its pictures here
+        f_ = r
+        key = hashlib.sha1(f'{r["preview"]}|{size}|o{r["orient"]}|{f_["bytes"]}:{f_["capture_at"]}|v4'.encode()).hexdigest()
         cached = self.cache / f'{key}.jpg'
         if cached.exists():
             return cached.read_bytes()
+        if not self._src_ok(path, f_['bytes'], f_['capture_at'], r['preview']):
+            return None
         data = self._raw_preview(path, r['preview'])
         if data is None:
             return None
@@ -1502,7 +1499,7 @@ class Engine:
     def analyze(self, sid, job=None):
         job = job if job is not None else {}
         with self.conn() as c:
-            rows = c.execute('SELECT path,preview,series FROM files WHERE session_id=? ORDER BY capture_at,name', (sid,)).fetchall()
+            rows = c.execute('SELECT path,preview,series,bytes,capture_at FROM files WHERE session_id=? ORDER BY capture_at,name', (sid,)).fetchall()
         if Image is None:
             job['stage'] = 'Анализ недоступен (нет Pillow)'
             return
@@ -1542,7 +1539,8 @@ class Engine:
             okset = {r_[0] for r_ in c.execute('SELECT path FROM flag_ok WHERE session_id=?', (sid,))}
             for r, res in results:
                 if not res:
-                    c.execute('UPDATE files SET analyzed=0, flags=NULL WHERE session_id=? AND path=?', (sid, r['path']))
+                    if self._src_ok(r['path'], r['bytes'], r['capture_at'], r['preview']):   # a frame no longer on the card keeps its check
+                        c.execute('UPDATE files SET analyzed=0, flags=NULL WHERE session_id=? AND path=?', (sid, r['path']))
                     continue
                 flags = []
                 if res['brightness'] > 242 and res['std'] < 12:
@@ -1582,6 +1580,30 @@ class Engine:
             self.event(c, sid, 'analysis', 'end')
 
     # -------------------------------------------------------- sections
+    _src_memo = {}
+
+    def _src_ok(self, path, size, capture_at, preview=None):
+        """Is the source file still the one imported? A memory card is reformatted and reused: the same name
+        ANT00268.ARW may now be a frame of another shoot. Checked by size and by the file time vs the shot time."""
+        k = (path, size, capture_at)
+        hit = self._src_memo.get(k)
+        if hit and time.time() - hit[1] < 15:
+            return hit[0]
+        try:
+            st_ = os.stat(path)
+            ok = st_.st_size == size
+            if ok and capture_at:
+                shot = datetime.strptime(str(capture_at)[:19], '%Y-%m-%d %H:%M:%S')
+                if abs((datetime.fromtimestamp(st_.st_mtime) - shot).total_seconds()) > 26 * 3600:
+                    # file time can be lost by copying; then the shot time written inside the files decides
+                    srcs = [path] + ([preview] if preview and not preview.startswith('embedded:') else [])
+                    times = {(read_meta(Path(q)).get('capture_at') or '')[:19] for q in srcs if os.path.exists(q)} - {''}
+                    ok = not times or str(capture_at)[:19] in times
+        except (OSError, ValueError):
+            ok = False
+        self._src_memo[k] = (ok, time.time())
+        return ok
+
     def _files(self, c, sid):
         return [dict(r) for r in c.execute('SELECT * FROM files WHERE session_id=? ORDER BY capture_at,name', (sid,))]
 
@@ -2354,12 +2376,14 @@ class Engine:
         present = {x['person'] for x in secs}
         absent = [r['name'] for r in people if r['student_id'] not in present]
         slim = [{k: f[k] for k in ('path', 'name', 'capture_at', 'kind', 'frame', 'series', 'flags', 'sharpness', 'brightness', 'analyzed', 'wide')}
-                | {'has_preview': bool(f['preview'])} for f in files]
+                | {'has_preview': bool(f['preview'])} | ({} if self._src_ok(f['path'], f['bytes'], f['capture_at'], f['preview']) else {'gone': 1})
+                for f in files]
         return {'session': dict(s), 'files': slim, 'sections': secs, 'conflicts': conflicts,
                 'selected': sel, 'approved': appr, 'absent': absent, 'reasons': reasons, 'dups': dmarks, 'suggested': sugg, 'pillow': Image is not None,
                 'flag_names': FLAG_NAMES,
                 'plan': next((self.plan_check(sid, x) for x in secs if x['kind'] == 'timeline'), []),
                 'faces': self._faces_info(sid, len(files)),
+                'gone': sum(1 for f in slim if f.get('gone')),
                 'jpeg_only': [f['name'] for f in files if f['kind'] != 'raw' and f['frame'] is not None]
                              if any(f['kind'] == 'raw' for f in files) else []}
 
@@ -2518,9 +2542,13 @@ class Engine:
         warnings = list(st['conflicts']) + [f"Не подтверждено: {x['title']} — {x['subtitle']}"
                                              for x in st['sections'] if not st['approved'].get(x['id'])]
         files = {f['path']: f for f in st['files']}
-        ops, names = [], set()
+        ops, names, gone = [], set(), []
 
         def add(p, rel, who='', what='', role=''):
+            f_ = files.get(p)
+            if f_ and f_.get('gone'):
+                gone.append(f_['name'])
+                return
             if str(rel).casefold() in names:
                 raise ValueError('Конфликт имён: ' + str(rel))
             names.add(str(rel).casefold())
@@ -2583,6 +2611,9 @@ class Engine:
             for sec in st['sections']:
                 for p in [x for x in st['selected'].get(sec['id'], []) if x in sec['files'] or x in sec['mandatory']]:
                     add(p, root / safe_name(sec['title']) / files[p]['name'], sec['title'], 'Серия')
+        if gone:
+            raise ValueError(f'{len(gone)} кадров этой съёмки уже нет на карте (на ней другая съёмка или файлы удалены), '
+                             f'например {", ".join(sorted(gone)[:3])}. Вставьте карту или папку с исходниками этой съёмки.')
         if not ops:
             raise ValueError('Не выбрано ни одного кадра')
         update = False
