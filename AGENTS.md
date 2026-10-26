@@ -1,6 +1,6 @@
 # LUMIO release preservation
 
-- The approved version v4.20.1 is frozen. Never rewrite or move its tag or replace its published assets.
+- The approved version v4.20.1 (tag v4.20.1-frozen) is frozen. Never rewrite or move its tag or replace its published assets.
 - Preserve all approved UI and workflow behavior documented in README.md and RELEASE_LOCK.md.
 - New changes require a new version number and release; work in a separate branch and keep the frozen snapshot recoverable.
 - Never commit photo-session catalogs, RAW/JPEG photos, exported orders, credentials, OAuth tokens, or local settings.

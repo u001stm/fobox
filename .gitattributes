@@ -1,0 +1,2 @@
+# Preserve exact bytes of the approved Windows release payload.
+v4/* -text
