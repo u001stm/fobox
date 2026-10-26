@@ -27,7 +27,7 @@ CODE += [Path(__file__).with_name(n) for n in ('lab_workspace.py','lab_render.py
 def build_id():
     """Changes whenever any program file changes: the open page reloads itself, the server restarts."""
     return '-'.join(str(int(p.stat().st_mtime)) for p in CODE + [UI] if p.exists())
-APP_VERSION = '4.22.1-unit-processing-alpha01'
+APP_VERSION = '4.22.2-scene-view'
 
 
 def pick_path(kind):
